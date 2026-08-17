@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>Los Hermanos Camejo · Fase 10.1 Estable</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="toast" class="toast"></div>
+
+<section id="loginView" class="login">
+  <div class="login-card">
+    <div class="logo">HC</div>
+    <h1>Los Hermanos Camejo</h1>
+    <p>Barbería · Gestión profesional</p>
+    <label>Usuario<input id="loginUser" value="admin"></label>
+    <label>PIN<input id="loginPin" type="password" value="1234"></label>
+    <button class="btn primary" id="loginBtn">Entrar</button>
+    <small>Acceso inicial: admin / 1234</small>
+  </div>
+</section>
+
+<div id="adminApp" class="hidden">
+  <header class="topbar">
+    <div>
+      <strong>Los Hermanos Camejo</strong>
+      <span id="todayLabel"></span>
+    </div>
+    <div class="top-actions">
+      <select id="languageSelect" class="top-select"><option value="es">Español</option><option value="en">English</option><option value="pt-BR">Português Brasil</option></select>
+      <select id="currencySelect" class="top-select"><option value="$">USD ($)</option><option value="Bs">Bolívares (Bs)</option><option value="€">Euro (€)</option><option value="R$">Real (R$)</option></select>
+      <button class="btn secondary" id="openClientAppBtn">App Cliente</button>
+      <button class="btn secondary" id="logoutBtn">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="inicio" class="page active">
+
+      <div class="owner-hero">
+        <div class="owner-copy">
+          <span class="tag gold">PANEL DEL DUEÑO</span>
+          <h1>Tu barbería.<br><em>Bajo control.</em></h1>
+          <p>Una vista clara de agenda, ingresos, clientes y equipo.</p>
+          <div class="owner-actions">
+            <button class="btn primary" data-go="citas">+ Nueva cita</button>
+            <button class="btn secondary" data-go="recibos">Ver recibos</button>
+          </div>
+        </div>
+        <div class="owner-score">
+          <span>Rendimiento del mes</span>
+          <strong id="ownerMonthSales">$0.00</strong>
+          <small id="ownerMonthServices">0 servicios realizados</small>
+        </div>
+      </div>
+
+      <div class="executive-stats">
+        <article><div class="stat-icon">◷</div><div><span>Citas hoy</span><b id="ownerTodayAppointments">0</b><small id="ownerNextAppointment">Sin próximas citas</small></div></article>
+        <article><div class="stat-icon">$</div><div><span>Ingresos hoy</span><b id="ownerTodayRevenue">$0.00</b><small id="ownerTodayTransactions">0 movimientos</small></div></article>
+        <article><div class="stat-icon">♙</div><div><span>Clientes</span><b id="ownerClients">0</b><small id="ownerVipClients">0 VIP</small></div></article>
+        <article><div class="stat-icon">▦</div><div><span>Stock crítico</span><b id="ownerLowStock">0</b><small>Revisar inventario</small></div></article>
+      </div>
+
+      <div class="grid2 owner-grid">
+        <div class="panel premium-panel">
+          <div class="panel-head"><div><span class="tag">HOY</span><h3>Próximas citas</h3></div><button class="link" data-go="citas">Ver agenda</button></div>
+          <div id="ownerUpcomingAppointments" class="stack"></div>
+        </div>
+        <div class="panel premium-panel">
+          <div class="panel-head"><div><span class="tag">EQUIPO</span><h3>Rendimiento barberos</h3></div></div>
+          <div id="ownerBarberPerformance" class="stack"></div>
+        </div>
+      </div>
+
+      <div class="grid2 owner-grid">
+        <div class="panel premium-panel">
+          <div class="panel-head"><div><span class="tag">NEGOCIO</span><h3>Servicios más vendidos</h3></div></div>
+          <div id="ownerTopServices" class="stack"></div>
+        </div>
+        <div class="panel premium-panel">
+          <div class="panel-head"><div><span class="tag">ALERTAS</span><h3>Atención necesaria</h3></div></div>
+          <div id="ownerAlerts" class="stack"></div>
+        </div>
+      </div>
+
+      <div class="hero legacy-hero">
+        <div>
+          <span class="tag">PANEL PRINCIPAL</span>
+          <h2>Control de la barbería</h2>
+          <p>Agenda, clientes, caja, inventario y reservas.</p>
+        </div>
+        <button class="btn primary" data-go="citas">+ Nueva cita</button>
+      </div>
+
+      <div class="stats">
+        <article><span>Citas hoy</span><b id="statAppointments">0</b></article>
+        <article><span>Atendidos</span><b id="statFinished">0</b></article>
+        <article><span>Ventas hoy</span><b id="statSales">$0.00</b></article>
+        <article><span>Stock bajo</span><b id="statLowStock">0</b></article>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><h3>Agenda de hoy</h3><button class="link" data-go="citas">Abrir agenda</button></div>
+          <div id="homeAppointments" class="stack"></div>
+        </div>
+        <div class="panel">
+          <h3>Resumen</h3>
+          <div id="homeSummary" class="stack"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="citas" class="page">
+      <div class="page-head">
+        <div><span class="tag">AGENDA</span><h2>Citas</h2></div>
+        <button class="btn primary" id="toggleAppointmentForm">+ Cita</button>
+      </div>
+
+      <div class="panel search-panel"><input id="appointmentSearch" placeholder="Buscar por cliente, barbero o servicio..."></div><div id="appointmentForm" class="panel hidden">
+        <div class="form-grid">
+          <label>Cliente<select id="apptClient"></select></label>
+          <label>Barbero<select id="apptBarber"></select></label>
+          <label>Servicio<select id="apptService"></select></label>
+          <label>Fecha<input id="apptDate" type="date"></label>
+          <label>Hora<input id="apptTime" type="time"></label>
+          <label>Estado<select id="apptStatus"><option>Pendiente</option><option>Confirmada</option></select></label>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="cancelAppointmentForm">Cancelar</button>
+          <button class="btn primary" id="saveAppointmentBtn">Guardar cita</button>
+        </div>
+      </div>
+
+      <div id="appointmentList" class="stack"></div>
+    </section>
+
+    <section id="clientes" class="page">
+      <div class="page-head">
+        <div><span class="tag">CLIENTES</span><h2>Clientes</h2></div>
+        <button class="btn primary" id="toggleClientForm">+ Cliente</button>
+      </div>
+      <div class="panel search-panel"><input id="clientSearch" placeholder="Buscar cliente por nombre o WhatsApp..."></div><div id="clientForm" class="panel hidden">
+        <div class="form-grid">
+          <label>Nombre<input id="clientName"></label>
+          <label>WhatsApp<input id="clientPhone"></label>
+          <label>Cumpleaños<input id="clientBirthday" type="date"></label>
+          <label>Frecuencia<select id="clientFrequency"><option value="15">15 días</option><option value="20" selected>20 días</option><option value="30">30 días</option><option value="45">45 días</option></select></label>
+        </div>
+        <label>Mi estilo<textarea id="clientStyle"></textarea></label>
+        <div class="actions">
+          <button class="btn secondary" id="cancelClientForm">Cancelar</button>
+          <button class="btn primary" id="saveClientBtn">Guardar cliente</button>
+        </div>
+      </div>
+      <div id="clientList" class="cards"></div>
+    </section>
+
+    <section id="barberos" class="page">
+      <div class="page-head">
+        <div><span class="tag">EQUIPO</span><h2>Barberos</h2></div>
+        <button class="btn primary" id="toggleBarberForm">+ Barbero</button>
+      </div>
+      <div id="barberForm" class="panel hidden">
+        <div class="form-grid">
+          <label>Nombre<input id="barberName"></label>
+          <label>Teléfono<input id="barberPhone"></label>
+          <label>Comisión %<input id="barberCommission" type="number" value="40"></label>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="cancelBarberForm">Cancelar</button>
+          <button class="btn primary" id="saveBarberBtn">Guardar barbero</button>
+        </div>
+      </div>
+      <div id="barberList" class="cards"></div>
+    </section>
+
+    <section id="caja" class="page">
+      <div class="page-head">
+        <div><span class="tag">CAJA</span><h2>Movimientos</h2></div>
+        <button class="btn primary" id="toggleCashForm">+ Movimiento</button>
+      </div>
+      <div id="cashForm" class="panel hidden">
+        <div class="form-grid">
+          <label>Tipo<select id="cashType"><option>Ingreso</option><option>Gasto</option></select></label>
+          <label>Concepto<input id="cashConcept"></label>
+          <label>Monto<input id="cashAmount" type="number" step=".01"></label>
+          <label>Método<select id="cashMethod"><option>Efectivo</option><option>Pago móvil</option><option>Transferencia</option><option>Divisa</option></select></label>
+          <label>Fecha<input id="cashDate" type="date"></label>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="cancelCashForm">Cancelar</button>
+          <button class="btn primary" id="saveCashBtn">Guardar movimiento</button>
+        </div>
+      </div>
+      <div id="cashList" class="stack"></div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><span class="tag">PEDIDOS CLIENTE</span><h3>Reservados / pendientes de pago</h3></div>
+        </div>
+        <p class="muted">El stock todavía no se descuenta. Se descuenta únicamente al pulsar “Cobrar y entregar”.</p>
+        <div id="cashShopOrders" class="stack"></div>
+      </div>
+
+    </section>
+
+    <section id="inventario" class="page">
+      <div class="page-head">
+        <div><span class="tag">INVENTARIO</span><h2>Stock</h2></div>
+        <button class="btn primary" id="toggleProductForm">+ Producto</button>
+      </div>
+      <div class="panel search-panel"><input id="productSearch" placeholder="Buscar producto..."></div><div class="stats">
+        <article><span>Productos</span><b id="invCount">0</b></article>
+        <article><span>Bajo stock</span><b id="invLow">0</b></article>
+        <article><span>Valor</span><b id="invValue">$0.00</b></article>
+        <article><span>Movimientos</span><b id="invMoves">0</b></article>
+      </div>
+      <div id="productForm" class="panel hidden">
+        <div class="form-grid">
+          <label>Producto<input id="productName"></label>
+          <label>Categoría<select id="productCategory"><option>Insumo</option><option>Venta</option><option>Herramienta</option><option>Limpieza</option></select></label>
+          <label>Stock<input id="productStock" type="number"></label>
+          <label>Mínimo<input id="productMin" type="number"></label>
+          <label>Costo<input id="productCost" type="number" step=".01"></label>
+          <label>Precio<input id="productPrice" type="number" step=".01"></label>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="cancelProductForm">Cancelar</button>
+          <button class="btn primary" id="saveProductBtn">Guardar producto</button>
+        </div>
+      </div>
+      <div id="productList" class="cards"></div>
+      <div class="panel"><h3>Movimientos de stock</h3><div id="stockMoveList" class="stack"></div></div>
+    </section>
+
+
+    <section id="servicios" class="page">
+      <div class="page-head">
+        <div><span class="tag">SERVICIOS</span><h2>Catálogo de servicios</h2></div>
+        <button class="btn primary" id="toggleServiceForm">+ Servicio</button>
+      </div>
+      <div class="panel search-panel"><input id="serviceSearch" placeholder="Buscar servicio..."></div><div id="serviceForm" class="panel hidden">
+        <input id="serviceEditId" type="hidden">
+        <div class="form-grid">
+          <label>Nombre<input id="serviceName"></label>
+          <label>Precio<input id="servicePrice" type="number" step=".01"></label>
+          <label>Duración (min)<input id="serviceDuration" type="number" value="40"></label>
+        </div>
+        <label>Descripción<textarea id="serviceDescription"></textarea></label>
+        <div class="actions">
+          <button class="btn secondary" id="cancelServiceForm">Cancelar</button>
+          <button class="btn primary" id="saveServiceBtn">Guardar servicio</button>
+        </div>
+      </div>
+      <div id="serviceList" class="cards"></div>
+    </section>
+
+
+    <section id="usuarios" class="page">
+      <div class="page-head">
+        <div><span class="tag">USUARIOS</span><h2>Roles y permisos</h2></div>
+        <button class="btn primary" id="toggleUserForm">+ Usuario</button>
+      </div>
+      <div id="userForm" class="panel hidden">
+        <input id="userEditId" type="hidden">
+        <div class="form-grid">
+          <label>Nombre<input id="userName"></label>
+          <label>Usuario<input id="userLogin"></label>
+          <label>PIN<input id="userPin" inputmode="numeric"></label>
+          <label>Rol<select id="userRole"><option>Administrador</option><option>Recepción</option><option>Barbero</option></select></label>
+        </div>
+        <div id="rolePreview" class="permission-box"></div>
+        <div class="actions">
+          <button class="btn secondary" id="cancelUserForm">Cancelar</button>
+          <button class="btn primary" id="saveUserBtn">Guardar usuario</button>
+        </div>
+      </div>
+      <div id="userList" class="cards"></div>
+    </section>
+
+
+    <section id="recibos" class="page">
+      <div class="page-head"><div><span class="tag">RECIBOS</span><h2>Historial de recibos</h2></div></div>
+      <div class="panel form-grid">
+        <label>Desde<input id="receiptFrom" type="date"></label>
+        <label>Hasta<input id="receiptTo" type="date"></label>
+      </div>
+      <div id="receiptList" class="stack"></div>
+    </section>
+
+
+    <section id="autorizaciones" class="page">
+      <div class="page-head">
+        <div><span class="tag">SEGURIDAD</span><h2>Solicitudes de autorización</h2></div>
+      </div>
+      <div class="stats">
+        <article><span>Pendientes</span><b id="approvalPendingCount">0</b></article>
+        <article><span>Aprobadas</span><b id="approvalApprovedCount">0</b></article>
+        <article><span>Rechazadas</span><b id="approvalRejectedCount">0</b></article>
+        <article><span>Solicitadas hoy</span><b id="approvalTodayCount">0</b></article>
+      </div>
+      <div class="panel">
+        <h3>Pendientes de administrador</h3>
+        <div id="approvalList" class="stack"></div>
+      </div>
+      <div class="panel">
+        <h3>Historial</h3>
+        <div id="approvalHistory" class="stack"></div>
+      </div>
+    </section>
+
+
+    <section id="reportes" class="page">
+      <div class="page-head"><div><span class="tag">ANÁLISIS</span><h2>Reportes del negocio</h2></div><button class="btn secondary" id="printReportBtn">Imprimir</button></div>
+      <div class="panel form-grid">
+        <label>Desde<input id="reportFrom" type="date"></label>
+        <label>Hasta<input id="reportTo" type="date"></label>
+      </div>
+      <div class="stats">
+        <article><span>Ingresos</span><b id="reportRevenue">$0.00</b></article>
+        <article><span>Servicios</span><b id="reportServices">0</b></article>
+        <article><span>Clientes atendidos</span><b id="reportClients">0</b></article>
+        <article><span>Ticket promedio</span><b id="reportAverage">$0.00</b></article>
+      </div>
+      <div class="grid2">
+        <div class="panel"><h3>Rendimiento por barbero</h3><div id="reportBarbers" class="stack"></div></div>
+        <div class="panel"><h3>Servicios vendidos</h3><div id="reportTopServices" class="stack"></div></div>
+      </div>
+    </section>
+
+    <section id="auditoria" class="page">
+      <div class="page-head"><div><span class="tag">SEGURIDAD</span><h2>Historial de acciones</h2></div></div>
+      <div class="panel search-panel"><input id="auditSearch" placeholder="Buscar usuario, acción o módulo..."></div>
+      <div id="auditList" class="stack"></div>
+    </section>
+
+    <section id="configuracion" class="page">
+      <div class="page-head"><div><span class="tag">NEGOCIO</span><h2>Configuración</h2></div></div>
+      <div class="panel">
+        <div class="form-grid">
+          <label>Nombre de la barbería<input id="configBusinessName"></label>
+          <label>WhatsApp<input id="configWhatsapp"></label>
+          <label>Dirección<input id="configAddress"></label>
+          <label>Horario apertura<input id="configOpen" type="time"></label>
+          <label>Horario cierre<input id="configClose" type="time"></label>
+          <label>Puntos por servicio<input id="configPoints" type="number"></label>
+        </div>
+        <div class="actions"><button class="btn primary" id="saveConfigBtn">Guardar configuración</button></div>
+      </div>
+      <div class="panel">
+        <h3>Respaldo de información</h3>
+        <p class="muted">Guarda una copia completa de clientes, citas, caja, inventario, recibos, permisos y configuración.</p>
+        <div class="actions">
+          <button class="btn secondary" id="exportBackupBtn">Descargar respaldo</button>
+          <label class="btn secondary file-btn">Restaurar respaldo<input id="importBackupInput" type="file" accept=".json"></label>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="clienteConfig" class="page">
+      <div class="page-head">
+        <div><span class="tag">APP CLIENTE</span><h2>Personalización visual</h2></div>
+        <button class="btn secondary" id="previewClientBtn">Vista previa</button>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h3>Identidad</h3>
+          <div class="form-grid">
+            <label>Nombre visible<input id="clientBrandName"></label>
+            <label>Frase principal<input id="clientHeroTitle"></label>
+            <label>Frase secundaria<input id="clientHeroSubtitle"></label>
+            <label>Modo visual<select id="clientThemeMode"><option value="light">Claro elegante</option><option value="dark">Oscuro premium</option></select></label>
+          </div>
+          <label>Logo de la barbería<input id="clientLogoFile" type="file" accept="image/*"></label>
+          <div class="image-preview-wrap"><img id="clientLogoPreview" class="image-preview square" alt="Logo"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Portada</h3>
+          <label>Fondo de portada<input id="clientBackgroundFile" type="file" accept="image/*"></label>
+          <div class="image-preview-wrap"><img id="clientBackgroundPreview" class="image-preview banner" alt="Fondo"></div>
+          <div class="form-grid">
+            <label>Color principal<input id="clientPrimaryColor" type="color" value="#c89a4b"></label>
+            <label>Color secundario<input id="clientSecondaryColor" type="color" value="#111111"></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Redes y plataformas</h3>
+        <div class="form-grid">
+          <label>WhatsApp<input id="clientWhatsappLink" placeholder="https://wa.me/..."></label>
+          <label>Instagram<input id="clientInstagramLink" placeholder="https://instagram.com/..."></label>
+          <label>TikTok<input id="clientTiktokLink" placeholder="https://tiktok.com/@..."></label>
+          <label>Facebook<input id="clientFacebookLink" placeholder="https://facebook.com/..."></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><span class="tag">PROMOCIONES</span><h3>Promociones visibles al cliente</h3></div><button class="btn primary" id="addPromotionBtn">+ Promoción</button></div>
+        <div id="promotionEditorList" class="stack"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><span class="tag">EQUIPO</span><h3>Fotos de barberos</h3></div></div>
+        <p class="muted">Puedes escoger una foto desde la galería del teléfono o computadora.</p>
+        <div id="barberPhotoEditor" class="cards"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="saveClientCustomizationBtn">Guardar App Cliente</button>
+      </div>
+    </section>
+
+
+    <section id="clienteSolicitudes" class="page">
+      <div class="page-head">
+        <div><span class="tag">APP CLIENTE</span><h2>Solicitudes y actividad</h2></div>
+      </div>
+      <div class="stats">
+        <article><span>Reservas online</span><b id="metricOnlineBookings">0</b></article>
+        <article><span>Reprogramaciones</span><b id="metricReschedules">0</b></article>
+        <article><span>Cancelaciones</span><b id="metricCancellations">0</b></article>
+        <article><span>Compras solicitadas</span><b id="metricShopOrders">0</b></article>
+      </div>
+      <div class="grid2">
+        <div class="panel"><div class="panel-head"><div><span class="tag">PENDIENTES</span><h3>Solicitudes del cliente</h3></div></div><div class="permission-note">Las compras aprobadas quedan <strong>reservadas</strong>. El inventario real solo se descuenta cuando Caja/Administrador cobra y entrega.</div><div id="clientRequestAdminList" class="stack"></div></div>
+        <div class="panel"><div class="panel-head"><div><span class="tag">HISTORIAL</span><h3>Actividad reciente</h3></div></div><div id="clientActivityAdminList" class="stack"></div></div>
+      </div>
+    </section>
+
+
+    <section id="personal" class="page">
+      <div class="page-head">
+        <div><span class="tag">EQUIPO</span><h2>Personal</h2></div>
+        <button class="btn primary" id="toggleEmployeeForm">+ Empleado</button>
+      </div>
+
+      <div id="employeeForm" class="panel hidden">
+        <input id="employeeEditId" type="hidden">
+        <div class="form-grid">
+          <label>Nombre<input id="employeeName"></label>
+          <label>Cargo<select id="employeeRole"><option>Barbero</option><option>Recepción</option><option>Administrador</option><option>Asistente</option></select></label>
+          <label>Teléfono<input id="employeePhone"></label>
+          <label>PIN<input id="employeePin" inputmode="numeric"></label>
+          <label>Comisión servicios %<input id="employeeServiceCommission" type="number" value="40"></label>
+          <label>Comisión productos %<input id="employeeProductCommission" type="number" value="0"></label>
+          <label>Meta mensual<input id="employeeMonthlyGoal" type="number" value="500"></label>
+          <label>Estado<select id="employeeActive"><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
+        </div>
+        <label>Foto<input id="employeePhoto" type="file" accept="image/*"></label>
+        <div class="actions">
+          <button class="btn secondary" id="cancelEmployeeForm">Cancelar</button>
+          <button class="btn primary" id="saveEmployeeBtn">Guardar empleado</button>
+        </div>
+      </div>
+
+      <div id="employeeList" class="cards"></div>
+    </section>
+
+    <section id="asistencia" class="page">
+      <div class="page-head"><div><span class="tag">ASISTENCIA</span><h2>Entrada y salida</h2></div></div>
+
+      <div class="panel">
+        <div class="form-grid">
+          <label>Empleado<select id="attendanceEmployee"></select></label>
+          <label>PIN<input id="attendancePin" type="password" inputmode="numeric"></label>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="clockInBtn">Marcar entrada</button>
+          <button class="btn secondary" id="clockOutBtn">Marcar salida</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <article><span>Trabajando ahora</span><b id="attendanceWorking">0</b></article>
+        <article><span>Entradas hoy</span><b id="attendanceEntries">0</b></article>
+        <article><span>Retardos</span><b id="attendanceLate">0</b></article>
+        <article><span>Horas hoy</span><b id="attendanceHours">0</b></article>
+      </div>
+
+      <div class="panel"><h3>Marcaciones de hoy</h3><div id="attendanceTodayList" class="stack"></div></div>
+    </section>
+
+    <section id="horariosPersonal" class="page">
+      <div class="page-head"><div><span class="tag">HORARIOS</span><h2>Horario del personal</h2></div></div>
+      <div class="panel"><label>Empleado<select id="scheduleEmployee"></select></label></div>
+      <div id="scheduleEditor" class="panel"></div>
+    </section>
+
+    <section id="rendimientoPersonal" class="page">
+      <div class="page-head"><div><span class="tag">RENDIMIENTO</span><h2>Metas y comisiones</h2></div><button class="btn secondary" id="printStaffReportBtn">Imprimir</button></div>
+      <div class="panel form-grid">
+        <label>Desde<input id="staffReportFrom" type="date"></label>
+        <label>Hasta<input id="staffReportTo" type="date"></label>
+      </div>
+
+      <div class="grid2">
+        <div class="panel"><h3>Ranking del equipo</h3><div id="staffRanking" class="stack"></div></div>
+        <div class="panel"><h3>Comisiones a pagar</h3><div id="staffCommissions" class="stack"></div></div>
+      </div>
+
+      <div id="staffPerformanceCards" class="cards"></div>
+    </section>
+
+    <section id="historialPersonal" class="page">
+      <div class="page-head"><div><span class="tag">HISTORIAL</span><h2>Historial por empleado</h2></div></div>
+      <div class="panel form-grid">
+        <label>Empleado<select id="historyEmployee"></select></label>
+        <label>Desde<input id="historyFrom" type="date"></label>
+        <label>Hasta<input id="historyTo" type="date"></label>
+      </div>
+      <div class="grid2">
+        <div class="panel"><h3>Asistencia</h3><div id="employeeAttendanceHistory" class="stack"></div></div>
+        <div class="panel"><h3>Ventas y servicios</h3><div id="employeeSalesHistory" class="stack"></div></div>
+      </div>
+      <div class="panel">
+        <h3>Resumen de pago</h3>
+        <div id="employeePaySummary" class="pay-summary"></div>
+        <div class="actions"><button class="btn secondary" id="printEmployeePayBtn">Imprimir resumen</button></div>
+      </div>
+    </section>
+
+
+    <section id="ausenciasPersonal" class="page">
+      <div class="page-head">
+        <div><span class="tag">PERSONAL</span><h2>Ausencias y días libres</h2></div>
+        <button class="btn primary" id="addAbsenceBtn">+ Registrar ausencia</button>
+      </div>
+      <div class="panel">
+        <div class="form-grid">
+          <label>Empleado<select id="absenceEmployee"></select></label>
+          <label>Tipo<select id="absenceType"><option>Día libre</option><option>Ausencia justificada</option><option>Ausencia no justificada</option><option>Vacaciones</option><option>Permiso</option></select></label>
+          <label>Desde<input id="absenceFrom" type="date"></label>
+          <label>Hasta<input id="absenceTo" type="date"></label>
+        </div>
+        <label>Nota<textarea id="absenceNote"></textarea></label>
+        <div class="actions"><button class="btn primary" id="saveAbsenceBtn">Guardar</button></div>
+      </div>
+      <div id="absenceList" class="stack"></div>
+    </section>
+
+    <section id="nominaPersonal" class="page">
+      <div class="page-head">
+        <div><span class="tag">NÓMINA</span><h2>Pago y comisiones</h2></div>
+        <button class="btn secondary" id="printPayrollBtn">Imprimir resumen</button>
+      </div>
+      <div class="panel form-grid">
+        <label>Empleado<select id="payrollEmployee"></select></label>
+        <label>Desde<input id="payrollFrom" type="date"></label>
+        <label>Hasta<input id="payrollTo" type="date"></label>
+      </div>
+      <div class="stats">
+        <article><span>Horas trabajadas</span><b id="payrollHours">0</b></article>
+        <article><span>Ventas generadas</span><b id="payrollSales">$0.00</b></article>
+        <article><span>Comisiones</span><b id="payrollCommission">$0.00</b></article>
+        <article><span>Ausencias</span><b id="payrollAbsences">0</b></article>
+      </div>
+      <div class="panel"><h3>Detalle</h3><div id="payrollDetail" class="stack"></div></div>
+      <div class="panel"><h3>Recibo de pago</h3><div id="payrollReceipt" class="pay-summary"></div></div>
+    </section>
+
+    <section id="reservas" class="page">
+      <div class="page-head">
+        <div><span class="tag">RESERVAS</span><h2>Reservas cliente</h2></div>
+        <button class="btn primary" id="openClientAppFromReservations">Abrir App Cliente</button>
+      </div>
+      <div class="panel">
+        <p>Las reservas hechas desde la App Cliente aparecen automáticamente en la agenda.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="active" data-page="inicio">⌂<span>Inicio</span></button>
+    <button data-page="citas">◷<span>Citas</span></button>
+    <button data-page="clientes">♙<span>Clientes</span></button>
+    <button data-page="barberos">✂<span>Barberos</span></button>
+    <button data-page="caja">$<span>Caja</span></button>
+    <button data-page="inventario">▦<span>Stock</span></button><button data-page="servicios">✦<span>Servicios</span></button><button data-page="usuarios">♜<span>Roles</span></button><button data-page="recibos">▧<span>Recibos</span></button><button data-page="autorizaciones">✓<span>Autorizar</span></button><button data-page="reportes">▥<span>Reportes</span></button><button data-page="auditoria">⌁<span>Historial</span></button><button data-page="configuracion">⚙<span>Config.</span></button><button data-page="clienteConfig">✦<span>App Cliente</span></button><button data-page="clienteSolicitudes">◎<span>Solicitudes</span></button><button data-page="personal">♜<span>Personal</span></button><button data-page="asistencia">✓<span>Asistencia</span></button><button data-page="horariosPersonal">◷<span>Horarios</span></button><button data-page="rendimientoPersonal">★<span>Rendimiento</span></button><button data-page="historialPersonal">▤<span>Historial</span></button><button data-page="ausenciasPersonal">⊘<span>Ausencias</span></button><button data-page="nominaPersonal">$<span>Nómina</span></button>
+    <button data-page="reservas">⌁<span>Reservas</span></button>
+  </nav>
+</div>
+
+<div id="clientApp" class="client-app hidden">
+  <div class="client-shell">
+    <div class="client-top">
+      <div class="client-brand"><img id="clientBrandLogo" class="client-brand-logo" alt="Logo"><div><strong id="clientBrandNameView">Los Hermanos Camejo</strong><span id="clientBrandTagline">Reserva tu estilo</span></div></div>
+      <button class="btn secondary" id="closeClientAppBtn">Cerrar</button>
+    </div>
+
+    <section id="clientHome" class="client-page active">
+      <div class="client-hero">
+        <div>
+          <span class="client-badge">BARBERÍA</span>
+          <h1 id="clientHeroTitleView">Tu estilo.<br><em>Tu momento.</em></h1>
+          <p id="clientHeroSubtitleView">Elige servicio, barbero y horario disponible.</p>
+          <button class="btn primary" data-client-go="clientBook">Reservar ahora</button>
+        </div>
+      </div>
+      <div class="client-card"><h3>Servicios</h3><div id="clientServicesHome" class="client-grid"></div></div>
+      <div class="client-card"><h3>Barberos</h3><div id="clientBarbersHome" class="client-grid"></div></div><div class="client-card"><h3>Promociones</h3><div id="clientPromotionsHome" class="client-grid"></div></div><div class="client-card"><h3>Síguenos</h3><div id="clientSocialLinks" class="social-grid"></div></div>
+    </section>
+
+    <section id="clientBook" class="client-page">
+      <div class="client-card"><h2>1. Servicio</h2><div id="clientServicePicker" class="client-grid"></div></div>
+      <div class="client-card"><h2>2. Barbero</h2><div id="clientBarberPicker" class="client-grid"></div></div>
+      <div class="client-card">
+        <h2>3. Fecha y hora</h2>
+        <label>Fecha<input id="clientBookDate" type="date"></label>
+        <div id="clientSlots" class="slot-grid"></div>
+      </div>
+      <div class="client-card">
+        <h2>4. Tus datos</h2>
+        <div class="form-grid">
+          <label>Nombre<input id="clientBookName"></label>
+          <label>WhatsApp<input id="clientBookPhone"></label>
+        </div>
+        <label>Nota<textarea id="clientBookNote"></textarea></label>
+        <div id="clientBookingSummary" class="booking-summary"></div><div class="actions"><button class="btn primary" id="submitClientReservation">Confirmar reserva</button></div>
+      </div>
+    </section>
+
+    <section id="clientAppointments" class="client-page">
+      <div class="client-card">
+        <h2>Mis citas</h2><p class="muted">Consulta, reprograma o solicita cancelar tus próximas citas.</p>
+        <div class="form-grid">
+          <label>WhatsApp<input id="clientLookupPhone"></label>
+          <div style="align-self:end"><button class="btn primary" id="lookupAppointmentsBtn">Buscar</button></div>
+        </div>
+        <div id="clientAppointmentsList" class="stack"></div>
+      </div>
+    </section>
+
+    <section id="clientProfile" class="client-page">
+      <div class="client-card">
+        <h2>Mi perfil</h2>
+        <div class="form-grid">
+          <label>WhatsApp<input id="clientProfilePhone"></label>
+          <div style="align-self:end"><button class="btn primary" id="lookupProfileBtn">Consultar</button></div>
+        </div>
+        <div id="clientProfileData"></div><div id="clientPersonalPromos" class="client-card"></div>
+      </div>
+    </section>
+
+
+
+    <section id="clientHistory" class="client-page">
+      <div class="client-card">
+        <h2>Mi historial</h2>
+        <div class="form-grid">
+          <label>WhatsApp<input id="clientHistoryPhone"></label>
+          <div style="align-self:end"><button class="btn primary" id="lookupHistoryBtn">Consultar historial</button></div>
+        </div>
+        <div id="clientHistorySummary" class="stats"></div>
+        <div id="clientHistoryList" class="stack"></div>
+      </div>
+    </section>
+
+    <section id="clientShop" class="client-page">
+      <div class="client-card">
+        <h2>Tienda</h2>
+        <p class="muted">Productos disponibles para comprar en la barbería.</p>
+        <div id="clientShopList" class="client-grid"></div><div id="clientOrderNoteWrap" class="client-card hidden"><label>Nota para la tienda<textarea id="clientOrderNote" placeholder="Ej.: apartar producto, retirar en la tarde..."></textarea></label></div><div id="clientCart" class="shop-cart hidden"><div><strong id="clientCartCount">0 productos</strong><span id="clientCartTotal">$0.00</span></div><button class="btn primary" id="clientCheckoutBtn">Solicitar compra</button></div>
+      </div>
+    </section>
+
+    <nav class="client-bottom">
+      <button class="active" data-client-page="clientHome">⌂<span>Inicio</span></button>
+      <button data-client-page="clientBook">◷<span>Reservar</span></button>
+      <button data-client-page="clientAppointments">▧<span>Mis citas</span></button>
+      <button data-client-page="clientProfile">★<span>Mi perfil</span></button><button data-client-page="clientHistory">▤<span>Historial</span></button><button data-client-page="clientShop">▣<span>Tienda</span></button>
+    </nav>
+  </div>
+</div>
+
+
+
+<div id="confirmModal" class="modal hidden">
+  <div class="modal-card confirm-card">
+    <div class="confirm-icon">!</div>
+    <h3 id="confirmTitle">Confirmar acción</h3>
+    <p id="confirmMessage" class="muted">¿Deseas continuar?</p>
+    <div class="actions">
+      <button class="btn secondary" id="confirmCancel">Cancelar</button>
+      <button class="btn danger" id="confirmAccept">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div id="editModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <span class="tag">EDITAR</span>
+        <h3 id="editModalTitle">Editar registro</h3>
+      </div>
+      <button class="btn secondary" id="closeEditModal">Cerrar</button>
+    </div>
+    <div id="editModalFields" class="form-grid"></div>
+    <div class="actions">
+      <button class="btn secondary" id="cancelEditModal">Cancelar</button>
+      <button class="btn primary" id="saveEditModal">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/confirm.js"></script>
+<script src="js/validation.js"></script>
+<script src="js/search.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/operations.js"></script>
+<script src="js/security.js"></script>
+<script src="js/clients.js"></script>
+<script src="js/barbers.js"></script>
+<script src="js/appointments.js"></script>
+<script src="js/services.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/cash.js"></script>
+<script src="js/users.js"></script>
+<script src="js/receipts.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/client-customization.js"></script>
+<script src="js/client-requests.js"></script>
+<script src="js/shop-orders.js"></script>
+<script src="js/client-app.js"></script>
+<script src="js/home.js"></script>
+<script src="js/owner-dashboard.js"></script>
+<script src="js/staff.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
