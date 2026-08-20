@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111111">
-<title>Los Hermanos Camejo · Fase 10.1 Estable</title>
+<title>SAMBRIX · Business Platform</title>
 <link rel="stylesheet" href="css/app.css">
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -94,9 +94,9 @@
 
 <section id="loginView" class="login">
   <div class="login-card">
-    <div class="logo">HC</div>
-    <h1>Los Hermanos Camejo</h1>
-    <p>Barbería · Gestión profesional</p>
+    <div class="logo">S</div>
+    <h1>SAMBRIX Business</h1>
+    <p>Acceso seguro a la plataforma</p>
     <label>Usuario<input id="loginUser" value="admin"></label>
     <label>PIN<input id="loginPin" type="password" value="1234"></label>
     <button class="btn primary" id="loginBtn">Entrar</button>
@@ -707,6 +707,12 @@
         <div><span class="tag gold">CENTRO DE CONTROL</span><h1>SAMBRIX SuperAdmin</h1><p>Administra todos tus negocios, suscripciones, usuarios y soporte desde un solo lugar.</p></div>
         <div class="hero-quick"><button class="btn primary" data-page-jump="saasSubscriptions">Ver suscripciones</button><button class="btn secondary" data-page-jump="saasAddons">Add-ons</button><button class="btn secondary" data-page-jump="saasSupport">Modo soporte</button></div>
       </div>
+      <div id="superadminZeroState" class="sambrix-zero-state hidden">
+        <span class="tag gold">PRIMER PASO</span>
+        <h2>Todavía no tienes negocios creados</h2>
+        <p>Empieza creando el primer negocio. Después podrás configurar dueño, servicios, horarios, reservas, cobros y facturación.</p>
+        <button class="btn primary" id="zeroCreateBusinessBtn">+ Crear primer negocio</button>
+      </div>
       <div class="executive-stats sambrix-kpis">
         <article><div class="stat-icon">▦</div><div><span>Negocios activos</span><b id="saasActiveCount">0</b><small>Operando</small></div></article>
         <article><div class="stat-icon">◷</div><div><span>En prueba</span><b id="saasTrialCount">0</b><small>Conversión pendiente</small></div></article>
@@ -843,7 +849,7 @@
       </div>
     </section>
 
-    <div class="modal" id="addonModal">
+    <div class="modal hidden" id="addonModal">
       <div class="modal-card">
         <div class="modal-head"><h3>Crear / editar módulo</h3><button class="icon-btn" id="closeAddonModal">×</button></div>
         <div class="form-grid">
@@ -933,7 +939,7 @@
       <div class="panel"><div class="panel-head"><div><span class="tag">IMPLEMENTACIÓN</span><h3>Estado de cada negocio</h3></div></div><div id="onboardingBusinessList" class="stack"></div></div>
     </section>
 
-    <div class="modal" id="onboardingModal"><div class="modal-card onboarding-card">
+    <div class="modal hidden" id="onboardingModal"><div class="modal-card onboarding-card">
       <div class="modal-head"><div><span class="tag">SAMBRIX BUSINESS</span><h3>Nuevo negocio</h3></div><button class="icon-btn" id="closeOnboardingModal">×</button></div>
       <div class="onboarding-progress"><div id="onboardingProgressBar"></div></div>
       <div class="onboarding-step active" data-ob-step="1"><h3>1. Negocio</h3><div class="form-grid"><label>Nombre<input id="obBusinessName"></label><label>Tipo<select id="obBusinessType"><option>Barbería</option><option>Salón de belleza</option><option>Uñas</option><option>Spa</option><option>Estética</option><option>Otro</option></select></label><label>Teléfono<input id="obBusinessPhone"></label><label>Ciudad<input id="obBusinessCity"></label></div></div>
@@ -1077,7 +1083,7 @@
       </div>
     </section>
 
-    <div class="modal" id="billingPaymentModal"><div class="modal-card">
+    <div class="modal hidden" id="billingPaymentModal"><div class="modal-card">
       <div class="modal-head"><div><span class="tag">COBRO</span><h3>Registrar pago</h3></div><button class="icon-btn" id="closeBillingPaymentModal">×</button></div>
       <input type="hidden" id="billingPaymentBusinessId">
       <div class="form-grid">
@@ -1182,7 +1188,7 @@
       </div>
     </section>
 
-    <div class="modal" id="supportTicketModal"><div class="modal-card">
+    <div class="modal hidden" id="supportTicketModal"><div class="modal-card">
       <div class="modal-head"><div><span class="tag">SOPORTE</span><h3>Nuevo ticket</h3></div><button class="icon-btn" id="closeSupportTicketModal">×</button></div>
       <div class="form-grid">
         <label>Asunto<input id="supportTicketSubject"></label>
@@ -1249,7 +1255,7 @@
       <div class="panel"><div class="panel-head"><div><span class="tag">CHECKLIST</span><h3>Preparación de cada negocio</h3></div><input id="activationSearch" placeholder="Buscar negocio..."></div><div id="activationBusinessList" class="stack"></div></div>
     </section>
 
-    <div class="modal" id="activationModal"><div class="modal-card onboarding-card">
+    <div class="modal hidden" id="activationModal"><div class="modal-card onboarding-card">
       <div class="modal-head"><div><span class="tag">ENTREGA SAMBRIX</span><h3 id="activationModalTitle">Preparar negocio</h3></div><button class="icon-btn" id="closeActivationModal">×</button></div>
       <div id="activationChecklist" class="stack"></div>
       <div class="panel compact-panel"><div class="panel-head"><div><span class="tag">DATOS DE ENTREGA</span><h3>Acceso del dueño</h3></div></div><div id="activationOwnerAccess" class="stack"></div></div>
@@ -1537,7 +1543,7 @@
       </div>
     </section>
 
-    <div class="modal" id="incidentModal"><div class="modal-card">
+    <div class="modal hidden" id="incidentModal"><div class="modal-card">
       <div class="modal-head"><div><span class="tag">SAMBRIX OPS</span><h3>Registrar incidente</h3></div><button class="icon-btn" id="closeIncidentModal">×</button></div>
       <div class="stack">
         <label>Negocio<select id="incidentBusiness"></select></label>
@@ -1663,7 +1669,7 @@
       </div>
     </section>
 
-    <div class="modal" id="updateReleaseModal">
+    <div class="modal hidden" id="updateReleaseModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX UPDATE</span><h3>Nueva actualización</h3></div>
@@ -1992,7 +1998,7 @@
       </div>
     </section>
 
-    <div class="modal" id="bugReportModal">
+    <div class="modal hidden" id="bugReportModal">
       <div class="modal-card onboarding-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX QA</span><h3>Nuevo reporte de error</h3></div>
@@ -2250,7 +2256,7 @@
       </div>
     </section>
 
-    <div class="modal" id="privacyRequestModal">
+    <div class="modal hidden" id="privacyRequestModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX PRIVACY</span><h3>Nueva solicitud de datos</h3></div>
@@ -2505,7 +2511,7 @@
       </div>
     </section>
 
-    <div class="modal" id="opsSupportTicketModal">
+    <div class="modal hidden" id="opsSupportTicketModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX SUPPORT</span><h3>Nuevo caso de soporte</h3></div>
@@ -2561,7 +2567,7 @@
       </div>
     </section>
 
-    <div class="modal" id="serviceNoticeModal">
+    <div class="modal hidden" id="serviceNoticeModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX STATUS</span><h3>Nueva comunicación</h3></div>
@@ -2611,7 +2617,7 @@
       </div>
     </section>
 
-    <div class="modal" id="tenantActivationModal">
+    <div class="modal hidden" id="tenantActivationModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX ONBOARDING</span><h3>Activar negocio</h3></div>
@@ -2657,7 +2663,7 @@
       </div>
     </section>
 
-    <div class="modal" id="trainingHandoffModal">
+    <div class="modal hidden" id="trainingHandoffModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX HANDOFF</span><h3>Iniciar entrega</h3></div>
@@ -2766,7 +2772,7 @@
       </div>
     </section>
 
-    <div class="modal" id="billingOpsPaymentModal">
+    <div class="modal hidden" id="billingOpsPaymentModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX BILLING</span><h3>Registrar cobro</h3></div>
@@ -2881,7 +2887,7 @@
       </div>
     </section>
 
-    <div class="modal" id="discountCreateModal">
+    <div class="modal hidden" id="discountCreateModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX COMMERCIAL</span><h3>Crear descuento</h3></div>
@@ -2948,7 +2954,7 @@
       </div>
     </section>
 
-    <div class="modal" id="invoiceCreateModal">
+    <div class="modal hidden" id="invoiceCreateModal">
       <div class="modal-card">
         <div class="modal-head">
           <div><span class="tag">SAMBRIX INVOICES</span><h3>Nueva factura</h3></div>
@@ -3017,7 +3023,7 @@
         <button class="btn primary" id="refreshReviewGateBtn">Recalcular revisión</button>
       </div>
       <div class="executive-stats">
-        <article><div class="stat-icon">RC</div><div><span>Versión</span><b id="reviewGateVersion">19.6-RC1</b><small>Paquete de revisión</small></div></article>
+        <article><div class="stat-icon">RC</div><div><span>Versión</span><b id="reviewGateVersion">19.7-HOTFIX</b><small>Paquete de revisión</small></div></article>
         <article><div class="stat-icon">✓</div><div><span>Estructura</span><b id="reviewGateStatic">OK</b><small>Estática</small></div></article>
         <article><div class="stat-icon">F</div><div><span>Firebase real</span><b id="reviewGateFirebase">PENDIENTE</b><small>Prueba requerida</small></div></article>
         <article><div class="stat-icon">2X</div><div><span>Dos dispositivos</span><b id="reviewGateDevices">PENDIENTE</b><small>Prueba requerida</small></div></article>

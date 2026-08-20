@@ -539,3 +539,17 @@ body[data-sambrix-role="barber"] [data-superadmin-only]{display:none!important}
 
 /* ===== FASE 19.6 PUERTA DE REVISION ===== */
 .review-row{border-left:4px solid #397653}.review-row.pending{border-left-color:#b47a21}.review-row.blocked{border-left-color:#9a3d34}
+
+/* ===== FASE 19.7 HOTFIX DE ENTRADA ===== */
+.modal.hidden{display:none!important}
+.modal.hidden.open{display:grid!important}
+.sambrix-zero-state{
+  margin:14px 0 18px;
+  border:1px dashed rgba(200,154,75,.55);
+  border-radius:20px;
+  padding:22px;
+  background:linear-gradient(135deg,rgba(200,154,75,.09),rgba(124,85,255,.06));
+}
+.sambrix-zero-state h2{margin:6px 0 8px;font-size:26px}
+.sambrix-zero-state p{margin:0 0 14px;color:var(--muted)}
+.sambrix-zero-state.hidden{display:none!important}

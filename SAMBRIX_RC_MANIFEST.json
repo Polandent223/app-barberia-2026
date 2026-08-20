@@ -1,6 +1,6 @@
 {
   "name": "SAMBRIX",
-  "version": "19.6-RC1",
+  "version": "19.7-HOTFIX",
   "projectId": "app-barberia-2026",
   "files": [
     {
@@ -360,8 +360,8 @@
     },
     {
       "path": "css/app.css",
-      "size": 55919,
-      "sha256": "547f226cd4f26da6e8c3c99fff01e28fae5adb93ec37189c14e5b13f7f26e58f"
+      "size": 56417,
+      "sha256": "0f9e69aec0cbab9de39a8dba9c786f61d380fa4d26a052198823f72103ec4be0"
     },
     {
       "path": "database.rules.json",
@@ -380,8 +380,8 @@
     },
     {
       "path": "index.html",
-      "size": 206443,
-      "sha256": "e24110d007b2a393c7bca7359bc93019f0213d9377b6227326b23d203da1ffc6"
+      "size": 206960,
+      "sha256": "c0311697090bab32a23aabd8c31b33a338070dd13be0780161cb1e357e3d1430"
     },
     {
       "path": "js/appointments.js",
@@ -390,8 +390,8 @@
     },
     {
       "path": "js/auth.js",
-      "size": 570,
-      "sha256": "adbb41cb646ab8a478128bef0ddb3c283a8d6f165e972a9487c283406cdfba4d"
+      "size": 1782,
+      "sha256": "5e4fc3bd91f30b1313c48b7db204bc00d89868bcf9524fdb94bb3804b1caad35"
     },
     {
       "path": "js/barbers.js",
@@ -535,8 +535,8 @@
     },
     {
       "path": "js/saas/saas-admin.js",
-      "size": 11027,
-      "sha256": "6c4f7eabdb1618472ccc84d10366cbfca782fb988fb14d7b6a14bd4989be1c34"
+      "size": 11479,
+      "sha256": "6e76cab8a87d93356f4476a87e4b50c5f13c7b6a35ce3df3cf6ca87c1bc8a179"
     },
     {
       "path": "js/saas/saas-billing.js",
@@ -575,8 +575,8 @@
     },
     {
       "path": "js/saas/saas-main.js",
-      "size": 22389,
-      "sha256": "c95253b9203f82f08f99dfe4eaf0e9731b37270e29784bf829ee2615a4cae525"
+      "size": 22390,
+      "sha256": "2956b36067e30bde60692eaa4adbecdbe19896c8687c7178212cd3e02de87409"
     },
     {
       "path": "js/saas/saas-members-ui.js",
@@ -720,8 +720,8 @@
     },
     {
       "path": "js/saas/sambrix-invoices.js",
-      "size": 6260,
-      "sha256": "2c34a69d801463c210c4c93f099936ea4d392fd90fa9cd512284125db7105566"
+      "size": 6683,
+      "sha256": "88c0b7b6ad956d0f7a96478ce53bb9937b319041dbbd6efca40cbbf82f0487a6"
     },
     {
       "path": "js/saas/sambrix-launch.js",
@@ -765,8 +765,8 @@
     },
     {
       "path": "js/saas/sambrix-portal.js",
-      "size": 2410,
-      "sha256": "fb5fc316016f0bb8e8507fe021522f90755685f7fbfa95631702b858e11ecdb9"
+      "size": 4863,
+      "sha256": "3e1e7ab6d9390add2e8386890ca9d9b2b65449a6da2e4c71f3fbdf536d596b43"
     },
     {
       "path": "js/saas/sambrix-privacy.js",

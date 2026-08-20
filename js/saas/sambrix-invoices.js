@@ -14,8 +14,14 @@ SaaS.nextInvoiceNumber=function(){
 };
 
 SaaS.openInvoiceModal=function(){
+  const businesses=(SaaS.db.businesses||[]).filter(b=>b.id!==SaaS.portal?._demoBusinessId);
+  if(!businesses.length){
+    window.App?.toast?.("Primero debes crear un negocio");
+    SaaS.closeInvoiceModal?.();
+    return;
+  }
   const sel=document.getElementById("invoiceBusiness");
-  sel.innerHTML=(SaaS.db.businesses||[]).map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
+  sel.innerHTML=businesses.map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
   const today=new Date().toISOString().slice(0,10);
   const due=new Date(Date.now()+15*86400000).toISOString().slice(0,10);
 
@@ -36,6 +42,10 @@ SaaS.closeInvoiceModal=function(){
 
 SaaS.createInvoice=function(){
   const businessId=document.getElementById("invoiceBusiness").value;
+  if(!businessId||!(SaaS.db.businesses||[]).some(b=>b.id===businessId&&b.id!==SaaS.portal?._demoBusinessId)){
+    SaaS.closeInvoiceModal?.();
+    return window.App?.toast?.("Primero debes crear un negocio");
+  }
   const number=document.getElementById("invoiceNumber").value.trim().toUpperCase();
   const concept=document.getElementById("invoiceConcept").value.trim();
   const subtotal=Math.max(0,Number(document.getElementById("invoiceSubtotal").value||0));

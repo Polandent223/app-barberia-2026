@@ -53,7 +53,6 @@
     SaaS.renderPlatformSettings?.();
     SaaS.renderWhiteLabel?.();
 
-    document.getElementById("createBusinessBtn")?.addEventListener("click",SaaS.openBusinessModal);
     document.getElementById("savePlatformSettingsBtn")?.addEventListener("click",SaaS.savePlatformSettings);
     document.getElementById("saveWhiteLabelBtn")?.addEventListener("click",SaaS.saveWhiteLabel);
     document.getElementById("publishPublicBusinessBtn")?.addEventListener("click",SaaS.publishPublicBusiness);
@@ -87,6 +86,7 @@
     document.getElementById("securityRefreshBtn")?.addEventListener("click",SaaS.renderSecurity);
     document.getElementById("startTenantActivationBtn")?.addEventListener("click",SaaS.openOnboarding);
     document.getElementById("createBusinessBtn")?.addEventListener("click",SaaS.openOnboarding);
+    document.getElementById("zeroCreateBusinessBtn")?.addEventListener("click",SaaS.openOnboarding);
     document.getElementById("closeTenantActivationModal")?.addEventListener("click",SaaS.closeOnboarding);
     document.getElementById("obPrevBtn")?.addEventListener("click",SaaS.prevOnboarding);
     document.getElementById("obNextBtn")?.addEventListener("click",SaaS.nextOnboarding);

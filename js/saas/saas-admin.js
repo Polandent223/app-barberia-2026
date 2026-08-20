@@ -111,3 +111,19 @@ SaaS.renderSuperAdminPro=function(){
 
 const oldRenderAll_137=SaaS.renderAll;
 SaaS.renderAll=function(){oldRenderAll_137();SaaS.renderSuperAdminPro()};
+
+
+/* ===== FASE 19.7 EMPTY STATE SUPERADMIN ===== */
+SaaS.renderSuperAdminZeroState=function(){
+  const zero=document.getElementById("superadminZeroState");
+  if(!zero)return;
+  const empty=(SaaS.db.businesses||[])
+    .filter(b=>b.id!==SaaS.portal?._demoBusinessId).length===0;
+  zero.classList.toggle("hidden",!empty);
+};
+
+const oldRenderAll_197=SaaS.renderAll;
+SaaS.renderAll=function(){
+  oldRenderAll_197();
+  SaaS.renderSuperAdminZeroState();
+};
