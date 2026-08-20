@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/platform_admins/$(request.auth.uid));
+    }
+
+    function memberDoc(businessId) {
+      return get(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid));
+    }
+
+    function isBusinessMember(businessId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid));
+    }
+
+    function role(businessId) {
+      return memberDoc(businessId).data.role;
+    }
+
+    function canManageBusiness(businessId) {
+      return isSuperAdmin() ||
+        (isBusinessMember(businessId) &&
+          role(businessId) in ['owner','admin','manager']);
+    }
+
+    match /platform_admins/{uid} {
+      allow read: if isSuperAdmin();
+      allow write: if false; // gestionar solo desde entorno administrativo seguro
+    }
+
+    match /businesses/{businessId} {
+      allow read: if isSuperAdmin() || isBusinessMember(businessId);
+      allow create: if isSuperAdmin();
+      allow update: if canManageBusiness(businessId);
+      allow delete: if isSuperAdmin();
+
+      match /members/{uid} {
+        allow read: if isSuperAdmin() || (signedIn() && request.auth.uid == uid) || canManageBusiness(businessId);
+        allow create, update: if isSuperAdmin() || canManageBusiness(businessId);
+        allow delete: if isSuperAdmin() || (canManageBusiness(businessId) && uid != request.auth.uid);
+      }
+
+      match /{document=**} {
+        allow read: if isSuperAdmin() || isBusinessMember(businessId);
+        allow write: if canManageBusiness(businessId);
+      }
+    }
+
+    match /public_businesses/{businessId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || canManageBusiness(businessId);
+
+      match /booking_requests/{requestId} {
+        allow create: if true;
+        allow read: if isSuperAdmin() || canManageBusiness(businessId);
+        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

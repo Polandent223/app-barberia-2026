@@ -1,0 +1,41 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "platform_admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+
+    "businesses": {
+      "$businessId": {
+        ".read": "auth != null && (root.child('platform_admins').child(auth.uid).exists() || data.child('members').child(auth.uid).exists())",
+        ".write": "auth != null && (root.child('platform_admins').child(auth.uid).exists() || data.child('members').child(auth.uid).child('role').val() === 'owner' || data.child('members').child(auth.uid).child('role').val() === 'admin' || data.child('members').child(auth.uid).child('role').val() === 'manager')",
+
+        "members": {
+          "$uid": {
+            ".read": "auth != null && (root.child('platform_admins').child(auth.uid).exists() || auth.uid === $uid || data.parent().child(auth.uid).exists())",
+            ".write": "auth != null && (root.child('platform_admins').child(auth.uid).exists() || data.parent().child(auth.uid).child('role').val() === 'owner' || data.parent().child(auth.uid).child('role').val() === 'admin')"
+          }
+        }
+      }
+    },
+
+    "public_businesses": {
+      "$businessId": {
+        ".read": true,
+        ".write": "auth != null && root.child('platform_admins').child(auth.uid).exists()",
+
+        "booking_requests": {
+          "$requestId": {
+            ".read": "auth != null && (root.child('platform_admins').child(auth.uid).exists() || root.child('businesses').child($businessId).child('members').child(auth.uid).exists())",
+            ".write": true
+          }
+        }
+      }
+    }
+  }
+}
