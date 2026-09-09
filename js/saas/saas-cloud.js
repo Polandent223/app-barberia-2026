@@ -8,19 +8,6 @@ let catalogUnsub=null,stateUnsubs=[];
 function authEmail(){return window.FirebaseBridge?.user?.email||""}
 function A(){return window.App}
 
-function applyCloudCatalog(data){
-  window.__sambrixApplyingCloudCatalog=true;
-  try{
-    if(Array.isArray(data?.businesses))SaaS.db.businesses=data.businesses;
-    if(Array.isArray(data?.plans))SaaS.db.plans=data.plans;
-    if(Array.isArray(data?.supportAudit))SaaS.db.supportAudit=data.supportAudit;
-    SaaS.save();
-    SaaS.renderAll?.();
-  }finally{
-    window.__sambrixApplyingCloudCatalog=false;
-  }
-}
-
 export async function cloudBootstrapPlatform(){
   const cfgRef=doc(firestore,PLATFORM,"config");
   const snap=await getDoc(cfgRef);
@@ -35,15 +22,10 @@ export async function cloudBootstrapPlatform(){
 }
 
 export async function uploadBusinessCatalog(){
-  // Snapshot the arrays before awaiting Firestore so a later local mutation
-  // cannot change the payload of an upload already in progress.
-  const businesses=structuredClone(SaaS.db.businesses||[]);
-  const plans=structuredClone(SaaS.db.plans||[]);
-  const supportAudit=structuredClone(SaaS.db.supportAudit||[]);
   await setDoc(doc(firestore,PLATFORM,"business_catalog"),{
-    businesses,
-    plans,
-    supportAudit,
+    businesses:SaaS.db.businesses,
+    plans:SaaS.db.plans,
+    supportAudit:SaaS.db.supportAudit||[],
     updatedAt:serverTimestamp(),
     updatedBy:authEmail()
   },{merge:true});
@@ -52,13 +34,16 @@ export async function uploadBusinessCatalog(){
 export async function downloadBusinessCatalog(){
   const s=await getDoc(doc(firestore,PLATFORM,"business_catalog"));
   if(!s.exists())return false;
-  applyCloudCatalog(s.data());
+  const d=s.data();
+  if(Array.isArray(d.businesses))SaaS.db.businesses=d.businesses;
+  if(Array.isArray(d.plans))SaaS.db.plans=d.plans;
+  if(Array.isArray(d.supportAudit))SaaS.db.supportAudit=d.supportAudit;
+  SaaS.__applyingCloudCatalog=true;
+  try{SaaS.save();SaaS.renderAll?.();}finally{SaaS.__applyingCloudCatalog=false;}
   return true;
 }
 
 function split(state){
-  // SAMBRIX 1.0: tenant state is separated by operational domain.
-  // This lets Firestore grant staff only the write access their job needs.
   return {
     config:{
       business:state.business||{},users:state.users||[],barbers:state.barbers||[],services:state.services||[],meta:state.meta||{}
@@ -77,27 +62,38 @@ function split(state){
 
 function writablePartsForRole(role){
   role=String(role||"").toLowerCase();
-  if(["superadmin","owner","admin","manager"].includes(role))return null; // all domains
+  if(["superadmin","owner","admin","manager"].includes(role))return null;
   if(role==="reception")return new Set(["crm","schedule","finance"]);
   if(role==="cashier")return new Set(["crm","finance","inventory"]);
   if(role==="barber")return new Set(["schedule","attendance"]);
   return new Set();
 }
 
-export async function uploadCurrentTenant(){
-  const b=SaaS.currentBusiness();if(!b||!A()?.db)return;
-  const parts=split(A().db),allowed=writablePartsForRole(SaaS.session?.role);
+async function writeTenantParts(businessId,state,allowed=null){
+  if(!businessId||!state)throw new Error("Faltan datos del negocio para sincronizar.");
+  const parts=split(state);
   const entries=Object.entries(parts).filter(([name])=>allowed===null||allowed.has(name));
-  if(!entries.length)return;
-  await Promise.all(entries.map(([name,payload])=>setDoc(doc(firestore,BUSINESSES,b.id,"state",name),{
+  if(!entries.length)return false;
+  await Promise.all(entries.map(([name,payload])=>setDoc(doc(firestore,BUSINESSES,businessId,"state",name),{
     payload,updatedAt:serverTimestamp(),updatedBy:authEmail()
   },{merge:true})));
-  SaaS.saveTenantState(b.id,A().db);
+  return true;
+}
+
+export async function uploadTenantState(businessId,state){
+  await writeTenantParts(businessId,state,null);
+  SaaS.saveTenantState?.(businessId,state);
+  return true;
+}
+
+export async function uploadCurrentTenant(){
+  const b=SaaS.currentBusiness();if(!b||!A()?.db)return;
+  const allowed=writablePartsForRole(SaaS.session?.role);
+  const ok=await writeTenantParts(b.id,A().db,allowed);
+  if(ok)SaaS.saveTenantState(b.id,A().db);
 }
 
 export async function downloadTenant(businessId){
-  // Legacy documents are read first so existing businesses migrate without data loss.
-  // New domain documents override the legacy aggregate documents when present.
   const names=["operations","config","history","crm","schedule","finance","inventory","staff","attendance"];
   const snaps=await Promise.all(names.map(n=>getDoc(doc(firestore,BUSINESSES,businessId,"state",n))));
   if(!snaps.some(s=>s.exists()))return false;
@@ -114,8 +110,13 @@ export function watchCatalog(){
   if(catalogUnsub)catalogUnsub();
   catalogUnsub=onSnapshot(doc(firestore,PLATFORM,"business_catalog"),s=>{
     if(!s.exists())return;
-    applyCloudCatalog(s.data());
-  },error=>console.error("[SAMBRIX catalog watch]",error));
+    const d=s.data();
+    if(Array.isArray(d.businesses))SaaS.db.businesses=d.businesses;
+    if(Array.isArray(d.plans))SaaS.db.plans=d.plans;
+    if(Array.isArray(d.supportAudit))SaaS.db.supportAudit=d.supportAudit;
+    SaaS.__applyingCloudCatalog=true;
+    try{SaaS.save();SaaS.renderAll?.();}finally{SaaS.__applyingCloudCatalog=false;}
+  },e=>console.error("[SAMBRIX catalog listener]",e));
 }
 
 export function watchCurrentTenant(){
@@ -129,7 +130,7 @@ export function watchCurrentTenant(){
       if(SaaS.getContext().businessId===b.id){
         A().db=state;A().ensurePermissionsData?.();A().ensureStaff?.();localStorage.setItem(A().KEY,JSON.stringify(state));A().renderAll?.();
       }
-    },error=>console.error(`[SAMBRIX tenant watch:${name}]`,error)));
+    },e=>console.error(`[SAMBRIX tenant listener:${name}]`,e)));
   });
 }
 
