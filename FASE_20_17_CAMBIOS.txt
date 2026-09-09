@@ -1,8 +1,0 @@
-SAMBRIX Fase 20.17 — Separación visual SuperAdmin / Business
-
-Corrección aplicada:
-- El encabezado del SuperAdmin ya no muestra el último negocio seleccionado.
-- En SuperAdmin se muestra: SAMBRIX / SuperAdmin · Administración de plataforma.
-- El indicador de sesión del SuperAdmin muestra Plataforma SAMBRIX.
-- El nombre y tipo del negocio continúan mostrándose únicamente en sesiones Business.
-- No se elimina el contexto interno del negocio: soporte y vistas controladas pueden seguir utilizándolo sin contaminar la identidad global.

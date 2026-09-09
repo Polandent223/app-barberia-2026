@@ -1,7 +1,0 @@
-SAMBRIX FASE 20.32 — CONFIRMACIÓN DE CITAS
-
-1. App Cliente crea una reserva -> debe mostrar "Pendiente de confirmación".
-2. Administración > Citas -> debe mostrar Confirmar / Rechazar.
-3. Confirmar -> cliente ve "Confirmada" y recién entonces se puede Finalizar.
-4. Rechazar -> cliente ve "Rechazada" y el horario vuelve a quedar disponible.
-5. Reprogramación mantiene su flujo de solicitud y aprobación.

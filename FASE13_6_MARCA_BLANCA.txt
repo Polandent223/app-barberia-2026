@@ -1,8 +1,0 @@
-SAMBRIX — Fase 13.6 Marca Blanca
-
-- Nombre/identidad de plataforma configurable por SuperAdmin.
-- Slug público por negocio.
-- App Cliente con Powered by SAMBRIX.
-- Premium puede ocultar Powered by SAMBRIX.
-- Básico/Pro mantienen la marca de plataforma.
-- Slug evita duplicados dentro del catálogo.

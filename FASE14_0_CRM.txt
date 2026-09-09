@@ -1,9 +1,0 @@
-SAMBRIX — Fase 14.0 CRM
-
-- CRM global por negocio.
-- Segmentación automática: Nuevo, Recurrente, VIP y Por recuperar.
-- Visitas y valor registrado por cliente.
-- Última visita.
-- Búsqueda y filtros.
-- Recomendaciones automáticas para retención.
-- Base preparada para campañas, promociones y fidelización.
