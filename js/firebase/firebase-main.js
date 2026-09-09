@@ -1,5 +1,5 @@
 import {FIREBASE_SDK_VERSION} from "./firebase-core.js";
-import {observeFirebaseAuth,firebaseLogin,firebaseCreateFirstAdmin,firebaseLogout} from "./firebase-auth.js";
+import {observeFirebaseAuth,firebaseLogin,firebaseCreateFirstAdmin,firebaseLogout,firebaseSendPasswordReset} from "./firebase-auth.js";
 import {uploadAll,downloadAll,enableRealtime,disableRealtime,scheduleCloudPush} from "./firebase-sync.js";
 import {uploadImages,downloadImages,enableImageRealtime,disableImageRealtime,cloudImageStatus,scheduleImagePush} from "./firebase-images.js";
 
@@ -31,6 +31,7 @@ const Bridge={
   scheduleImagePush,
   loginWithEmailPassword:firebaseLogin,
   logoutUser:firebaseLogout,
+  sendPasswordReset:firebaseSendPasswordReset,
   setError(e){
     console.error("[Firebase]",e);
     status("offline","Error");
@@ -50,171 +51,63 @@ function controls(){
     const el=$(id);
     if(el){
       el.disabled=!on||saasMode;
-      // These buttons target the legacy single-business collections and must
-      // never be used by the multi-tenant production app.
       el.classList.toggle("hidden",saasMode);
     }
   });
   $("firebaseLoginBtn")?.classList.toggle("hidden",on);
-  // First-admin creation only creates an Auth identity; SAMBRIX SuperAdmin
-  // must be provisioned through trusted platform/config setup instead.
   $("firebaseCreateAdminBtn")?.classList.toggle("hidden",on||saasMode);
   $("firebaseLogoutBtn")?.classList.toggle("hidden",!on);
-
   if($("firebaseAccountInfo")){
     $("firebaseAccountInfo").innerHTML=on
       ? `<strong>Conectado:</strong> ${Bridge.user?.email||""}<br><small>Sincronización automática activa · Firebase JS ${FIREBASE_SDK_VERSION}</small>`
       : "Firebase todavía no está conectado.";
   }
-  if($("firebaseRealtimeBtn")){
-    $("firebaseRealtimeBtn").textContent=Bridge.realtime?"✓ Tiempo real activo":"↻ Activar tiempo real";
-  }
+  if($("firebaseRealtimeBtn"))$("firebaseRealtimeBtn").textContent=Bridge.realtime?"✓ Tiempo real activo":"↻ Activar tiempo real";
 }
 
 async function login(){
   const e=$("firebaseEmail")?.value.trim(),p=$("firebasePassword")?.value||"";
   if(!e||!p)return window.App?.toast?.("Escribe correo y contraseña Firebase");
   status("connecting","Conectando...");
-  try{
-    await firebaseLogin(e,p);
-  }catch(err){Bridge.setError(err)}
+  try{await firebaseLogin(e,p)}catch(err){Bridge.setError(err)}
 }
-
 async function createAdmin(){
   const e=$("firebaseEmail")?.value.trim(),p=$("firebasePassword")?.value||"";
   if(!e||!p)return window.App?.toast?.("Escribe correo y contraseña");
   if(p.length<6)return window.App?.toast?.("Usa mínimo 6 caracteres");
   status("connecting","Creando...");
-  try{
-    await firebaseCreateFirstAdmin(e,p);
-  }catch(err){Bridge.setError(err)}
+  try{await firebaseCreateFirstAdmin(e,p)}catch(err){Bridge.setError(err)}
 }
-
 async function logout(){
-  try{
-    disableRealtime();disableImageRealtime();
-    Bridge.realtime=false;Bridge.autoReady=false;
-    await firebaseLogout();
-    status("offline","Desconectado");
-    controls();
-    window.App?.toast?.("Firebase desconectado");
-  }catch(e){Bridge.setError(e)}
+  try{disableRealtime();disableImageRealtime();Bridge.realtime=false;Bridge.autoReady=false;await firebaseLogout();status("offline","Desconectado");controls();window.App?.toast?.("Firebase desconectado")}catch(e){Bridge.setError(e)}
 }
-
-async function upload(){
-  status("connecting","Subiendo...");
-  try{await uploadAll();Bridge.setSynced();window.App?.toast?.("Datos subidos a Firestore")}catch(e){Bridge.setError(e)}
-}
-async function download(){
-  status("connecting","Descargando...");
-  try{await downloadAll();Bridge.setSynced();window.App?.toast?.("Datos descargados")}catch(e){Bridge.setError(e)}
-}
-async function uploadPics(){
-  status("connecting","Subiendo fotos...");
-  try{await uploadImages();Bridge.setSynced();window.App?.toast?.("Imágenes subidas")}catch(e){Bridge.setError(e)}
-}
-async function downloadPics(){
-  status("connecting","Bajando fotos...");
-  try{await downloadImages();Bridge.setSynced();window.App?.toast?.("Imágenes descargadas")}catch(e){Bridge.setError(e)}
-}
-
-function startRealtime(){
-  if(Bridge.realtime)return;
-  enableRealtime();
-  enableImageRealtime();
-  Bridge.realtime=true;
-  controls();
-}
-
-function stopRealtime(){
-  disableRealtime();
-  disableImageRealtime();
-  Bridge.realtime=false;
-  controls();
-}
-
-function realtime(){
-  if(Bridge.realtime){stopRealtime();window.App?.toast?.("Tiempo real desactivado")}
-  else{startRealtime();window.App?.toast?.("Tiempo real activo")}
-}
-
+async function upload(){status("connecting","Subiendo...");try{await uploadAll();Bridge.setSynced();window.App?.toast?.("Datos subidos a Firestore")}catch(e){Bridge.setError(e)}}
+async function download(){status("connecting","Descargando...");try{await downloadAll();Bridge.setSynced();window.App?.toast?.("Datos descargados")}catch(e){Bridge.setError(e)}}
+async function uploadPics(){status("connecting","Subiendo fotos...");try{await uploadImages();Bridge.setSynced();window.App?.toast?.("Imágenes subidas")}catch(e){Bridge.setError(e)}}
+async function downloadPics(){status("connecting","Bajando fotos...");try{await downloadImages();Bridge.setSynced();window.App?.toast?.("Imágenes descargadas")}catch(e){Bridge.setError(e)}}
+function startRealtime(){if(Bridge.realtime)return;enableRealtime();enableImageRealtime();Bridge.realtime=true;controls()}
+function stopRealtime(){disableRealtime();disableImageRealtime();Bridge.realtime=false;controls()}
+function realtime(){if(Bridge.realtime){stopRealtime();window.App?.toast?.("Tiempo real desactivado")}else{startRealtime();window.App?.toast?.("Tiempo real activo")}}
 async function autoSynchronize(){
-  if(!Bridge.connected || Bridge.autoReady)return;
-  // Tenant synchronization is handled by saas-cloud-main.js. Using the
-  // legacy global collection here could mix data between businesses.
+  if(!Bridge.connected||Bridge.autoReady)return;
   if(window.SaaS){Bridge.autoReady=true;status("online","Conectado");return;}
   status("connecting","Sincronizando...");
-  try{
-    // A second/new device should always receive cloud state first.
-    await downloadAll();
-    try{await downloadImages()}catch(e){
-      // Image document may not exist yet; data sync should still continue.
-      console.warn("[Firebase images]",e);
-    }
-    startRealtime();
-    Bridge.autoReady=true;
-    Bridge.setSynced();
-    window.App?.toast?.("Datos sincronizados automáticamente");
-  }catch(err){
-    // If cloud is still empty (first device), do not destroy local data.
-    const msg=String(err?.message||"");
-    if(msg.includes("Todavía no hay datos")){
-      status("online","Conectado");
-      startRealtime();
-      Bridge.autoReady=true;
-    }else{
-      Bridge.setError(err);
-    }
-  }
+  try{await downloadAll();try{await downloadImages()}catch(e){console.warn("[Firebase images]",e)}startRealtime();Bridge.autoReady=true;Bridge.setSynced();window.App?.toast?.("Datos sincronizados automáticamente")}
+  catch(err){const msg=String(err?.message||"");if(msg.includes("Todavía no hay datos")){status("online","Conectado");startRealtime();Bridge.autoReady=true}else Bridge.setError(err)}
 }
-
 function hookPersist(){
-  // SAMBRIX SaaS has a tenant-aware cloud layer. The legacy global sync
-  // (barberia_state) must never be attached in multi-tenant production.
   if(window.SaaS)return;
   const App=window.App;
   if(!App||App.__firebasePersistHook||!App.persist)return;
   const old=App.persist.bind(App);
-  App.persist=function(){
-    const r=old();
-    scheduleCloudPush();
-    return r;
-  };
+  App.persist=function(){const r=old();scheduleCloudPush();return r};
   App.__firebasePersistHook=true;
 }
-
 function bind(){
-  $("firebaseLoginBtn")?.addEventListener("click",login);
-  $("firebaseCreateAdminBtn")?.addEventListener("click",createAdmin);
-  $("firebaseLogoutBtn")?.addEventListener("click",logout);
-  $("firebaseUploadBtn")?.addEventListener("click",upload);
-  $("firebaseDownloadBtn")?.addEventListener("click",download);
-  $("firebaseRealtimeBtn")?.addEventListener("click",realtime);
-  $("firebaseUploadImagesBtn")?.addEventListener("click",uploadPics);
-  $("firebaseDownloadImagesBtn")?.addEventListener("click",downloadPics);
+  $("firebaseLoginBtn")?.addEventListener("click",login);$("firebaseCreateAdminBtn")?.addEventListener("click",createAdmin);$("firebaseLogoutBtn")?.addEventListener("click",logout);$("firebaseUploadBtn")?.addEventListener("click",upload);$("firebaseDownloadBtn")?.addEventListener("click",download);$("firebaseRealtimeBtn")?.addEventListener("click",realtime);$("firebaseUploadImagesBtn")?.addEventListener("click",uploadPics);$("firebaseDownloadImagesBtn")?.addEventListener("click",downloadPics);
 }
-
 function boot(){
-  hookPersist();
-  bind();
-  status("offline","Desconectado");
-  controls();
-
-  observeFirebaseAuth(async u=>{
-    Bridge.user=u;
-    Bridge.connected=!!u;
-    if(u){
-      status("online","Conectado");
-      controls();
-      await autoSynchronize();
-    }else{
-      stopRealtime();
-      Bridge.autoReady=false;
-      status("offline","Desconectado");
-      controls();
-    }
-  });
+  hookPersist();bind();status("offline","Desconectado");controls();
+  observeFirebaseAuth(async u=>{Bridge.user=u;Bridge.connected=!!u;if(u){status("online","Conectado");controls();await autoSynchronize()}else{stopRealtime();Bridge.autoReady=false;status("offline","Desconectado");controls()}});
 }
-
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);
-else boot();
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
