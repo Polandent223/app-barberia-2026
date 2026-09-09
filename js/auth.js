@@ -89,6 +89,17 @@ function ensurePasswordResetButton(){
   return btn;
 }
 
+function loadStaffProductionPatch(){
+  if(document.querySelector('script[data-sambrix-staff-patch]'))return;
+  const script=document.createElement("script");
+  script.src="js/staff-production-patch.js";
+  script.defer=true;
+  script.dataset.sambrixStaffPatch="1";
+  script.onerror=()=>console.error("[SAMBRIX] No se pudo cargar el refuerzo de personal");
+  document.body.appendChild(script);
+}
+
 document.addEventListener("DOMContentLoaded",()=>{
   ensurePasswordResetButton()?.addEventListener("click",App.requestPasswordReset);
+  loadStaffProductionPatch();
 });
