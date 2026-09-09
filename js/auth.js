@@ -75,4 +75,20 @@ App.requestPasswordReset=async function(){
   finally{if(btn){btn.disabled=false;btn.textContent="¿Olvidaste tu contraseña?";}}
 };
 
-document.addEventListener("DOMContentLoaded",()=>App.byId("loginResetBtn")?.addEventListener("click",App.requestPasswordReset));
+function ensurePasswordResetButton(){
+  if(App.byId("loginResetBtn"))return App.byId("loginResetBtn");
+  const loginBtn=App.byId("loginBtn");
+  if(!loginBtn)return null;
+  const btn=document.createElement("button");
+  btn.type="button";
+  btn.id="loginResetBtn";
+  btn.className="link login-reset-link";
+  btn.textContent="¿Olvidaste tu contraseña?";
+  btn.style.cssText="display:block;width:100%;margin:10px 0 4px;text-align:center";
+  loginBtn.insertAdjacentElement("afterend",btn);
+  return btn;
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  ensurePasswordResetButton()?.addEventListener("click",App.requestPasswordReset);
+});
