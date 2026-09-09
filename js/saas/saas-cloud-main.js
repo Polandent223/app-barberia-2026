@@ -59,7 +59,15 @@ async function syncForCurrentSession(){
   return true;
 }
 
-window.SaaSCloudProduction={syncForCurrentSession};
+async function forceUploadCatalog(){
+  if(!window.FirebaseBridge?.connected)throw new Error("Firebase no está conectado.");
+  await window.SaaSAuthAdmin?.refreshAccess?.();
+  if(!window.SaaSAuthAdmin?.isSuperAdmin?.())throw new Error("La sesión actual no tiene permisos de SuperAdmin.");
+  await uploadBusinessCatalog();
+  return true;
+}
+
+window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog};
 
 async function attemptSync(){
   const uid=window.FirebaseBridge?.user?.uid||"";

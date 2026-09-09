@@ -125,6 +125,8 @@ SaaS.tryCreateOwnerAccess=async function({businessId,name,email,password}){
      const u=await SaaSAuthAdmin.createBusinessMember({businessId,name,email,password,role:"owner"});
      return {status:"active",uid:u.uid,detail:"Acceso Firebase del propietario creado correctamente."};
    }catch(error){
+     // In production an incomplete/local-only owner is not acceptable.
+     if(window.App?.PRODUCTION_MODE)throw error;
      if(b){
        const local=await SaaS.createLocalReviewCredential?.(b,password);
        return {status:"local-review",detail:`Firebase pendiente (${error?.message||"error"}). Se creó acceso local de prueba.`};
@@ -133,10 +135,8 @@ SaaS.tryCreateOwnerAccess=async function({businessId,name,email,password}){
    }
  }
 
- if(b&&SaaS.createLocalReviewCredential){
-   return await SaaS.createLocalReviewCredential(b,password);
- }
-
+ if(window.App?.PRODUCTION_MODE)throw new Error("Firebase no está listo para crear el acceso del propietario.");
+ if(b&&SaaS.createLocalReviewCredential)return await SaaS.createLocalReviewCredential(b,password);
  return {status:"pending",detail:"Propietario registrado. Activación Firebase pendiente."};
 };
 
@@ -168,14 +168,21 @@ SaaS.createFromOnboarding=async function(){
  const button=document.getElementById("obCreateBtn");
  if(button?.disabled)return;
  if(button){button.disabled=true;button.textContent="Creando...";}
+ let createdBusinessId="", createdSubscriptionId="", ownerAccessCreated=false;
 
  try{
+   if(window.App?.PRODUCTION_MODE){
+     if(!window.FirebaseBridge?.connected)throw new Error("No hay conexión con Firebase. Vuelve a iniciar sesión e inténtalo de nuevo.");
+     await window.SaaSAuthAdmin?.refreshAccess?.();
+     if(!window.SaaSAuthAdmin?.isSuperAdmin?.())throw new Error("Tu sesión no tiene permisos de SuperAdmin para crear negocios.");
+   }
    const ownerEmail=document.getElementById("obOwnerEmail").value.trim().toLowerCase();
    if((SaaS.db.businesses||[]).some(b=>String(b.ownerEmail||"").toLowerCase()===ownerEmail)){
      throw new Error("Ya existe un negocio con ese correo de propietario.");
    }
 
    const id="biz_"+SaaS.uid(), branchId="branch_"+SaaS.uid(), ownerId="owner_"+SaaS.uid();
+   createdBusinessId=id;
    const next=new Date();next.setMonth(next.getMonth()+1);
    const countryCode=document.getElementById("obCountry").value;
    const country=SaaS.ONBOARDING_TIMEZONES[countryCode]?.name||countryCode;
@@ -232,8 +239,9 @@ SaaS.createFromOnboarding=async function(){
    // Create the commercial subscription at the same time as the business.
    SaaS.db.subscriptions=Array.isArray(SaaS.db.subscriptions)?SaaS.db.subscriptions:[];
    const selectedPlan=SaaS.getPlan?.(b.planId);
+   createdSubscriptionId="sub_"+SaaS.uid();
    SaaS.db.subscriptions.push({
-     id:"sub_"+SaaS.uid(),
+     id:createdSubscriptionId,
      businessId:b.id,
      businessName:b.name,
      planId:b.planId,
@@ -256,10 +264,18 @@ SaaS.createFromOnboarding=async function(){
    const access=await SaaS.tryCreateOwnerAccess({
      businessId:id,name:ownerName,email:ownerEmail,password:ownerPassword
    });
+   ownerAccessCreated=access.status==="active";
 
    b.members[0].authStatus=access.status;
    b.ownerAccessStatus=access.status;
    SaaS.save();
+
+   // Critical production step: persist the SuperAdmin catalog immediately.
+   // Without this, the realtime catalog watcher can restore the previous cloud
+   // version and make the just-created business appear to vanish.
+   if(window.App?.PRODUCTION_MODE){
+     await window.SaaSCloudProduction?.forceUploadCatalog?.();
+   }
 
    SaaS.audit?.("BUSINESS","Negocio y propietario creados por onboarding",{
      branchId,ownerEmail,country,timezone:b.timezone,ownerAccessStatus:access.status
@@ -278,7 +294,23 @@ SaaS.createFromOnboarding=async function(){
 
    SaaS.showOnboardingSuccess(b,access);
  }catch(error){
-   alert(error?.message||"No se pudo crear el negocio.");
+   // Roll back local platform records if production onboarding did not finish.
+   if(createdBusinessId && !ownerAccessCreated){
+     SaaS.db.businesses=(SaaS.db.businesses||[]).filter(b=>b.id!==createdBusinessId);
+     SaaS.db.subscriptions=(SaaS.db.subscriptions||[]).filter(s=>s.id!==createdSubscriptionId && s.businessId!==createdBusinessId);
+     try{localStorage.removeItem(SaaS.tenantStorageKey?.(createdBusinessId)||"")}catch{}
+     SaaS.save();
+     SaaS.renderAll?.();
+   }
+   let message=error?.message||"No se pudo crear el negocio.";
+   if(ownerAccessCreated){
+     message="El negocio y su propietario se crearon en Firebase, pero falló la actualización del catálogo general. No lo vuelvas a crear: pulsa Actualizar o vuelve a iniciar sesión para reintentar la sincronización. Detalle: "+message;
+   }
+   const code=String(error?.code||"");
+   if(code.includes("email-already-in-use"))message="Ese correo ya está registrado en Firebase. Usa otro correo para el propietario o vincula la cuenta existente.";
+   else if(code.includes("permission-denied"))message="Firebase rechazó la operación por permisos. Publica las reglas de Firestore de esta versión y vuelve a intentarlo.";
+   else if(code.includes("weak-password"))message="La contraseña del propietario no cumple la seguridad mínima.";
+   alert(message);
  }finally{
    if(button){button.disabled=false;button.textContent="Crear negocio y propietario";}
  }
