@@ -1,0 +1,21 @@
+FASE 13 — MULTI-NEGOCIO SaaS
+
+Incluye:
+- Superadministrador.
+- Negocios múltiples.
+- Tipos: Barbería, Salón de belleza, Uñas, Spa.
+- Planes Básico / Pro / Premium.
+- Estados Prueba / Activo / Vencido / Suspendido.
+- Próximo pago.
+- Sucursales.
+- Modo soporte con auditoría de entrada/salida.
+- Contexto businessId / branchId.
+- Migración inicial de registros existentes para incluir businessId / branchId.
+- Bloqueo funcional de negocios vencidos o suspendidos.
+
+IMPORTANTE:
+Esta es la base estructural. La siguiente fase debe reforzar Firebase:
+- roles reales en Authentication;
+- aislamiento de Firestore por businessId;
+- SuperAdmin real;
+- Dueño / Administrador / Caja / Barbero / Cliente.

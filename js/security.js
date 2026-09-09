@@ -2,7 +2,7 @@ App.isAdmin=function(){return App.currentUser()?.role==="Administrador"};
 
 App.entityLabel=function(type,id){
   if(type==="client")return App.db.clients.find(x=>x.id===id)?.name||"Cliente";
-  if(type==="barber")return App.db.barbers.find(x=>x.id===id)?.name||"Barbero";
+  if(type==="barber")return App.db.barbers.find(x=>x.id===id)?.name||(App.businessVocabulary?.().staffOne||"Profesional");
   if(type==="product")return App.db.products.find(x=>x.id===id)?.name||"Producto";
   if(type==="service")return App.db.services.find(x=>x.id===id)?.name||"Servicio";
   if(type==="appointment"){

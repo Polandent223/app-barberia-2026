@@ -1,0 +1,12 @@
+SAMBRIX — Fase 14.6 Centro de Notificaciones
+
+- Bandeja de avisos por negocio.
+- Recordatorios de citas próximas.
+- Alertas de stock bajo.
+- Avisos de suscripción próxima a vencer.
+- Avisos de reservas públicas pendientes/aprobadas/rechazadas.
+- Contador de no leídas.
+- Filtros por tipo y estado.
+- Mensajes plantilla preparados.
+- Copiar mensajes para WhatsApp/manual.
+- Base lista para integrar WhatsApp PRO mediante API externa.

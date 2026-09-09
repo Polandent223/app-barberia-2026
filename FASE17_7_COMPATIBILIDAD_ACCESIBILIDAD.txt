@@ -1,0 +1,14 @@
+SAMBRIX — Fase 17.7 Compatibilidad y Accesibilidad
+
+- Revisión de meta viewport.
+- Detección de media queries.
+- Detección básica de campos sin etiqueta.
+- Detección de botones sin nombre.
+- Detección de imágenes sin alt.
+- Comprobación de IDs duplicados.
+- Checklist manual: teléfono vertical/horizontal, tablet, escritorio y teclado.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

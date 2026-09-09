@@ -28,19 +28,35 @@ SaaS.resolveFirebaseSession=async function(){
       return SaaS.session;
     }
 
-    const memberships=await window.SaaSAuthAdmin?.myBusinessMemberships?.()||[];
-    if(memberships.length){
-      const currentCtx=SaaS.getContext?.()||{};
-      const m=memberships.find(x=>x.businessId===currentCtx.businessId)||memberships[0];
-      const b=SaaS.db.businesses.find(x=>x.id===m.businessId);
+    // Production path: resolve the user's business directly from platform_users.
+    // This works on a brand-new device even when the local business catalog is empty.
+    const resolved=await window.SaaSAuthAdmin?.resolveMyBusiness?.();
+    if(resolved?.membership&&resolved?.business){
+      const m=resolved.membership,b=resolved.business;
+      if(!SaaS.db.businesses.some(x=>x.id===b.id)){
+        SaaS.db.businesses.push(b);
+        SaaS.save?.();
+      }
       SaaS.session={
         role:SaaS.normalizeRole(m.role),
         user,
-        businessId:m.businessId,
+        businessId:b.id,
         branchId:b?.branches?.[0]?.id||""
       };
-      if(SaaS.getContext()?.businessId!==m.businessId)SaaS.switchTenant?.(m.businessId,{branchId:SaaS.session.branchId,support:false});
+      if(SaaS.getContext()?.businessId!==b.id)SaaS.switchTenant?.(b.id,{branchId:SaaS.session.branchId,support:false});
       return SaaS.session;
+    }
+
+    // Compatibility fallback for older accounts not yet repaired by SuperAdmin.
+    const memberships=await window.SaaSAuthAdmin?.myBusinessMemberships?.()||[];
+    if(memberships.length){
+      const m=memberships[0];
+      const b=SaaS.db.businesses.find(x=>x.id===m.businessId);
+      if(b){
+        SaaS.session={role:SaaS.normalizeRole(m.role),user,businessId:m.businessId,branchId:b?.branches?.[0]?.id||""};
+        if(SaaS.getContext()?.businessId!==m.businessId)SaaS.switchTenant?.(m.businessId,{branchId:SaaS.session.branchId,support:false});
+        return SaaS.session;
+      }
     }
   }catch(e){console.warn("[SAMBRIX session]",e)}
 
@@ -63,22 +79,76 @@ SaaS.defaultPageForRole=function(role){
   return "inicio";
 };
 
+
+
+/* ===== FASE 19.8 — PERMISSION BRIDGE =====
+   La app original de barbería tenía su propio App.allowed().
+   Cuando SAMBRIX ya conoce el rol SaaS, ese sistema legacy no debe
+   bloquear las páginas globales del SuperAdmin. */
+SaaS.installPermissionBridge=function(){
+  const A=window.App;
+  if(!A||A.__sambrixPermissionBridge)return;
+
+  const legacyAllowed=A.allowed?.bind(A);
+  A.allowed=function(page){
+    const role=SaaS.session?.role||"guest";
+
+    // Con una sesión SAMBRIX válida, manda el RBAC SaaS.
+    if(role!=="guest"){
+      return SaaS.pageAllowed(page);
+    }
+
+    // Antes de autenticarse conservamos compatibilidad con la app original.
+    return legacyAllowed?legacyAllowed(page):false;
+  };
+
+  A.__sambrixPermissionBridge=true;
+};
+
+
+SaaS.installSuperAdminRouteGuard=function(){
+  const A=window.App;
+  if(!A||A.__sambrixSuperAdminRouteGuard)return;
+
+  const baseGo=A.go?.bind(A);
+  if(!baseGo)return;
+
+  A.go=function(page){
+    const role=SaaS.session?.role||"guest";
+    if(role==="superadmin" && ["inicio","citas","clientes","barberos","caja","inventario","servicios","usuarios","recibos","autorizaciones","reportes","auditoria","configuracion"].includes(page)){
+      page="superadmin";
+    }
+    return baseGo(page);
+  };
+
+  A.__sambrixSuperAdminRouteGuard=true;
+};
+
 SaaS.applyRoleUI=function(){
   const role=SaaS.session?.role||"guest";
   document.body.dataset.sambrixRole=role;
 
-  document.querySelectorAll("[data-page]").forEach(btn=>{
+  document.querySelectorAll(".bottom-nav button[data-page]").forEach(btn=>{
     const page=btn.dataset.page;
-    const allowed=SaaS.pageAllowed(page);
-    btn.classList.toggle("hidden",!allowed);
+    let show=SaaS.pageAllowed(page);
+
+    if(role==="superadmin"){
+      show=show && btn.classList.contains("nav-saas");
+    }else if(["owner","admin","manager","staff"].includes(role)){
+      show=show && btn.classList.contains("nav-business");
+    }
+
+    btn.style.display=show?"flex":"none";
   });
 
-  const badge=document.getElementById("sessionRoleBadge");
-  if(badge){
-    badge.classList.toggle("hidden",role==="guest");
-    document.getElementById("sessionRoleName").textContent=role.toUpperCase();
-    const b=SaaS.db.businesses.find(x=>x.id===SaaS.session.businessId);
-    document.getElementById("sessionBusinessName").textContent=role==="superadmin"?"Plataforma SAMBRIX":(b?.name||"");
+  const label=document.getElementById("sambrixRoleLabel");
+  if(label)label.textContent=SaaS.roleLabel(role);
+
+  const tenant=document.getElementById("sambrixTenantLabel");
+  if(tenant){
+    tenant.textContent=role==="superadmin"
+      ?"PLATAFORMA SAMBRIX"
+      :(SaaS.getCurrentBusiness()?.name||"SIN NEGOCIO");
   }
 };
 
@@ -88,14 +158,31 @@ SaaS.routeSession=function(){
     SaaS.portal?.show?.();
     return;
   }
+
+  SaaS.installPermissionBridge?.();
+  SaaS.installSuperAdminRouteGuard?.();
   SaaS.portal?.hide?.();
   document.getElementById("loginView")?.classList.add("hidden");
+  document.getElementById("clientApp")?.classList.add("hidden");
   document.getElementById("adminApp")?.classList.remove("hidden");
   SaaS.applyRoleUI();
-  window.App?.go?.(SaaS.defaultPageForRole(role));
+
+  const target=SaaS.defaultPageForRole(role);
+  window.App?.go?.(target);
+
+  // Verificación defensiva: SuperAdmin jamás debe quedarse en "inicio".
+  if(role==="superadmin"){
+    document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="superadmin"));
+    document.querySelectorAll(".bottom-nav button").forEach(
+      x=>x.classList.toggle("active",x.dataset.page==="superadmin")
+    );
+    SaaS.renderSuperAdminZeroState?.();
+  }
 };
 
 SaaS.secureNavigation=function(){
+  SaaS.installPermissionBridge?.();
+  SaaS.installSuperAdminRouteGuard?.();
   const A=window.App;if(!A||A.__sambrixRoleGuard)return;
   const old=A.go?.bind(A);if(!old)return;
   A.go=function(page){

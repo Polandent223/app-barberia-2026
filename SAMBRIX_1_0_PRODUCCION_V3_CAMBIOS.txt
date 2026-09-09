@@ -1,0 +1,28 @@
+SAMBRIX 1.0 PRODUCCIÓN — V3
+
+Cambios de esta revisión:
+- Cuenta del cliente migrada de almacenamiento local a Firebase Auth + Firestore.
+- Sesión de cliente independiente de la sesión administrativa de SAMBRIX.
+- Cuenta reutilizable desde diferentes dispositivos usando WhatsApp + PIN de 6 a 8 dígitos.
+- Perfil de cliente aislado por businessId y Firebase UID.
+- "Mis citas" consulta las reservas reales del cliente en Firestore.
+- Reservas públicas requieren una cuenta de cliente autenticada.
+- Cada reserva queda vinculada a clientUid/clientId y no puede leer reservas de otros clientes.
+- Solicitudes de cancelación y reprogramación migradas a Firestore.
+- El administrador puede aprobar/rechazar cancelaciones y reprogramaciones desde la bandeja de reservas.
+- Al aprobar una reprogramación se actualizan la cita interna y la reserva pública.
+- Al aprobar una cancelación se cancela la cita interna y la reserva pública.
+- firestore.rules ampliado para proteger client_accounts, booking_requests y booking_change_requests.
+- firebase.json ahora despliega firestore.rules y reduce riesgo de archivos JS/CSS obsoletos por caché.
+- El sistema de cuenta local Fase 20.31 queda bloqueado en el portal público de producción.
+
+REQUISITOS ANTES DE DECLARAR LISTO PARA CLIENTES REALES:
+1. Desplegar Hosting + Firestore Rules al proyecto Firebase de producción.
+2. Confirmar que Email/Password está habilitado en Firebase Authentication.
+3. Ejecutar prueba real con dos negocios distintos y dos clientes distintos.
+4. Verificar alta/login de cliente desde dos dispositivos o navegadores separados.
+5. Verificar reserva -> aprobación -> reprogramación/cancelación -> aprobación/rechazo.
+6. Verificar que Cliente A no puede leer citas de Cliente B ni datos de otro negocio.
+7. Completar prueba de cobro/recibo desde una cita confirmada.
+
+Esta V3 es una versión de trabajo de producción. Todavía no está certificada como versión final comercial.

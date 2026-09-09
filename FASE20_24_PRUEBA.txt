@@ -1,0 +1,20 @@
+SAMBRIX Fase 20.24
+
+1. App Cliente por plan:
+   Básico: Inicio, Reservar, Mis citas, Mi perfil.
+   Pro/Premium: añade Historial y Tienda.
+   Tienda se oculta en Básico porque inventario/catálogo comercial pertenece a Pro.
+   Las secciones ocultas también quedan bloqueadas por navegación.
+
+2. Clientes:
+   - Editar ya no depende del modal genérico.
+   - Historial tiene modal propio.
+   - Agregar nota/fotos tiene formulario propio visible.
+   - Hasta 3 fotos por registro, comprimidas a 320 px/calidad 60%.
+   - Eliminar cliente continúa funcionando.
+
+Prueba:
+A) Básico -> App Cliente: no debe mostrar Historial ni Tienda.
+B) Pro -> App Cliente: deben aparecer Historial y Tienda.
+C) Administrador -> Clientes -> Editar: debe abrir y guardar.
+D) Clientes -> Historial -> Agregar nota y fotos: debe mostrar formulario, vista previa y guardar.

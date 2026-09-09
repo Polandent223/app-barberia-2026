@@ -1,0 +1,19 @@
+SAMBRIX — Fase 13.7 SuperAdmin PRO
+
+IDENTIDAD
+- SAMBRIX: marca principal.
+- SAMBRIX SuperAdmin: panel central.
+- SAMBRIX Business: sistema para dueños.
+- SAMBRIX Client: experiencia para clientes.
+
+NUEVO
+- Dashboard SuperAdmin premium.
+- Buscador global de negocios.
+- KPIs de activos, pruebas, vencidos y MRR.
+- Gráfico MRR.
+- Distribución de negocios por plan.
+- Próximos vencimientos.
+- Actividad reciente de soporte.
+- Tabla global con filtros.
+- Accesos rápidos: abrir negocio, soporte y usuarios.
+- Identidad anterior reemplazada por SAMBRIX.

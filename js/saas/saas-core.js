@@ -15,19 +15,29 @@ SaaS.load=function(){try{const r=localStorage.getItem(SaaS.STORAGE_KEY);SaaS.db=
 SaaS.save=function(){localStorage.setItem(SaaS.STORAGE_KEY,JSON.stringify(SaaS.db))};
 SaaS.uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 SaaS.ensureCurrentBusiness=function(){
+  // Production must never invent a real tenant from the old demo seed.
   if(!SaaS.db.businesses.length){
+    if(window.App?.PRODUCTION_MODE){
+      localStorage.removeItem(SaaS.CONTEXT_KEY);
+      return;
+    }
     const app=window.App,name=app?.db?.business?.name||"Barbería Los Hermanos Camejo";
-    SaaS.db.businesses.push({id:"business-main",name,type:"Barbería",owner:"Propietario",ownerEmail:"",city:"",planId:"plan-pro",status:"Activo",nextPayment:"",createdAt:new Date().toISOString(),branches:[{id:"branch-main",name:"Principal",city:"",active:true}]});
+    const createdAt=new Date().toISOString();
+    const nextPayment=new Date();nextPayment.setMonth(nextPayment.getMonth()+1);
+    SaaS.db.businesses.push({id:"business-main",name,type:"Barbería",owner:"Propietario",ownerEmail:"",city:"",planId:"plan-pro",status:"Activo",nextPayment:nextPayment.toISOString().slice(0,10),createdAt,branches:[{id:"branch-main",name:"Principal",city:"",active:true}]});
     SaaS.save();
   }
-  if(!localStorage.getItem(SaaS.CONTEXT_KEY)){const b=SaaS.db.businesses[0];SaaS.setContext({businessId:b.id,branchId:b.branches[0].id,support:false})}
+  if(!localStorage.getItem(SaaS.CONTEXT_KEY)){
+    const b=SaaS.db.businesses[0];
+    if(b)SaaS.setContext({businessId:b.id,branchId:b.branches?.[0]?.id||"",support:false});
+  }
 };
 SaaS.getContext=function(){try{return JSON.parse(localStorage.getItem(SaaS.CONTEXT_KEY))||{}}catch{return {}}};
 SaaS.setContext=ctx=>localStorage.setItem(SaaS.CONTEXT_KEY,JSON.stringify(ctx));
 SaaS.currentBusiness=function(){const c=SaaS.getContext();return SaaS.db.businesses.find(b=>b.id===c.businessId)||SaaS.db.businesses[0]};
 SaaS.currentBranch=function(){const b=SaaS.currentBusiness(),c=SaaS.getContext();return b?.branches?.find(x=>x.id===c.branchId)||b?.branches?.[0]};
 SaaS.getPlan=id=>SaaS.db.plans.find(p=>p.id===id);
-SaaS.isSuperAdmin=()=>true;
+SaaS.isSuperAdmin=()=>SaaS.session?.role==="superadmin" || !!window.SaaSAuthAdmin?.isSuperAdmin?.();
 SaaS.subscriptionActive=b=>["Activo","Prueba"].includes((b||SaaS.currentBusiness())?.status);
 SaaS.applyTenantContext=function(){const A=window.App;if(!A?.db)return;const b=SaaS.currentBusiness(),br=SaaS.currentBranch();A.db.meta=A.db.meta||{};A.db.meta.businessId=b?.id||"";A.db.meta.branchId=br?.id||"";A.db.meta.businessType=b?.type||"";localStorage.setItem(A.KEY,JSON.stringify(A.db))};
 SaaS.startSupport=function(id){const b=SaaS.db.businesses.find(x=>x.id===id);if(!b)return;const old=SaaS.getContext();SaaS.db.supportAudit.push({id:SaaS.uid(),businessId:b.id,businessName:b.name,action:"ENTER",at:new Date().toISOString()});SaaS.save();SaaS.setContext({businessId:b.id,branchId:b.branches?.[0]?.id||"",support:true,previous:old});SaaS.applyTenantContext();SaaS.renderSupportBanner();window.App?.toast?.(`Modo soporte: ${b.name}`)};

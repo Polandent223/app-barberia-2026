@@ -1,0 +1,30 @@
+SAMBRIX — MODELO SAAS
+
+SUPERADMIN
+Nombre provisional: SAMBRIX
+Rol: SuperAdministrador de Plataforma
+
+PLANES INICIALES
+BÁSICO — $19/mes
+- Citas
+- Clientes
+- Barberos/estilistas
+- App Cliente
+- QR/enlace público
+
+PRO — $39/mes
+- Todo Básico
+- Caja
+- Inventario
+- Personal
+- Reportes
+- Tienda
+
+PREMIUM — $69/mes
+- Todo Pro
+- Marca blanca
+- Sucursales
+- Soporte prioritario
+- Personalización avanzada
+
+El nombre, precios y funciones son editables desde Superadmin.

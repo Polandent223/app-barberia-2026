@@ -1,0 +1,13 @@
+SAMBRIX — Fase 19.1 Alertas de Renovación
+
+- Ventana configurable de primera alerta y prioridad.
+- Detecta vencimientos próximos y atrasados.
+- Registro manual de contacto por negocio y vencimiento.
+- Historial de seguimiento comercial.
+- No cobra ni suspende automáticamente.
+- Usa los datos de cobros/suscripciones ya existentes.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

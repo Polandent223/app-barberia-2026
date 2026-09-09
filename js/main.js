@@ -67,7 +67,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   App.bindSearch("productSearch","products",App.renderInventory);
   App.bindSearch("serviceSearch","services",App.renderServices);
   App.byId("receiptFrom").value=App.today();App.byId("receiptTo").value=App.today();App.byId("receiptFrom").addEventListener("change",App.renderReceipts);App.byId("receiptTo").addEventListener("change",App.renderReceipts);
-  if(localStorage.getItem(App.SESSION_KEY)){App.hide("loginView");App.show("adminApp")}
+  // Production never trusts a legacy localStorage session to open the admin panel.
+  if(!App.PRODUCTION_MODE && localStorage.getItem(App.SESSION_KEY)){App.hide("loginView");App.show("adminApp")}
+  if(App.PRODUCTION_MODE) localStorage.removeItem(App.SESSION_KEY);
   App.renderAll();
   const mode=new URLSearchParams(location.search).get("cliente");if(mode==="app"||mode==="reservar")App.openClientApp();
 });

@@ -1,0 +1,13 @@
+SAMBRIX — Fase 16.3 Incidentes y Operación
+
+- Registro de incidentes por negocio o plataforma.
+- Prioridad baja, media, alta y crítica.
+- Responsable y descripción.
+- Estados abierto, en progreso y resuelto.
+- Filtros y búsqueda.
+- Auditoría de creación y cambios de estado.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

@@ -1,0 +1,12 @@
+SAMBRIX — Fase 18.4 Recuperación y Rollback
+
+- Plan de respuesta si una publicación falla.
+- Secuencia: detener, identificar, respaldar, rollback, smoke test y documentar.
+- Requiere respaldo antes de considerar recuperación lista.
+- Checklist manual de Hosting, datos, segundo dispositivo y permisos.
+- No ejecuta rollback destructivo automáticamente.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

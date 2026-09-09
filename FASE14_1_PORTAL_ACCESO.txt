@@ -1,0 +1,15 @@
+SAMBRIX — Fase 14.1 Portal y Acceso
+
+NUEVO
+- SAMBRIX ahora tiene portada propia.
+- Ya no inicia mostrando directamente la barbería.
+- Tres accesos separados:
+  1. SAMBRIX SuperAdmin
+  2. SAMBRIX Business
+  3. SAMBRIX Client
+- Enlaces públicos de clientes saltan la portada y abren su negocio.
+- Vista Demo para revisar rápidamente el SuperAdmin.
+- Portada responsive con identidad tecnológica SAMBRIX.
+
+IMPORTANTE
+Todavía estamos construyendo. No es el punto de prueba final.

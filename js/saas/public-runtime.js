@@ -42,11 +42,12 @@
         barberId=list[0].id;
       }
       try{
-        await NexoPublicCloud.createPublicBooking(businessId,{name,phone,serviceId:s.id,barberId,date,time,note:A.val("clientBookNote")||"",branchId:p.branch?.id||""});
+        if(!window.SambrixClientCloud?.currentUser?.())throw new Error("Debes iniciar sesión para reservar");
+        await window.SambrixClientCloud.createBooking({serviceId:s.id,barberId,date,time,note:A.val("clientBookNote")||"",branchId:p.branch?.id||""});
         A.toast("Solicitud de reserva enviada");
         A.clientSelection={serviceId:"",barberId:"",time:""};
         A.renderClientBooking();
-      }catch(e){A.toast("No se pudo enviar la reserva")}
+      }catch(e){A.toast(e?.message||"No se pudo enviar la reserva")}
     };
 
     A.openClientApp();

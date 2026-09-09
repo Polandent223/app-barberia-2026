@@ -1,0 +1,13 @@
+SAMBRIX — Fase 18.7 Onboarding de Negocios
+
+- Proceso controlado de activación por negocio.
+- Identidad, servicios, equipo, horarios, reservas, acceso del dueño,
+  plan/facturación y aceptación final.
+- Porcentaje de avance por tenant.
+- Una cuenta no aparece completada hasta marcar todos los controles.
+- Preparado para la futura entrega real a clientes.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

@@ -553,3 +553,336 @@ body[data-sambrix-role="barber"] [data-superadmin-only]{display:none!important}
 .sambrix-zero-state h2{margin:6px 0 8px;font-size:26px}
 .sambrix-zero-state p{margin:0 0 14px;color:var(--muted)}
 .sambrix-zero-state.hidden{display:none!important}
+
+/* ===== FASE 19.8 SUPERADMIN ROUTING ===== */
+body[data-sambrix-role="superadmin"] #adminApp > header .owner-only,
+body[data-sambrix-role="superadmin"] [data-owner-only="true"]{
+  display:none!important;
+}
+
+/* ===== FASE 19.9 — SUPERADMIN SEPARADO DEL NEGOCIO ===== */
+
+body[data-sambrix-role="superadmin"] .nav-business{
+  display:none!important;
+}
+body[data-sambrix-role="superadmin"] .nav-saas{
+  display:flex!important;
+}
+
+body[data-sambrix-role="owner"] .nav-saas,
+body[data-sambrix-role="admin"] .nav-saas,
+body[data-sambrix-role="manager"] .nav-saas,
+body[data-sambrix-role="staff"] .nav-saas{
+  display:none!important;
+}
+
+body[data-sambrix-role="superadmin"] .bottom-nav{
+  overflow-x:auto;
+  overflow-y:hidden;
+  white-space:nowrap;
+  justify-content:flex-start;
+  gap:4px;
+  padding-inline:10px;
+}
+body[data-sambrix-role="superadmin"] .bottom-nav .nav-saas{
+  flex:0 0 auto;
+  min-width:78px;
+}
+
+/* Controles propios del negocio no se muestran en contexto plataforma. */
+body[data-sambrix-role="superadmin"] .owner-only,
+body[data-sambrix-role="superadmin"] [data-business-only="true"]{
+  display:none!important;
+}
+
+.context-pill{
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.06em;
+  border:1px solid rgba(127,127,127,.22);
+  background:rgba(127,127,127,.08);
+}
+
+/* ===== FASE 20.0 SUPERADMIN ORGANIZADO ===== */
+body[data-sambrix-role="superadmin"] .bottom-nav .nav-saas.nav-secondary{display:none!important}
+.superadmin-module-directory{margin:18px 0;padding:18px;border:1px solid rgba(127,127,127,.16);border-radius:22px;background:rgba(255,255,255,.025)}
+.superadmin-module-directory .panel-head{gap:14px;align-items:flex-start}
+.superadmin-module-directory .panel-head input{min-width:240px;max-width:340px}
+.superadmin-module-groups{display:grid;gap:14px;margin-top:14px}
+.module-group{border:1px solid rgba(127,127,127,.12);border-radius:18px;padding:14px;background:rgba(127,127,127,.035)}
+.module-group-title{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.module-group-title>span{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;font-weight:900;font-size:11px;background:rgba(200,154,75,.12);border:1px solid rgba(200,154,75,.22)}
+.module-group-title strong{display:block;font-size:14px}.module-group-title small{display:block;color:var(--muted);margin-top:2px}
+.module-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.super-module-card{display:flex;align-items:center;gap:10px;min-height:62px;padding:10px 12px;border:1px solid rgba(127,127,127,.12);border-radius:14px;background:rgba(127,127,127,.035);cursor:pointer}
+.super-module-card .module-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:10px;font-size:11px;font-weight:900;background:rgba(124,85,255,.1)}
+.super-module-card strong{display:block;font-size:12px}.super-module-card small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.super-module-card.hidden-by-search{display:none!important}
+@media(max-width:760px){.superadmin-module-directory .panel-head{display:block}.superadmin-module-directory .panel-head input{width:100%;max-width:none;margin-top:10px}.module-grid{grid-template-columns:1fr}}
+
+/* ===== FASE 20.1 HOTFIX MANTENIMIENTO / SUPERADMIN ===== */
+.maintenance-public-card{
+  min-width:min(520px,calc(100vw - 32px));
+}
+.maintenance-admin-entry{
+  margin-top:20px;
+  padding-top:14px;
+  border-top:1px solid rgba(255,255,255,.12);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.maintenance-admin-entry>span{
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  opacity:.7;
+}
+.maintenance-admin-entry .btn{
+  white-space:nowrap;
+}
+@media(max-width:560px){
+  .maintenance-admin-entry{
+    align-items:stretch;
+    flex-direction:column;
+  }
+}
+
+.maintenance-quick-control{margin:16px 0;padding:16px 18px;border:1px solid rgba(127,127,127,.16);border-radius:18px;background:rgba(127,127,127,.035);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.maintenance-quick-control h3{margin:5px 0 4px}.maintenance-quick-control p{margin:0}.maintenance-quick-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.status-dot{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;font-size:10px;font-weight:900}.status-dot.ok{background:rgba(46,204,113,.12)}.status-dot.warn{background:rgba(241,196,15,.12)}
+@media(max-width:700px){.maintenance-quick-control{align-items:stretch;flex-direction:column}}
+
+/* ===== FASE 20.3 PERSISTENCIA MANTENIMIENTO ===== */
+.maintenance-quick-control[data-state="operativo"]{
+  border-color:rgba(46,204,113,.26);
+}
+.maintenance-quick-control[data-state="mantenimiento"]{
+  border-color:rgba(241,196,15,.28);
+}
+
+/* ===== FASE 20.4 MODULOS REALES ===== */
+#superadminModuleDirectory .module-group.hidden-by-search{
+  display:none!important;
+}
+#superadminModuleDirectory .super-module-card{
+  text-align:left;
+  font:inherit;
+  color:inherit;
+}
+#superadminModuleDirectory .super-module-card:focus-visible{
+  outline:2px solid rgba(200,154,75,.55);
+  outline-offset:2px;
+}
+
+/* ===== FASE 20.5 ALTA DE NEGOCIO ===== */
+.form-help{
+  margin:10px 0 0;
+  font-size:11px;
+  line-height:1.45;
+  color:var(--muted);
+}
+.onboarding-success{
+  text-align:center;
+  padding:8px 0 4px;
+}
+.onboarding-success .launch-result{
+  margin-top:14px;
+  text-align:left;
+}
+
+/* ===== FASE 20.6 SUSCRIPCIONES ===== */
+.subscription-row{
+  gap:14px;
+}
+.subscription-main{
+  min-width:0;
+  flex:1;
+}
+.subscription-main strong,
+.subscription-main small,
+.subscription-owner{
+  display:block;
+}
+.subscription-owner{
+  margin-top:4px;
+  font-size:10px;
+  color:var(--muted);
+}
+.empty-state{
+  padding:28px 16px;
+  text-align:center;
+}
+.empty-state strong,
+.empty-state small{
+  display:block;
+}
+.empty-state small{
+  margin-top:5px;
+  color:var(--muted);
+}
+
+/* ===== FASE 20.7 CICLO DE RENOVACIÓN ===== */
+.subscription-row .subscription-main small{
+  line-height:1.35;
+}
+
+/* ===== FASE 20.8 ACTIVACIÓN / ENTREGA ===== */
+.activation-row.review{
+  border-color:rgba(241,196,15,.28);
+}
+.activation-check.pending i{
+  opacity:.75;
+}
+.training-access{
+  display:block;
+  margin-top:4px;
+  font-size:10px;
+  font-weight:700;
+}
+.training-access.ok{color:inherit}
+.training-access.pending{color:var(--muted)}
+.training-step.locked{
+  opacity:.62;
+}
+
+/* ===== FASE 20.9 ACCESO PROPIETARIO ===== */
+.access-mode-note{
+  margin-top:12px;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(127,127,127,.16);
+  background:rgba(127,127,127,.04);
+}
+.access-mode-note strong,
+.access-mode-note span{
+  display:block;
+}
+.access-mode-note span{
+  margin-top:4px;
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.45;
+}
+.session-role-badge[data-access-mode="local-review"]{
+  border-color:rgba(241,196,15,.35);
+}
+
+/* ===== FASE 20.18 — CAMBIO DE PLAN ===== */
+.plan-change-card{max-width:620px}
+.plan-change-current strong,
+.plan-change-current span{display:block}
+.plan-change-current span{margin-top:4px;color:var(--muted);font-size:12px}
+.plan-change-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.plan-change-preview-head strong,
+.plan-change-preview-head span{display:block}
+.plan-change-preview-head div>span{margin-top:3px;color:var(--muted);font-size:12px}
+.nav-business.plan-locked{
+  opacity:.34;
+  filter:grayscale(1);
+  cursor:not-allowed;
+}
+
+/* ===== FASE 20.20 — PLAN BUSINESS ===== */
+.nav-business.plan-hidden,
+.nav-business[hidden]{
+  display:none !important;
+}
+.current-plan-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:32px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.12);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  white-space:nowrap;
+}
+.current-plan-badge.hidden{display:none !important}
+
+/* ===== FASE 20.21 — PERSONALIZACIÓN POR PLAN ===== */
+.branding-plan-summary{display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:center;padding:16px 18px;margin-bottom:16px;border:1px solid var(--line);border-radius:18px;background:var(--panel)}
+.branding-plan-summary h3{margin:4px 0 0}
+.branding-plan-pills{display:flex;gap:8px;flex-wrap:wrap}
+.branding-plan-pills span{padding:7px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--line)}
+.branding-plan-pills .upgrade{opacity:.45}
+.plan-control-locked,.plan-section-locked{opacity:.5}
+.plan-section-locked:after{content:"Mejora tu plan para activar esta sección";display:inline-flex;margin-top:10px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:800}
+@media(max-width:700px){.branding-plan-summary{grid-template-columns:1fr}}
+
+/* ===== FASE 20.22 — FOTOS BÁSICAS ===== */
+.catalog-card-photo{width:100%;height:150px;object-fit:cover;border-radius:14px;margin-bottom:10px}
+.catalog-card-photo.professional-photo{height:180px}
+.product-card,.professional-card{overflow:hidden}
+
+/* ===== FASE 20.23 — IMÁGENES E HISTORIAL ===== */
+.mini-avatar{width:42px;height:42px;object-fit:cover;border-radius:50%;flex:0 0 42px}
+.home-appt-row{gap:10px;align-items:center}
+.home-team-strip{display:flex;gap:10px;flex-wrap:wrap;padding:10px 0}
+.home-team-person{display:flex;align-items:center;gap:6px;max-width:150px}
+.client-catalog-photo{width:100%;height:140px;object-fit:cover;border-radius:13px;margin-bottom:8px}
+.client-catalog-photo.professional{height:160px}
+#clientHistoryModal{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.58);display:flex;align-items:center;justify-content:center;padding:18px}
+#clientHistoryModal.hidden{display:none!important}
+.client-history-modal{width:min(760px,96vw);max-height:88vh;overflow:auto}
+.client-history-timeline{display:grid;gap:10px;margin-top:14px}
+.history-event{border:1px solid var(--line);border-radius:14px;padding:12px}
+.history-event p{margin:6px 0}
+.history-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.history-thumbs img{width:78px;height:78px;object-fit:cover;border-radius:10px}
+
+/* ===== FASE 20.24 — FICHA CLIENTE Y APP POR PLAN ===== */
+.plan-client-hidden,[data-client-capability][hidden]{display:none!important}
+#editClientModal,#clientHistoryModal{
+  position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.58);
+  align-items:center;justify-content:center;padding:18px
+}
+#editClientModal:not(.hidden),#clientHistoryModal:not(.hidden){display:flex}
+#editClientModal.hidden,#clientHistoryModal.hidden{display:none!important}
+#clientHistoryEntryForm{margin-top:14px}
+#clientHistoryEntryForm.hidden{display:none!important}
+
+/* ===== FASE 20.25 — PORTADA BÁSICA ===== */
+#clientHome .client-hero.has-business-cover{background-size:cover;background-position:center}
+#clientHome .client-hero.has-business-cover h1,
+#clientHome .client-hero.has-business-cover p,
+#clientHome .client-hero.has-business-cover .client-badge{position:relative;z-index:1}
+
+.client-catalog-photo.product{width:100%;height:150px;object-fit:cover;border-radius:13px;margin-bottom:9px}
+
+/* ===== FASE 20.28 — COLORES DEL NEGOCIO EN APP CLIENTE ===== */
+#clientApp .btn.primary,
+#clientApp .selected-btn,
+#clientApp .slot.selected{
+  background:var(--client-primary,#c89a4b)!important;
+  border-color:var(--client-primary,#c89a4b)!important;
+}
+#clientApp .client-badge,
+#clientApp .qty-badge{
+  color:var(--client-primary,#c89a4b);
+}
+#clientApp .client-service.choice-card.selected,
+#clientApp .client-barber.choice-card.selected{
+  border-color:var(--client-primary,#c89a4b)!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--client-primary,#c89a4b) 20%,transparent);
+}
+#clientApp .client-top{
+  border-bottom-color:var(--client-primary,#c89a4b);
+}
+#clientApp .client-bottom button.active{
+  color:var(--client-primary,#c89a4b)!important;
+}
+/* Fase 20.30 Agenda */
+.schedule-card{max-width:900px}.schedule-week{display:grid;gap:8px;margin:14px 0}.schedule-day{display:grid;grid-template-columns:minmax(120px,1.2fr) 110px 20px 110px minmax(170px,1fr);gap:8px;align-items:center;padding:10px;border:1px solid var(--line,#ddd);border-radius:12px}.slots{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.schedule-day input[type=text]{min-width:0}@media(max-width:700px){.schedule-day{grid-template-columns:1fr 1fr}.schedule-day label,.schedule-day input[type=text]{grid-column:1/-1}}
+
+/* SAMBRIX 20.31 — cuenta privada del cliente */
+.client-auth-2031{padding:28px 16px;max-width:760px;margin:0 auto}.client-auth-card{background:var(--panel,#fff);border:1px solid rgba(127,127,127,.18);border-radius:22px;padding:24px;box-shadow:0 18px 45px rgba(0,0,0,.08)}.client-auth-locked{display:none!important}.client-account-badge{margin-left:auto;display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:14px;background:rgba(127,127,127,.08)}.client-account-badge div{display:flex;flex-direction:column;line-height:1.2}.client-account-badge small{opacity:.7}.client-account-badge.hidden{display:none!important}.client-account-search-hidden{display:none!important}.client-auth-card .permission-note{margin-top:16px}

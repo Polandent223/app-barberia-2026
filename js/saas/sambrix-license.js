@@ -1,13 +1,16 @@
 SaaS.PLAN_LIMITS=SaaS.PLAN_LIMITS||{
   basic:{branches:1,staff:5,users:3,publicBooking:true,reports:true,whiteLabel:false,advancedReports:false},
-  pro:{branches:3,staff:20,users:10,publicBooking:true,reports:true,whiteLabel:true,advancedReports:true},
+  pro:{branches:3,staff:20,users:10,publicBooking:true,reports:true,whiteLabel:false,advancedReports:true},
   premium:{branches:999,staff:999,users:999,publicBooking:true,reports:true,whiteLabel:true,advancedReports:true}
 };
 
-SaaS.planTier=function(plan){
- const n=String(plan?.name||"").toLowerCase();
- if(n.includes("premium")||n.includes("enterprise"))return "premium";
- if(n.includes("pro"))return "pro";
+SaaS.planTier=function(subject){
+ let plan=subject;
+ if(subject?.planId) plan=SaaS.getPlan?.(subject.planId)||subject;
+ const id=String(subject?.planId||plan?.id||"").toLowerCase();
+ const n=String(plan?.name||"").trim().toLowerCase();
+ if(id.includes("premium")||n.includes("premium")||n.includes("enterprise"))return "premium";
+ if(id.includes("pro")||n==="pro"||n.startsWith("pro ")||n.endsWith(" pro")||n.includes("pro"))return "pro";
  return "basic";
 };
 SaaS.licenseFor=function(b){
@@ -22,7 +25,21 @@ SaaS.licenseFor=function(b){
 };
 SaaS.featureAllowed=function(feature,businessId){
  const b=SaaS.db.businesses.find(x=>x.id===(businessId||SaaS.getContext()?.businessId));if(!b)return false;
+
+ // SuperAdmin is never restricted by a tenant's commercial plan.
+ if(String(SaaS.session?.role||"").toLowerCase()==="superadmin")return true;
+
  const l=SaaS.licenseFor(b);if(l.blocked)return false;
+
+ // Business pages use the commercial page matrix.
+ const matrices=Object.values(SaaS.PLAN_FEATURES||{});
+ const knownPages=new Set(matrices.flatMap(x=>Array.isArray(x)?x.filter(v=>v!=="*"):[]));
+ if(knownPages.has(feature)){
+   const pages=SaaS.planFeaturePages?.(l.plan)||SaaS.PLAN_FEATURES?.[b.planId]||[];
+   return pages.includes("*")||pages.includes(feature);
+ }
+
+ // Capabilities such as whiteLabel/advancedReports continue using license limits.
  return l.limits[feature]!==false;
 };
 SaaS.withinLimit=function(kind,businessId,increment=0){
@@ -58,4 +75,8 @@ if(oldRoute_150)SaaS.routeSession=function(){oldRoute_150();setTimeout(()=>SaaS.
 const oldSwitch_150=SaaS.switchTenant;
 if(oldSwitch_150)SaaS.switchTenant=function(id,opts){const r=oldSwitch_150(id,opts);setTimeout(()=>SaaS.guardBusinessLicense(),100);return r};
 const oldRenderAll_150=SaaS.renderAll;
-SaaS.renderAll=function(){oldRenderAll_150();SaaS.renderLicenses()};
+SaaS.renderAll=function(){
+  oldRenderAll_150();
+  SaaS.renderLicenses();
+  SaaS.applyPlanUI?.();
+};

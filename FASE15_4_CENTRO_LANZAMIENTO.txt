@@ -1,0 +1,9 @@
+SAMBRIX — Fase 15.4 Centro de Lanzamiento
+
+- Puerta GO / NO-GO antes de publicar.
+- Ejecuta diagnóstico desde el centro de lanzamiento.
+- Comprueba errores críticos, respaldo, entregas, licencias, auditoría y soporte.
+- Impide registrar un release si hay fallos críticos.
+- Historial de versiones y notas.
+- Registra quién creó cada release.
+- Decisión final: GO, GO con revisión o NO-GO.

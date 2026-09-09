@@ -1,0 +1,24 @@
+SAMBRIX — Fase 19.8 HOTFIX SuperAdmin
+
+Problema corregido:
+- El login reconocía SuperAdmin, pero App.allowed() de la barbería
+  bloqueaba la página global "superadmin".
+- Como consecuencia, quedaba visible el panel "Tu barbería. Bajo control."
+
+Corrección:
+- Puente de permisos entre RBAC SAMBRIX y navegación legacy.
+- Con sesión SaaS válida, App.allowed() usa SaaS.pageAllowed().
+- SuperAdmin se fuerza defensivamente al Centro de Control SAMBRIX.
+- El flujo del dueño sigue entrando a "inicio".
+- El flujo cliente/demo no se modifica.
+
+Resultado esperado:
+- SuperAdmin -> "SAMBRIX SuperAdmin / CENTRO DE CONTROL".
+- Dueño/Business -> panel "Tu barbería. Bajo control."
+- Cliente -> experiencia de reservas.
+- Demo -> SAMBRIX Demo Studio.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

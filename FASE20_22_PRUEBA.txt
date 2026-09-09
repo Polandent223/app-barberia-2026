@@ -1,0 +1,24 @@
+SAMBRIX Fase 20.22
+
+Correcciones:
+1. Plan Básico ya incluye App Cliente / Personalización.
+2. Crear producto permite seleccionar foto.
+3. Editar producto permite conservar o cambiar foto.
+4. La foto aparece en la tarjeta del producto.
+5. Crear profesional permite seleccionar foto.
+6. Editar profesional permite conservar o cambiar foto.
+7. La foto se sincroniza con barberPhotos para App Cliente y con el empleado vinculado cuando existe.
+8. Todo sigue persistiendo dentro del tenant/negocio activo.
+
+Prueba:
+- Básico: confirmar que aparece App Cliente/Personalización.
+- Crear producto con foto, guardar, salir y volver a entrar.
+- Editar el producto y cambiar la foto.
+- Crear profesional con foto, guardar, salir y volver a entrar.
+- Editar profesional y cambiar la foto.
+- Revisar App Cliente para confirmar la foto del profesional.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

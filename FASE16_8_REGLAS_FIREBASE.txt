@@ -1,0 +1,31 @@
+SAMBRIX — Fase 16.8 Reglas Firebase y Aislamiento
+
+Incluye:
+- Matriz de permisos por rol.
+- Plantilla firestore.rules.
+- Plantilla database.rules.json.
+- Separación businessId / members / datos públicos.
+- Reservas públicas con resolución privada.
+- Bloqueo por defecto de rutas no definidas.
+
+IMPORTANTE:
+Estas reglas son una base para el proyecto SAMBRIX y deben revisarse contra la
+estructura final de datos antes de publicarlas. Después hay que probarlas con
+cuentas reales de SuperAdmin, dueño y empleado.
+
+Archivos Firebase existentes detectados en el proyecto:
+FASE15_7_PRUEBA_REAL_FIREBASE.txt
+FIREBASE_FASE12.txt
+js/firebase/firebase-images.js
+js/firebase/firebase-sync.js
+js/firebase/firebase-data.js
+js/firebase/firebase-main.js
+js/firebase/firebase-config.js
+js/firebase/firebase-auth.js
+js/firebase/firebase-core.js
+js/saas/sambrix-firebase-live-test.js
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

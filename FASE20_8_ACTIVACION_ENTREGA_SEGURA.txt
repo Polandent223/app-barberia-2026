@@ -1,0 +1,27 @@
+SAMBRIX — Fase 20.8 Activación y Entrega Segura
+
+Reglas nuevas:
+- Tener nombre y correo del dueño ya no cuenta como acceso válido.
+- El propietario debe tener ownerAccessStatus/authStatus = active.
+- Activación incluye dos controles críticos:
+  1) Acceso real del propietario.
+  2) Capacitación y aceptación completa.
+- La entrega final solo puede ocurrir desde Activación.
+- Capacitación ya no marca automáticamente el negocio como entregado.
+- "Inicio de sesión" y "Aceptación de entrega" quedan bloqueados si el owner no tiene acceso activo.
+- Una capacitación no puede iniciarse mientras el acceso del propietario esté pendiente.
+- Entregas antiguas inconsistentes se invalidan y quedan como "Requiere revisión".
+- Se conserva legacyDeliveredAt para no perder el historial anterior.
+
+Prueba esperada:
+1. Abrir Activación.
+2. Negocios con owner pendiente deben mostrar "Acceso del propietario pendiente".
+3. No deben aparecer como listos/entregados.
+4. Abrir Entrega y capacitación.
+5. No debe permitir iniciar capacitación para un owner pendiente.
+6. Cuando el owner tenga acceso real activo, se habilitará el recorrido.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

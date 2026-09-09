@@ -1,4 +1,6 @@
 window.App = {
+  // Commercial builds must never authenticate with legacy local PINs.
+  PRODUCTION_MODE:true,
   KEY:"hc_fase10_3_modular",
   SESSION_KEY:"hc_fase10_3_session",
   db:null,
@@ -46,7 +48,11 @@ App.toggle = id => App.byId(id)?.classList.toggle("hidden");
 App.clientName = id => App.db.clients.find(x=>x.id===id)?.name||"Cliente";
 App.barberName = id => App.db.barbers.find(x=>x.id===id)?.name||"Barbero";
 App.serviceName = id => App.db.services.find(x=>x.id===id)?.name||"Servicio";
-App.currentUser = () => App.db.users.find(x=>x.id===localStorage.getItem(App.SESSION_KEY))||App.db.users[0];
+App.currentUser = () => {
+  const id=localStorage.getItem(App.SESSION_KEY);
+  if(!id)return null;
+  return App.db.users.find(x=>x.id===id)||null;
+};
 App.allowed = page => (App.rolePermissions[App.currentUser()?.role]||[]).includes(page);
 
 App.go = function(page){

@@ -1,0 +1,13 @@
+SAMBRIX — Fase 19.3 Facturas y Comprobantes
+
+- Facturas internas por negocio.
+- Número, concepto, subtotal, descuento, total, emisión y vencimiento.
+- Estados: Borrador, Emitida, Pagada y Anulada.
+- Exportación JSON por documento.
+- Auditoría de creación y cambios de estado.
+- No se presenta como factura fiscal oficial ni aplica reglas tributarias específicas.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

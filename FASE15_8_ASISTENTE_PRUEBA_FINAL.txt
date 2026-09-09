@@ -1,0 +1,16 @@
+SAMBRIX — Fase 15.8 Asistente de Prueba Final
+
+- Checklist único de aceptación.
+- Prueba SuperAdmin.
+- Prueba del dueño y operación del negocio.
+- Prueba de reserva pública del cliente.
+- Prueba real entre dos dispositivos.
+- Intento de acceso indebido y reglas Firebase.
+- Progreso y resultado de aceptación.
+
+Revisión estática de esta versión:
+IDs duplicados: 0
+Referencias locales faltantes: 0
+Errores de sintaxis JavaScript: 0
+
+Todavía no se consideran aprobadas las pruebas reales hasta ejecutarlas manualmente.

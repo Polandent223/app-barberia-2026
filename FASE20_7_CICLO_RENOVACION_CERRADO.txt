@@ -1,0 +1,24 @@
+SAMBRIX — Fase 20.7 Ciclo de Renovación Cerrado
+
+Objetivo:
+Ningún negocio activo de pago debe quedar sin fecha de renovación.
+
+Cambios:
+- Regla canónica de renovación mensual.
+- Negocios activos existentes sin fecha reciben automáticamente
+  una fecha basada en su createdAt + 1 mes.
+- Suscripción y negocio quedan sincronizados.
+- Las cuentas realmente gratuitas muestran "Cuenta gratuita".
+- El negocio base ya nace con próxima renovación.
+- Nuevos negocios guardan billingCycle y renewalPolicy mensuales.
+
+Prueba esperada:
+- Abrir Suscripciones.
+- Barbería Los Hermanos Camejo ya no debe mostrar "Sin fecha de vencimiento".
+- Debe mostrar una fecha real de renovación.
+- Los demás negocios conservan sus fechas actuales.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

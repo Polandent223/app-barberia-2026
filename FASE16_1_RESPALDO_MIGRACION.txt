@@ -1,0 +1,13 @@
+SAMBRIX — Fase 16.1 Respaldo y Migración
+
+- Snapshot de configuración antes de publicación/migración.
+- Incluye negocios, planes, suscripciones, releases, certificaciones y entorno.
+- Hash de integridad.
+- Conserva los últimos 10 snapshots locales.
+- Historial y verificación.
+- No se presenta como sustituto del backup real de Firebase.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

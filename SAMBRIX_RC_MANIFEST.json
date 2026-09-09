@@ -1,7 +1,19 @@
 {
   "name": "SAMBRIX",
-  "version": "19.7-HOTFIX",
-  "projectId": "app-barberia-2026",
+  "version": "20.28-RC1",
+  "validation": {
+    "targetedChecks": {
+      "plan_tier": true,
+      "pro_custom_theme": true,
+      "premium_white_label": true,
+      "tagline_saved": true,
+      "colors_applied": true,
+      "white_label_capability": true
+    },
+    "duplicateIds": 0,
+    "missingRefs": 0,
+    "jsSyntaxErrors": 0
+  },
   "files": [
     {
       "path": ".firebaserc.example",
@@ -344,6 +356,161 @@
       "sha256": "6282b8f6f74843d4dbd5e0d1af54055120a49912cf0a0b2aa98660829a8c0963"
     },
     {
+      "path": "FASE19_7_HOTFIX_ENTRADA.txt",
+      "size": 661,
+      "sha256": "e55528233f567170d03beae77faf14e3a1865a3fb559ac14cbdcb9ed0bde0b18"
+    },
+    {
+      "path": "FASE19_8_HOTFIX_SUPERADMIN.txt",
+      "size": 841,
+      "sha256": "86ac17c5cb4f33035b75735cefebe6f417ad8eb4892740a8d36ccb6fc015e18a"
+    },
+    {
+      "path": "FASE19_9_SEPARACION_SUPERADMIN.txt",
+      "size": 671,
+      "sha256": "3728b7c4d43cbb3f07871f0b51a4f74c4763af095fcb07a555447945ceba335b"
+    },
+    {
+      "path": "FASE20_0_SUPERADMIN_ORGANIZADO.txt",
+      "size": 288,
+      "sha256": "14ba713051f3da91afeeb80ed8ea1ce492f83abaca68e9ca5cf08f7262321add"
+    },
+    {
+      "path": "FASE20_10_FIX_MODAL_ACCESO.txt",
+      "size": 445,
+      "sha256": "14b5b9b31dc25537a9c9398c9d071b0084eb91d06939115966149524eebf7f35"
+    },
+    {
+      "path": "FASE20_11_CONTROLES_MODAL_ACCESO.txt",
+      "size": 503,
+      "sha256": "0a781343890e7f8d4c883756e0d7c2af52b13823e4b029bbc8f940f50f19b1f7"
+    },
+    {
+      "path": "FASE20_12_CONTROLES_NUEVO_NEGOCIO.txt",
+      "size": 535,
+      "sha256": "3494312dec233c4009e1fa12a046203e0098b5b62393844404e1fc3f2f0d9ba5"
+    },
+    {
+      "path": "FASE20_13_AISLAMIENTO_NEGOCIO.txt",
+      "size": 1207,
+      "sha256": "8184372b6f4713ff2eaede1e28963eeea2f84433fe35a04e742101f4ec414318"
+    },
+    {
+      "path": "FASE20_14_IDENTIDAD_TERMINOLOGIA_MULTINEGOCIO.txt",
+      "size": 779,
+      "sha256": "a9b8b6104d0447ebe4464b831256da37b68aa4c3714072e1dbbb773eb3fc1dfe"
+    },
+    {
+      "path": "FASE20_15_TERMINOLOGIA_CITAS.txt",
+      "size": 582,
+      "sha256": "567050e73a8f8aef7a235ffc6e876d6cee1e34fa6d834211a5f91756c3f1d911"
+    },
+    {
+      "path": "FASE20_16_TERMINOLOGIA_BUSINESS_COMPLETA.txt",
+      "size": 1039,
+      "sha256": "521393d49b90a00c676052af10891b013ec51e63356382172a2ce6c7fa66b6c2"
+    },
+    {
+      "path": "FASE20_18_CAMBIO_PLAN_POR_NEGOCIO.txt",
+      "size": 1437,
+      "sha256": "08f63dc5d6cec21e1b233ae4e037348125c266525bd34ba08b4a04a8922d1a00"
+    },
+    {
+      "path": "FASE20_18_HOTFIX_BOTONES_SUPERADMIN.txt",
+      "size": 502,
+      "sha256": "403bea7378eb3fcc2bc161f077684edc8c9c38da210a4f54e3f0b37a3db96f57"
+    },
+    {
+      "path": "FASE20_1_HOTFIX_MANTENIMIENTO_ADMIN.txt",
+      "size": 617,
+      "sha256": "1e534e842b9aa131e140203a815e7b9d8936834152b7a5d8cd3668785cc76384"
+    },
+    {
+      "path": "FASE20_20_PLAN_VISIBLE_Y_MENU.txt",
+      "size": 819,
+      "sha256": "0b4d2043813c754343eaa375385a9b7545cd1e20d39bdddc2e280a0ff1aea93d"
+    },
+    {
+      "path": "FASE20_21_PERSONALIZACION_POR_PLAN.txt",
+      "size": 629,
+      "sha256": "5f26c46cd0a64ff507b2555a9550efb80bef6cfcf7d68306967ab6a8c9996276"
+    },
+    {
+      "path": "FASE20_22_PRUEBA.txt",
+      "size": 921,
+      "sha256": "f4ecd1f27dc5a4c4c2914554e925885bbb731b966bd87ab59d6fb901086ffe44"
+    },
+    {
+      "path": "FASE20_23_PRUEBA.txt",
+      "size": 823,
+      "sha256": "1575a55ab0b71888719360d47d6f80769cc3996d88874407c8a6256215e35c8b"
+    },
+    {
+      "path": "FASE20_24_PRUEBA.txt",
+      "size": 852,
+      "sha256": "97ca8c16db9c525e5856243ee7c41da87ac7c23d3c8e73f6675a62d4f7e51820"
+    },
+    {
+      "path": "FASE20_25_PRUEBA.txt",
+      "size": 929,
+      "sha256": "fc811184973751bb004d0c85590dfe24284fabad768086af95df06405d0440a3"
+    },
+    {
+      "path": "FASE20_26_PRUEBA.txt",
+      "size": 477,
+      "sha256": "35c737d29ce574bbef1d08b018f976f20dff19daf43fda62379923001433d014"
+    },
+    {
+      "path": "FASE20_27_PRUEBA.txt",
+      "size": 582,
+      "sha256": "1cd9689c92df262a87d7bf40047b01590def1cd6f397261a841407e0f3ca53f5"
+    },
+    {
+      "path": "FASE20_28_PRUEBA.txt",
+      "size": 813,
+      "sha256": "ea0a2582ab669be885ae098eecf170bdeda08e8e2af3c17fc6abb9907d4777b8"
+    },
+    {
+      "path": "FASE20_3_HOTFIX_PERSISTENCIA_MANTENIMIENTO.txt",
+      "size": 602,
+      "sha256": "971a28830b68133c40adbc25cad2d16109a5e913edc2446a27e5fccc9e5b943e"
+    },
+    {
+      "path": "FASE20_4_SUPERADMIN_MODULOS_REALES.txt",
+      "size": 620,
+      "sha256": "d6958b61e70b0e51381e246499c33ee8e9b825a2d48bf3e4b2610913365d3f34"
+    },
+    {
+      "path": "FASE20_5_ALTA_NEGOCIO_COMPLETA.txt",
+      "size": 889,
+      "sha256": "07a3c155a329937fa42d987a21297b26217c2db534c194650f1437cb89e41db2"
+    },
+    {
+      "path": "FASE20_6_SUSCRIPCIONES_UNIFICADAS.txt",
+      "size": 933,
+      "sha256": "ac4a346d576f5e93a1093b0545be8e60475fec4cd5c7ff199268ab55374c699b"
+    },
+    {
+      "path": "FASE20_7_CICLO_RENOVACION_CERRADO.txt",
+      "size": 817,
+      "sha256": "063241eb0cf150058eb447c86a6a2e3ea28de6eb186fc44aacdd8ea5c283746b"
+    },
+    {
+      "path": "FASE20_8_ACTIVACION_ENTREGA_SEGURA.txt",
+      "size": 1225,
+      "sha256": "16b864fbea82dcfb7f58179e8c22faa35432d920a0a4957fd5401c1711a18552"
+    },
+    {
+      "path": "FASE20_9_ACCESO_PROPIETARIO.txt",
+      "size": 1584,
+      "sha256": "b7858d23fde58188a8b6f26c5356a49a47bb627090f3c93801f7101ae467643d"
+    },
+    {
+      "path": "FASE_20_17_CAMBIOS.txt",
+      "size": 548,
+      "sha256": "ae6cef80a559e083045b536801c10613766bb1fd24503bfd06fd0aa4edc0856b"
+    },
+    {
       "path": "FIREBASE_FASE12.txt",
       "size": 1806,
       "sha256": "d9462fc5b3e530cf0f1bbb20f3a16a7fd1053db5e629e7c2bcc6f4296b7bb4c4"
@@ -360,8 +527,8 @@
     },
     {
       "path": "css/app.css",
-      "size": 56417,
-      "sha256": "0f9e69aec0cbab9de39a8dba9c786f61d380fa4d26a052198823f72103ec4be0"
+      "size": 68372,
+      "sha256": "28145891374c2fb0678885fd9b3133b58c3b7800c59ebbfa51978b743b0a6690"
     },
     {
       "path": "database.rules.json",
@@ -380,23 +547,28 @@
     },
     {
       "path": "index.html",
-      "size": 206960,
-      "sha256": "c0311697090bab32a23aabd8c31b33a338070dd13be0780161cb1e357e3d1430"
+      "size": 232658,
+      "sha256": "ba5ea80e29afca29f600b7458a131ebd2dbe8831da9a14b17ae7121490991496"
     },
     {
       "path": "js/appointments.js",
-      "size": 4478,
-      "sha256": "8a70939f3fa832cf6ea6a150a0c05bfceed3fbd35568c77281c07854bbd9fb21"
+      "size": 4896,
+      "sha256": "6abe021d4434924bc6fa5b2775e843e0be73efc3880044ea9e7f53a444d5dd62"
     },
     {
       "path": "js/auth.js",
-      "size": 1782,
-      "sha256": "5e4fc3bd91f30b1313c48b7db204bc00d89868bcf9524fdb94bb3804b1caad35"
+      "size": 1721,
+      "sha256": "4dd981f7fdf5f225f606afcf994cadb91a986f1b33457674612d3753e637f955"
     },
     {
       "path": "js/barbers.js",
-      "size": 1929,
-      "sha256": "8a2178d0be0d76c295fda2715cf933995d4ef2034ac3e95add8daefbad86e970"
+      "size": 3761,
+      "sha256": "32ea3323d0aa0a1e1efa949a356b8e2d55c16778c14cf1a84359e492b7c8c6a5"
+    },
+    {
+      "path": "js/business-terminology.js",
+      "size": 7996,
+      "sha256": "321ae7cece6f037e9c341bc97ce38cf053c0ece685c433aa18debed2e7de877c"
     },
     {
       "path": "js/cash.js",
@@ -405,13 +577,13 @@
     },
     {
       "path": "js/client-app.js",
-      "size": 14851,
-      "sha256": "b5372875e05a1a197b6c08100113973461d56b157dc07aa1da3dc958cb587d23"
+      "size": 17733,
+      "sha256": "0b1402b1e4e1e7d48a169de8beba7f802de3e25d438c5d2ed454695d6afd2a63"
     },
     {
       "path": "js/client-customization.js",
-      "size": 6819,
-      "sha256": "7cba9439225cde0c1224df3c5b7f5e810b18940924e8feef340151e95dc24f45"
+      "size": 8155,
+      "sha256": "2637fd10374cf83f6e4f4d5bab3147ff8de44dd6323e1a8ff91e97b40320a0fd"
     },
     {
       "path": "js/client-requests.js",
@@ -420,8 +592,8 @@
     },
     {
       "path": "js/clients.js",
-      "size": 2725,
-      "sha256": "e206a87c5f11b5ab33f4fada4ce042693f257b68ef81680a607a0ef5afde4b6e"
+      "size": 7428,
+      "sha256": "a0169144d6d54a991ee39028da1b6c3b556cefd2f6df6469a87502382063822c"
     },
     {
       "path": "js/confirm.js",
@@ -460,8 +632,8 @@
     },
     {
       "path": "js/firebase/firebase-main.js",
-      "size": 6579,
-      "sha256": "d1320f103a6fd2b97721f7b5c777068ba7fc61d38d1d43b2931355739b8f65b8"
+      "size": 6648,
+      "sha256": "bf4e16cd4f4c8695ef6805151b03733863e871eccda4442ffaacdd36528599ac"
     },
     {
       "path": "js/firebase/firebase-sync.js",
@@ -470,8 +642,8 @@
     },
     {
       "path": "js/home.js",
-      "size": 1055,
-      "sha256": "c85bb722c3a12d3244cd12e52ebb79153ba77aaef934ed6f9150b6f508a8a4ba"
+      "size": 3077,
+      "sha256": "d25e2adfb14dfce1f97cb67c4f53c3eb3034ec7df235b36f3a10140b16f9f407"
     },
     {
       "path": "js/i18n.js",
@@ -480,8 +652,8 @@
     },
     {
       "path": "js/inventory.js",
-      "size": 3989,
-      "sha256": "026461a0e80dbad821b9ef7df9c6c4c86ed48ae3ea2ca916f2cca9807a3eabe7"
+      "size": 4956,
+      "sha256": "76f31a49c6bd7ecee81b3b51b230db6ca6d8daf3fc66a3dc45679ae619efd0d4"
     },
     {
       "path": "js/main.js",
@@ -490,8 +662,8 @@
     },
     {
       "path": "js/operations.js",
-      "size": 5738,
-      "sha256": "5c96703a8552c98298c71e21dc9d74276adb80be5a9cfb10c3ebbd069fdaf719"
+      "size": 5818,
+      "sha256": "db8414ec28614647bc19333265159445299aa1a72906a2d3cdd6c83c842b010a"
     },
     {
       "path": "js/owner-dashboard.js",
@@ -500,8 +672,8 @@
     },
     {
       "path": "js/receipts.js",
-      "size": 1187,
-      "sha256": "a672ce559d78eedef6af32b5c218be6f7852b20f80aa6f15cd7db69eb5c7d57f"
+      "size": 1268,
+      "sha256": "c0f65a71f18c447c14e178b564fd187a6b71b465f7451ce4274989ceabc8a061"
     },
     {
       "path": "js/saas/booking-inbox.js",
@@ -540,8 +712,8 @@
     },
     {
       "path": "js/saas/saas-billing.js",
-      "size": 3752,
-      "sha256": "fdfc95084168441acc0eddb39af09c219ca85036e96c3a4dba24dfbb66e31508"
+      "size": 19516,
+      "sha256": "f24dd6b0bf1c89de4db53c7c3b5186c4f381bac0d499a19d8718fd468391b4bf"
     },
     {
       "path": "js/saas/saas-branches.js",
@@ -550,8 +722,8 @@
     },
     {
       "path": "js/saas/saas-branding.js",
-      "size": 3430,
-      "sha256": "8134d9eda3b4eb92aebbe582f43362adacae3adfacf7de22131ec19d84e1a89d"
+      "size": 5032,
+      "sha256": "3c16bd17d67bb6fe33740cb75503df24b29d83beb16a5359510fdad95d98ff49"
     },
     {
       "path": "js/saas/saas-cloud-main.js",
@@ -565,8 +737,8 @@
     },
     {
       "path": "js/saas/saas-core.js",
-      "size": 4801,
-      "sha256": "ee3dd34c3b2d64988bc8f773abef1b53e4bb44379dd54607b97ec1719b561654"
+      "size": 4938,
+      "sha256": "dcd546800abc54d3b554e5267ed97a4099a0c9056031e2fa587ef62dc76c53a8"
     },
     {
       "path": "js/saas/saas-crm.js",
@@ -575,8 +747,8 @@
     },
     {
       "path": "js/saas/saas-main.js",
-      "size": 22390,
-      "sha256": "2956b36067e30bde60692eaa4adbecdbe19896c8687c7178212cd3e02de87409"
+      "size": 28421,
+      "sha256": "89cabc65208e39e9794971a4534f14272a489e96e9bd30185ae86065ead52fa9"
     },
     {
       "path": "js/saas/saas-members-ui.js",
@@ -590,8 +762,8 @@
     },
     {
       "path": "js/saas/saas-onboarding.js",
-      "size": 4942,
-      "sha256": "4d092b897ba84b985694818a86da277ca42cfbc39857eb29060165b705f4e194"
+      "size": 14013,
+      "sha256": "816efa7835202e34a92a85ce819aada4a65ac275823decfe90db02d88303415b"
     },
     {
       "path": "js/saas/saas-security.js",
@@ -605,8 +777,8 @@
     },
     {
       "path": "js/saas/sambrix-activation.js",
-      "size": 4717,
-      "sha256": "71efcdaf89c546ab15a4a9045f0a393d14a9be2e2494dae826b9af796413af6a"
+      "size": 9326,
+      "sha256": "666f81cce966b905ff08629935cc8418e46704c797054bdadd6042bab9da552c"
     },
     {
       "path": "js/saas/sambrix-analytics.js",
@@ -615,8 +787,8 @@
     },
     {
       "path": "js/saas/sambrix-auth-security.js",
-      "size": 7807,
-      "sha256": "efd8d090bf65ba8eb3985636da3445fbe71ccfa6dae9e06b54abc92a38fdccdf"
+      "size": 7926,
+      "sha256": "e436a7b84ce96a8a4c595354a7c6857946ffa78137b616f39753773d812a97c1"
     },
     {
       "path": "js/saas/sambrix-backup.js",
@@ -730,13 +902,13 @@
     },
     {
       "path": "js/saas/sambrix-license.js",
-      "size": 4664,
-      "sha256": "ec59bfe7db4b518ebad020a20ec2241ac0bcc90e7dc38ad67cf2841f03b585fa"
+      "size": 5295,
+      "sha256": "d1e8193a51e6153e28afb8a562b52658bd4ca08a1e19e4fa0135046b6232bf9e"
     },
     {
       "path": "js/saas/sambrix-maintenance.js",
-      "size": 6461,
-      "sha256": "639035896688cd70b88e97d3537c16494f9c12735b279260dd9c1d0c4f357368"
+      "size": 10812,
+      "sha256": "4ae66a4e3a885f122baa0d9e6c31cd7686eeb60738014c8d6acc9d15da70b217"
     },
     {
       "path": "js/saas/sambrix-migration.js",
@@ -759,14 +931,19 @@
       "sha256": "d74c0f9298e478f653d0f35ba3880b4d11a36d9ef9416a345ebfec4880cbbb68"
     },
     {
+      "path": "js/saas/sambrix-owner-access.js",
+      "size": 9228,
+      "sha256": "feb0dc4777dc57bb1ee917f0f764ab39ee3e2a005fd84c18bc81f3a5879f073f"
+    },
+    {
       "path": "js/saas/sambrix-performance.js",
       "size": 5807,
       "sha256": "e33ca4f49a258cb583d13d80195ac8b7d9d9c69d33acba245af1a4fc5e90596a"
     },
     {
       "path": "js/saas/sambrix-portal.js",
-      "size": 4863,
-      "sha256": "3e1e7ab6d9390add2e8386890ca9d9b2b65449a6da2e4c71f3fbdf536d596b43"
+      "size": 5991,
+      "sha256": "697908cee22455bf3fb7f01090f2bc89339ea75a9150c1386c7475284404bf68"
     },
     {
       "path": "js/saas/sambrix-privacy.js",
@@ -820,13 +997,18 @@
     },
     {
       "path": "js/saas/sambrix-session.js",
-      "size": 5395,
-      "sha256": "6b73eb5f136c631fc2bb777a5a5b1c3e8de6a96644d29c0e90ba42f33eba033c"
+      "size": 7469,
+      "sha256": "70c97052639fdf3a9041b208c8f010d5b07a04db559f20305c836e2c5da6ca8a"
     },
     {
       "path": "js/saas/sambrix-smoke-test.js",
       "size": 6178,
       "sha256": "f40f2b2a0757e3c596dbd87edb594542472aab693b4bad8825d29cfdb0fd700b"
+    },
+    {
+      "path": "js/saas/sambrix-superadmin-organizer.js",
+      "size": 1190,
+      "sha256": "0b9116f146983dc56a92ca67ad586c9d18590778dca61aab91bdc60f2679dc0d"
     },
     {
       "path": "js/saas/sambrix-support.js",
@@ -850,8 +1032,8 @@
     },
     {
       "path": "js/saas/sambrix-training-handoff.js",
-      "size": 6498,
-      "sha256": "6b74eb6502db27e30ffad87e45852ba52d216eb9668e46a9a7f2064bcc61d655"
+      "size": 8122,
+      "sha256": "506e9ac2fa807b0d7d276a5b7d1e8a2bcab7cf53527651c03add981a7e63e652"
     },
     {
       "path": "js/saas/sambrix-updates.js",
@@ -870,8 +1052,8 @@
     },
     {
       "path": "js/saas/tenant-store.js",
-      "size": 2780,
-      "sha256": "26c0a190240f4c954b74699fe372a6aef3bdfc075837c2fd783a2e6aa31cad4c"
+      "size": 7037,
+      "sha256": "778020ef9d388245517d7a3f3d303b961d1dba23ba3817189e7cfed26d9648fe"
     },
     {
       "path": "js/search.js",
@@ -880,13 +1062,13 @@
     },
     {
       "path": "js/security.js",
-      "size": 5658,
-      "sha256": "0e33bce355d4e989aef5918d1a74aa1fed3159e7362e9e16384739295954837b"
+      "size": 5701,
+      "sha256": "1aefa487ba135c3c7d0e7c7f911ff3ee7109086af9d4ee782dfc86a37de8df60"
     },
     {
       "path": "js/services.js",
-      "size": 1506,
-      "sha256": "48a7e778469bc39172102684288ad469f575c2ae41fe9dd6bb7625ab88ddc656"
+      "size": 2688,
+      "sha256": "47bf4e3ae953e3fd5aec4c468c044d2fb4d4e659d34e7376b2a343c9374f81a0"
     },
     {
       "path": "js/shop-orders.js",
@@ -895,8 +1077,8 @@
     },
     {
       "path": "js/staff.js",
-      "size": 20209,
-      "sha256": "59339d58df318030ad03152eb211476f9ee271f57a34bc632c2566ba620ca2cd"
+      "size": 20257,
+      "sha256": "bb559bd4bf7ac8d4830bf6b5f003b772d263c7da3a67a0aef395ec756adfe5cf"
     },
     {
       "path": "js/ui-modal.js",

@@ -1,0 +1,38 @@
+SAMBRIX — Fase 20.20 Plan visible y menú por plan
+
+Objetivo:
+Que al cambiar el plan se pueda comprobar inmediatamente desde el negocio,
+sin dejar opciones deshabilitadas ni afectar SuperAdmin.
+
+Menú Business:
+BÁSICO (6 accesos):
+- Inicio
+- Citas
+- Clientes
+- Profesionales
+- Servicios
+- Configuración
+
+PRO (12 accesos):
+- Todo Básico
+- Caja
+- Stock
+- Roles
+- Recibos
+- Autorizar
+- Reportes
+
+PREMIUM:
+- Todos los accesos Business.
+
+Comprobación:
+- En la barra superior aparece PLAN BÁSICO / PLAN PRO / PLAN PREMIUM.
+- Los módulos no incluidos se ocultan.
+- Los módulos incluidos quedan activos.
+- SuperAdmin siempre conserva todos sus botones.
+- El guard solo controla páginas Business conocidas; no bloquea módulos SuperAdmin.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

@@ -1,0 +1,15 @@
+SAMBRIX — Fase 16.5 Mantenimiento y Feature Flags
+
+- Modo mantenimiento global.
+- Mantenimiento individual por negocio.
+- SuperAdmin conserva acceso.
+- Mensaje público y hora estimada.
+- Feature flags para activar/desactivar funciones.
+- Rollout gradual por porcentaje de negocios.
+- Los cambios quedan auditados.
+- Preparado para activar nuevas funciones sin afectar a todos los tenants al mismo tiempo.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

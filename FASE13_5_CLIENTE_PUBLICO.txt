@@ -1,0 +1,10 @@
+SAMBRIX — Fase 13.5 Cliente Público
+
+- Cada negocio obtiene enlace público:
+  ?business=BUSINESS_ID&cliente=app
+- QR generado desde App Cliente > Configuración.
+- Cliente no necesita cuenta Firebase para ver servicios/barberos/promociones.
+- Datos públicos se publican en public_businesses/{businessId}.
+- Reservas públicas entran como booking_requests.
+- El cliente no puede leer solicitudes de otros clientes.
+- Negocio Suspendido/Vencido muestra reservas temporalmente no disponibles.

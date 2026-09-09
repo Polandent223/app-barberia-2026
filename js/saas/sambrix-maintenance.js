@@ -13,8 +13,20 @@ SaaS.maintenance=SaaS.maintenance||{
 SaaS.loadMaintenance=function(){
  try{
    const saved=JSON.parse(localStorage.getItem("sambrix_maintenance"))||{};
-   SaaS.maintenance={...SaaS.maintenance,...saved,businesses:saved.businesses||{},flags:{...SaaS.maintenance.flags,...(saved.flags||{})}};
+   SaaS.maintenance={
+     ...SaaS.maintenance,
+     ...saved,
+     global:!!saved.global,
+     businesses:saved.businesses||{},
+     flags:{...SaaS.maintenance.flags,...(saved.flags||{})}
+   };
  }catch{}
+};
+
+
+SaaS.persistMaintenanceState=function(){
+  localStorage.setItem("sambrix_maintenance",JSON.stringify(SaaS.maintenance));
+  SaaS.audit?.("SYSTEM","Estado de mantenimiento actualizado",{global:!!SaaS.maintenance.global},"");
 };
 
 SaaS.saveMaintenance=function(){
@@ -55,12 +67,50 @@ SaaS.isBusinessInMaintenance=function(businessId){
  return !!SaaS.maintenance.global||!!SaaS.maintenance.businesses?.[businessId];
 };
 
+
+SaaS.maintenanceAdminBypass=false;
+
+SaaS.openMaintenanceAdminAccess=function(){
+  SaaS.maintenanceAdminBypass=true;
+
+  const overlay=document.getElementById("sambrixMaintenanceOverlay");
+  if(overlay)overlay.remove();
+
+  // Abre exclusivamente el login del SuperAdmin.
+  SaaS.portal?.openLogin?.("superadmin");
+
+  // Refuerzo visual y de contexto para evitar confusión.
+  document.body.dataset.loginMode="superadmin";
+  SaaS.requestedLoginMode="superadmin";
+
+  const title=document.querySelector("#loginView h1,#loginView h2,#loginView h3");
+  const subtitle=document.querySelector("#loginView p");
+  if(title)title.textContent="SAMBRIX SuperAdmin";
+  if(subtitle)subtitle.textContent="Acceso administrativo durante mantenimiento";
+
+  window.App?.toast?.("Acceso administrativo habilitado");
+};
+
+SaaS.closeMaintenanceAdminAccess=function(){
+  SaaS.maintenanceAdminBypass=false;
+  SaaS.requestedLoginMode="";
+  delete document.body.dataset.loginMode;
+  SaaS.portal?.show?.();
+  SaaS.applyMaintenanceGuard?.();
+};
+
 SaaS.applyMaintenanceGuard=function(){
  const role=SaaS.session?.role||"guest";
  const id=SaaS.getContext?.()?.businessId||"";
- const blocked=role!=="superadmin"&&(SaaS.maintenance.global||SaaS.maintenance.businesses?.[id]);
+
+ // SuperAdmin autenticado nunca se bloquea.
+ // Mientras se está mostrando el login SuperAdmin, se permite únicamente
+ // esa ruta para que el administrador pueda entrar y desactivar mantenimiento.
+ const adminLoginBypass=!!SaaS.maintenanceAdminBypass && SaaS.requestedLoginMode==="superadmin";
+ const blocked=role!=="superadmin"&&!adminLoginBypass&&(SaaS.maintenance.global||SaaS.maintenance.businesses?.[id]);
 
  let overlay=document.getElementById("sambrixMaintenanceOverlay");
+
  if(blocked){
    if(!overlay){
      overlay=document.createElement("div");
@@ -68,7 +118,21 @@ SaaS.applyMaintenanceGuard=function(){
      overlay.className="maintenance-overlay";
      document.body.appendChild(overlay);
    }
-   overlay.innerHTML=`<div class="card"><span class="tag">SAMBRIX</span><h1>Estamos realizando mejoras</h1><p>${SaaS.maintenance.message}</p>${SaaS.maintenance.eta?`<p><strong>Regreso estimado:</strong> ${SaaS.maintenance.eta}</p>`:""}</div>`;
+
+   overlay.innerHTML=`<div class="card maintenance-public-card">
+     <span class="tag">SAMBRIX</span>
+     <h1>Estamos realizando mejoras</h1>
+     <p>${SaaS.maintenance.message}</p>
+     ${SaaS.maintenance.eta?`<p><strong>Regreso estimado:</strong> ${SaaS.maintenance.eta}</p>`:""}
+     <div class="maintenance-admin-entry">
+       <span>Administración</span>
+       <button type="button" class="btn secondary" id="maintenanceAdminAccessBtn">Acceso SuperAdmin</button>
+     </div>
+   </div>`;
+
+   document.getElementById("maintenanceAdminAccessBtn")
+     ?.addEventListener("click",SaaS.openMaintenanceAdminAccess);
+
  }else if(overlay){
    overlay.remove();
  }
@@ -116,6 +180,11 @@ SaaS.renderMaintenance=function(){
 const oldRoute_165=SaaS.routeSession;
 if(oldRoute_165)SaaS.routeSession=function(){
  const r=oldRoute_165();
+
+ if(SaaS.session?.role==="superadmin"){
+   SaaS.maintenanceAdminBypass=false;
+ }
+
  setTimeout(()=>SaaS.applyMaintenanceGuard(),80);
  return r;
 };
@@ -132,4 +201,58 @@ SaaS.renderAll=function(){
  oldRenderAll_165();
  SaaS.renderMaintenance();
  SaaS.applyMaintenanceGuard();
+};
+
+SaaS.renderMaintenanceQuickControl=function(){
+ const active=!!SaaS.maintenance.global;
+ const box=document.getElementById("maintenanceQuickControl");
+ if(box)box.dataset.state=active?"mantenimiento":"operativo";
+ const title=document.getElementById("maintenanceQuickTitle"), text=document.getElementById("maintenanceQuickText"), badge=document.getElementById("maintenanceQuickBadge"), btn=document.getElementById("maintenanceQuickToggleBtn");
+ if(title)title.textContent=active?"Modo mantenimiento activo":"Plataforma operativa";
+ if(text)text.textContent=active?"Clientes y negocios están bloqueados. SuperAdmin conserva acceso.":"Clientes y negocios pueden utilizar SAMBRIX normalmente.";
+ if(badge){badge.textContent=active?"MANTENIMIENTO":"OPERATIVA";badge.classList.toggle("ok",!active);badge.classList.toggle("warn",active)}
+ if(btn)btn.textContent=active?"Volver a modo operativo":"Activar mantenimiento";
+};
+SaaS.toggleMaintenanceQuickControl=function(){
+  if(SaaS.session?.role!=="superadmin"){
+    return window.App?.toast?.("Solo SuperAdmin puede cambiar este estado");
+  }
+
+  const active=!!SaaS.maintenance.global;
+
+  if(active){
+    SaaS.maintenance.global=false;
+    SaaS.maintenance.message="";
+    SaaS.maintenance.eta="";
+
+    // Sincroniza cualquier control antiguo que siga existiendo en el DOM.
+    const legacyToggle=document.getElementById("globalMaintenanceToggle");
+    if(legacyToggle)legacyToggle.checked=false;
+
+    SaaS.persistMaintenanceState();
+    SaaS.renderMaintenance?.();
+    SaaS.renderMaintenanceQuickControl();
+    SaaS.applyMaintenanceGuard();
+    window.App?.toast?.("SAMBRIX volvió a modo operativo");
+    return;
+  }
+
+  const ok=window.confirm(
+    "¿Activar modo mantenimiento global? Clientes y negocios quedarán bloqueados; SuperAdmin conservará acceso."
+  );
+  if(!ok)return;
+
+  SaaS.maintenance.global=true;
+  if(!SaaS.maintenance.message){
+    SaaS.maintenance.message="Estamos realizando mejoras.";
+  }
+
+  const legacyToggle=document.getElementById("globalMaintenanceToggle");
+  if(legacyToggle)legacyToggle.checked=true;
+
+  SaaS.persistMaintenanceState();
+  SaaS.renderMaintenance?.();
+  SaaS.renderMaintenanceQuickControl();
+  SaaS.applyMaintenanceGuard();
+  window.App?.toast?.("Modo mantenimiento activado");
 };

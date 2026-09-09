@@ -1,0 +1,11 @@
+SAMBRIX — Fase 14.5 Reservas Públicas
+
+- Reservas desde SAMBRIX Client llegan a una bandeja del negocio.
+- Filtros por estado y búsqueda de cliente.
+- Aprobar convierte la solicitud en una cita real.
+- Si el cliente no existe, se crea automáticamente.
+- Valida conflicto de horario antes de aprobar.
+- Rechazo con motivo opcional.
+- Estado de solicitud se actualiza en Firebase.
+- Acciones quedan auditadas.
+- Dueño/Admin/Gerente/Recepción pueden gestionar solicitudes.

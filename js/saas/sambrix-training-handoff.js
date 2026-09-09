@@ -33,74 +33,123 @@ SaaS.createTrainingHandoff=function(){
  const businessId=document.getElementById("trainingHandoffBusiness").value;
  if(!businessId)return alert("Selecciona un negocio disponible.");
  const b=SaaS.db.businesses.find(x=>x.id===businessId);if(!b)return;
+
+ const access=SaaS.ownerAccessState?.(b)||{active:false,label:"Pendiente"};
+ if(!access.active){
+   return alert(`No se puede iniciar la entrega: ${access.label}. Activa primero el acceso del propietario.`);
+ }
+
  SaaS.trainingHandoff.items.push({
-  id:"handoff_"+SaaS.uid(),businessId,businessName:b.name,
+  id:"handoff_"+SaaS.uid(),
+  businessId,
+  businessName:b.name,
   trainer:document.getElementById("trainingHandoffTrainer").value.trim()||"SuperAdmin",
-  owner:document.getElementById("trainingHandoffOwner").value.trim()||"Responsable del negocio",
-  steps:{},createdAt:new Date().toISOString(),status:"En capacitación"
+  owner:document.getElementById("trainingHandoffOwner").value.trim()||b.owner||"Responsable del negocio",
+  steps:{},
+  createdAt:new Date().toISOString(),
+  status:"En capacitación"
  });
+
  SaaS.saveTrainingHandoff();
- SaaS.audit?.("TRAINING","Entrega/capacitación iniciada",{business:b.name},businessId);
- SaaS.closeTrainingHandoff();SaaS.renderTrainingHandoff();
+ SaaS.audit?.("TRAINING","Capacitación iniciada",{business:b.name,ownerAccessStatus:access.status},businessId);
+ SaaS.closeTrainingHandoff();
+ SaaS.renderTrainingHandoff();
 };
 
 SaaS.toggleTrainingHandoff=function(e){
  const c=e.target;if(!c.matches(".trainingHandoffCheck"))return;
  const item=SaaS.trainingHandoff.items.find(x=>x.id===c.dataset.item);if(!item)return;
- item.steps[c.dataset.step]=c.checked;
- const done=SaaS.TRAINING_HANDOFF_STEPS.filter(s=>item.steps[s.id]).length;
- item.status=done===SaaS.TRAINING_HANDOFF_STEPS.length?"Entregado":"En capacitación";
- item.updatedAt=new Date().toISOString();
- if(item.status==="Entregado"&&!item.deliveredAt){
-   item.deliveredAt=item.updatedAt;
-   SaaS.audit?.("TRAINING","Negocio entregado al responsable",{business:item.businessName,owner:item.owner},item.businessId);
+ const b=SaaS.db.businesses.find(x=>x.id===item.businessId);
+ const access=SaaS.ownerAccessState?.(b)||{active:false,label:"Pendiente"};
+
+ if(["login","acceptance"].includes(c.dataset.step)&&c.checked&&!access.active){
+   c.checked=false;
+   return alert(`No puedes completar "${c.dataset.step==="login"?"Inicio de sesión":"Aceptación de entrega"}": el acceso del propietario no está activo.`);
  }
- SaaS.saveTrainingHandoff();SaaS.renderTrainingHandoff();
+
+ item.steps[c.dataset.step]=c.checked;
+
+ const steps=SaaS.TRAINING_HANDOFF_STEPS;
+ const done=steps.filter(s=>item.steps[s.id]).length;
+ const criticalPending=steps.filter(s=>s.critical&&!item.steps[s.id]).length;
+ const complete=done===steps.length&&criticalPending===0&&access.active;
+
+ item.status=complete?"Capacitación completa":"En capacitación";
+ item.updatedAt=new Date().toISOString();
+
+ // Training itself does not mark the business delivered.
+ // Final delivery belongs exclusively to Activation.
+ if(complete&&!item.completedAt){
+   item.completedAt=item.updatedAt;
+   SaaS.audit?.("TRAINING","Capacitación completada",{
+     business:item.businessName,
+     owner:item.owner,
+     ownerAccessStatus:access.status
+   },item.businessId);
+ }
+
+ SaaS.saveTrainingHandoff();
+ SaaS.renderTrainingHandoff();
+ SaaS.renderActivation?.();
 };
 
 SaaS.renderTrainingHandoff=function(){
  const box=document.getElementById("trainingHandoffList");if(!box)return;
  const items=SaaS.trainingHandoff.items||[],steps=SaaS.TRAINING_HANDOFF_STEPS,total=steps.length;
  const count=i=>steps.filter(s=>i.steps?.[s.id]).length;
- const complete=items.filter(i=>count(i)===total).length;
- const active=items.length-complete;
- const avg=items.length?Math.round(items.reduce((a,i)=>a+count(i)/total*100,0)/items.length):0;
- const criticalPending=items.reduce((n,i)=>n+steps.filter(s=>s.critical&&!i.steps?.[s.id]).length,0);
+
+ const enriched=items.map(i=>{
+   const b=SaaS.db.businesses.find(x=>x.id===i.businessId);
+   const access=SaaS.ownerAccessState?.(b)||{active:false,label:"Pendiente"};
+   const n=count(i),pct=Math.round(n/total*100);
+   const crit=steps.filter(s=>s.critical&&!i.steps?.[s.id]).length;
+   const complete=pct===100&&crit===0&&access.active;
+   return {i,b,access,n,pct,crit,complete};
+ });
+
+ const complete=enriched.filter(x=>x.complete).length;
+ const active=enriched.length-complete;
+ const avg=enriched.length?Math.round(enriched.reduce((a,x)=>a+x.pct,0)/enriched.length):0;
+ const criticalPending=enriched.reduce((n,x)=>n+x.crit+(x.access.active?0:1),0);
 
  document.getElementById("trainingActiveCount").textContent=active;
  document.getElementById("trainingDoneCount").textContent=complete;
  document.getElementById("trainingAverage").textContent=avg+"%";
  document.getElementById("trainingCriticalCount").textContent=criticalPending;
 
- box.innerHTML=[...items].reverse().map(i=>{
-  const n=count(i),pct=Math.round(n/total*100);
-  const crit=steps.filter(s=>s.critical&&!i.steps?.[s.id]).length;
-  return `<div class="row training-row ${pct===100?"done":crit?"blocked":""}" style="display:block">
+ box.innerHTML=[...enriched].reverse().map(({i,access,pct,crit,complete})=>`
+  <div class="row training-row ${complete?"done":"blocked"}" style="display:block">
    <div style="display:flex;justify-content:space-between;gap:12px">
-    <div><strong>${i.businessName}</strong><small>${i.owner} · Capacita: ${i.trainer}</small></div>
+    <div>
+      <strong>${i.businessName}</strong>
+      <small>${i.owner} · Capacita: ${i.trainer}</small>
+      <small class="training-access ${access.active?"ok":"pending"}">Acceso propietario: ${access.label}</small>
+    </div>
     <b>${pct}%</b>
    </div>
    <div class="training-progress"><span style="width:${pct}%"></span></div>
-   <div class="training-steps">${steps.map(s=>`<label class="training-step">
-    <input type="checkbox" class="trainingHandoffCheck" data-item="${i.id}" data-step="${s.id}" ${i.steps?.[s.id]?"checked":""}>
-    <span><strong>${s.critical?"★ ":""}${s.title}</strong><small>${s.detail}</small></span>
-   </label>`).join("")}</div>
-  </div>`;
- }).join("")||'<div class="muted">Todavía no hay entregas registradas.</div>';
+   <div class="training-steps">${steps.map(s=>{
+      const locked=["login","acceptance"].includes(s.id)&&!access.active;
+      return `<label class="training-step ${locked?"locked":""}">
+       <input type="checkbox" class="trainingHandoffCheck" data-item="${i.id}" data-step="${s.id}" ${i.steps?.[s.id]?"checked":""} ${locked?"disabled":""}>
+       <span><strong>${s.critical?"★ ":""}${s.title}${locked?" · bloqueado":""}</strong><small>${locked?"Activa primero el acceso real del propietario.":s.detail}</small></span>
+      </label>`;
+   }).join("")}</div>
+  </div>`).join("")||'<div class="muted">Todavía no hay capacitaciones registradas.</div>';
 
  const result=document.getElementById("trainingHandoffResult");
  if(criticalPending){
   result.className="launch-result blocked";
-  result.innerHTML=`<span class="tag">NO ENTREGAR AÚN</span><h2>${criticalPending} control(es) crítico(s) pendientes</h2><p>El dueño debe dominar acceso, citas, permisos, reserva pública y aceptación antes de operar solo.</p>`;
+  result.innerHTML=`<span class="tag">NO ENTREGAR AÚN</span><h2>${criticalPending} control(es) crítico(s) pendientes</h2><p>El acceso real, la capacitación y la aceptación deben completarse antes de la entrega final.</p>`;
  }else if(active){
   result.className="launch-result";
-  result.innerHTML=`<span class="tag">CAPACITACIÓN</span><h2>${active} entrega(s) en progreso</h2><p>Los controles críticos están cubiertos; faltan temas complementarios.</p>`;
+  result.innerHTML=`<span class="tag">CAPACITACIÓN</span><h2>${active} capacitación(es) en progreso</h2><p>Termina todos los pasos antes de pasar a Activación.</p>`;
  }else if(complete){
   result.className="launch-result ready";
-  result.innerHTML=`<span class="tag">ENTREGA COMPLETA</span><h2>${complete} negocio(s) entregados</h2><p>Los responsables completaron todo el recorrido de capacitación registrado.</p>`;
+  result.innerHTML=`<span class="tag">CAPACITACIÓN COMPLETA</span><h2>${complete} negocio(s) listos para validación final</h2><p>Ahora deben completarse desde Activación y entrega.</p>`;
  }else{
   result.className="launch-result";
-  result.innerHTML='<span class="tag">LISTO</span><h2>Preparado para capacitar</h2><p>Cuando activemos negocios reales, su entrega quedará documentada aquí.</p>';
+  result.innerHTML='<span class="tag">LISTO</span><h2>Preparado para capacitar</h2><p>La capacitación comenzará cuando haya un negocio con acceso de propietario disponible.</p>';
  }
 };
 

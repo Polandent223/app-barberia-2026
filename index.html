@@ -97,20 +97,21 @@
     <div class="logo">S</div>
     <h1>SAMBRIX Business</h1>
     <p>Acceso seguro a la plataforma</p>
-    <label>Usuario<input id="loginUser" value="admin"></label>
-    <label>PIN<input id="loginPin" type="password" value="1234"></label>
+    <label id="loginUserLabel">Correo<input id="loginUser" type="email" value="" autocomplete="username"></label>
+    <label id="loginPinLabel">Contraseña<input id="loginPin" type="password" value="" autocomplete="current-password"></label>
     <button class="btn primary" id="loginBtn">Entrar</button>
-    <small>Acceso inicial: admin / 1234</small>
+    <small id="loginHint">Acceso seguro con Firebase.</small>
   </div>
 </section>
 
 <div id="adminApp" class="hidden">
   <header class="topbar">
     <div>
-      <strong>Los Hermanos Camejo</strong>
+      <strong id="activeBusinessBrand">SAMBRIX</strong>
+      <span id="activeBusinessContext">Negocio activo</span>
       <span id="todayLabel"></span>
     </div>
-    <div class="top-actions"><button class="btn secondary" id="openSupportTicketBtn">Soporte</button><button class="btn secondary notif-top-btn" id="openNotificationsBtn" data-page-jump="notificationsHub">Avisos <span id="notifTopBadge" class="alert-count">0</span></button><div id="sessionRoleBadge" class="session-role-badge hidden"><strong id="sessionRoleName">—</strong><span id="sessionBusinessName">—</span></div>
+    <div class="top-actions"><button class="btn secondary" id="openSupportTicketBtn">Soporte</button><button class="btn secondary notif-top-btn" id="openNotificationsBtn" data-page-jump="notificationsHub">Avisos <span id="notifTopBadge" class="alert-count">0</span></button><div id="sessionRoleBadge" class="session-role-badge hidden"><strong id="sessionRoleName">—</strong><span id="sessionBusinessName">—</span></div><span id="currentBusinessPlanBadge" class="current-plan-badge hidden">PLAN</span>
       <select id="languageSelect" class="top-select"><option value="es">Español</option><option value="en">English</option><option value="pt-BR">Português Brasil</option></select>
       <select id="currencySelect" class="top-select"><option value="$">USD ($)</option><option value="Bs">Bolívares (Bs)</option><option value="€">Euro (€)</option><option value="R$">Real (R$)</option></select>
       <button class="btn secondary" id="openClientAppBtn">App Cliente</button>
@@ -124,11 +125,11 @@
       <div class="owner-hero">
         <div class="owner-copy">
           <span class="tag gold">PANEL DEL DUEÑO</span>
-          <h1>Tu barbería.<br><em>Bajo control.</em></h1>
+          <h1>Tu negocio.<br><em>Bajo control.</em></h1>
           <p>Una vista clara de agenda, ingresos, clientes y equipo.</p>
           <div class="owner-actions">
             <button class="btn primary" data-go="citas">+ Nueva cita</button>
-            <button class="btn secondary" data-go="recibos">Ver recibos</button>
+            <button class="btn secondary" id="homeReceiptBtn" type="button">Comprobantes</button>
           </div>
         </div>
         <div class="owner-score">
@@ -151,7 +152,7 @@
           <div id="ownerUpcomingAppointments" class="stack"></div>
         </div>
         <div class="panel premium-panel">
-          <div class="panel-head"><div><span class="tag">EQUIPO</span><h3>Rendimiento barberos</h3></div></div>
+          <div class="panel-head"><div><span class="tag">EQUIPO</span><h3>Rendimiento de profesionales</h3></div></div>
           <div id="ownerBarberPerformance" class="stack"></div>
         </div>
       </div>
@@ -170,7 +171,7 @@
       <div class="hero legacy-hero">
         <div>
           <span class="tag">PANEL PRINCIPAL</span>
-          <h2>Control de la barbería</h2>
+          <h2>Control del negocio</h2>
           <p>Agenda, clientes, caja, inventario y reservas.</p>
         </div>
         <button class="btn primary" data-go="citas">+ Nueva cita</button>
@@ -201,10 +202,10 @@
         <button class="btn primary" id="toggleAppointmentForm">+ Cita</button>
       </div>
 
-      <div class="panel search-panel"><input id="appointmentSearch" placeholder="Buscar por cliente, barbero o servicio..."></div><div id="appointmentForm" class="panel hidden">
+      <div class="panel search-panel"><input id="appointmentSearch" placeholder="Buscar por cliente, profesional o servicio..."></div><div id="appointmentForm" class="panel hidden">
         <div class="form-grid">
           <label>Cliente<select id="apptClient"></select></label>
-          <label>Barbero<select id="apptBarber"></select></label>
+          <label><span data-sambrix-term="professionalSingular">Profesional</span><select id="apptBarber"></select></label>
           <label>Servicio<select id="apptService"></select></label>
           <label>Fecha<input id="apptDate" type="date"></label>
           <label>Hora<input id="apptTime" type="time"></label>
@@ -242,18 +243,21 @@
 
     <section id="barberos" class="page">
       <div class="page-head">
-        <div><span class="tag">EQUIPO</span><h2>Barberos</h2></div>
-        <button class="btn primary" id="toggleBarberForm">+ Barbero</button>
+        <div><span class="tag">EQUIPO</span><h2 data-sambrix-term="professionalPlural">Profesionales</h2></div>
+        <button class="btn primary" id="toggleBarberForm"><span data-sambrix-term="professionalSingular">+ Profesional</span></button>
       </div>
       <div id="barberForm" class="panel hidden">
+        <input id="barberEditId" type="hidden">
         <div class="form-grid">
           <label>Nombre<input id="barberName"></label>
           <label>Teléfono<input id="barberPhone"></label>
           <label>Comisión %<input id="barberCommission" type="number" value="40"></label>
+          <label>Foto del profesional<input id="barberPhoto" type="file" accept="image/*"></label>
         </div>
+        <div class="image-preview-wrap"><img id="barberPhotoPreview" class="image-preview square hidden" alt="Foto del profesional"></div>
         <div class="actions">
           <button class="btn secondary" id="cancelBarberForm">Cancelar</button>
-          <button class="btn primary" id="saveBarberBtn">Guardar barbero</button>
+          <button class="btn primary" id="saveBarberBtn">Guardar profesional</button>
         </div>
       </div>
       <div id="barberList" class="cards"></div>
@@ -300,6 +304,7 @@
         <article><span>Movimientos</span><b id="invMoves">0</b></article>
       </div>
       <div id="productForm" class="panel hidden">
+        <input id="productEditId" type="hidden">
         <div class="form-grid">
           <label>Producto<input id="productName"></label>
           <label>Categoría<select id="productCategory"><option>Insumo</option><option>Venta</option><option>Herramienta</option><option>Limpieza</option></select></label>
@@ -307,7 +312,9 @@
           <label>Mínimo<input id="productMin" type="number"></label>
           <label>Costo<input id="productCost" type="number" step=".01"></label>
           <label>Precio<input id="productPrice" type="number" step=".01"></label>
+          <label>Foto del producto<input id="productPhoto" type="file" accept="image/*"></label>
         </div>
+        <div class="image-preview-wrap"><img id="productPhotoPreview" class="image-preview square hidden" alt="Foto del producto"></div>
         <div class="actions">
           <button class="btn secondary" id="cancelProductForm">Cancelar</button>
           <button class="btn primary" id="saveProductBtn">Guardar producto</button>
@@ -329,7 +336,9 @@
           <label>Nombre<input id="serviceName"></label>
           <label>Precio<input id="servicePrice" type="number" step=".01"></label>
           <label>Duración (min)<input id="serviceDuration" type="number" value="40"></label>
+          <label>Foto del servicio<input id="servicePhoto" type="file" accept="image/*"></label>
         </div>
+        <div class="image-preview-wrap"><img id="servicePhotoPreview" class="image-preview square hidden" alt="Foto del servicio"></div>
         <label>Descripción<textarea id="serviceDescription"></textarea></label>
         <div class="actions">
           <button class="btn secondary" id="cancelServiceForm">Cancelar</button>
@@ -351,7 +360,7 @@
           <label>Nombre<input id="userName"></label>
           <label>Usuario<input id="userLogin"></label>
           <label>PIN<input id="userPin" inputmode="numeric"></label>
-          <label>Rol<select id="userRole"><option>Administrador</option><option>Recepción</option><option>Barbero</option></select></label>
+          <label>Rol<select id="userRole"><option>Administrador</option><option>Recepción</option><option><span data-sambrix-term="professionalSingular">Profesional</span></option></select></label>
         </div>
         <div id="rolePreview" class="permission-box"></div>
         <div class="actions">
@@ -407,7 +416,7 @@
         <article><span>Ticket promedio</span><b id="reportAverage">$0.00</b></article>
       </div>
       <div class="grid2">
-        <div class="panel"><h3>Rendimiento por barbero</h3><div id="reportBarbers" class="stack"></div></div>
+        <div class="panel"><h3>Rendimiento por profesional</h3><div id="reportBarbers" class="stack"></div></div>
         <div class="panel"><h3>Servicios vendidos</h3><div id="reportTopServices" class="stack"></div></div>
       </div>
     </section>
@@ -422,7 +431,7 @@
       <div class="page-head"><div><span class="tag">NEGOCIO</span><h2>Configuración</h2></div></div>
       <div class="panel">
         <div class="form-grid">
-          <label>Nombre de la barbería<input id="configBusinessName"></label>
+          <label><span id="configBusinessNameLabel">Nombre del negocio</span><input id="configBusinessName"></label>
           <label>WhatsApp<input id="configWhatsapp"></label>
           <label>Dirección<input id="configAddress"></label>
           <label>Horario apertura<input id="configOpen" type="time"></label>
@@ -469,27 +478,34 @@
 
     <section id="clienteConfig" class="page">
       <div class="page-head">
-        <div><span class="tag">APP CLIENTE</span><h2>Personalización visual</h2></div>
+        <div><span class="tag">APP CLIENTE</span><h2>Personalización del negocio</h2><p class="muted">La identidad se guarda únicamente para este negocio.</p></div>
         <button class="btn secondary" id="previewClientBtn">Vista previa</button>
       </div>
+      <div id="brandingPlanSummary" class="branding-plan-summary"></div>
 
       <div class="grid2">
         <div class="panel">
           <h3>Identidad</h3>
           <div class="form-grid">
             <label>Nombre visible<input id="clientBrandName"></label>
+            <label>Eslogan<input id="clientTagline" placeholder="Tu frase de marca"></label>
+            <label>Teléfono / contacto<input id="clientContactPhone" placeholder="+58 ..."></label>
             <label>Frase principal<input id="clientHeroTitle"></label>
             <label>Frase secundaria<input id="clientHeroSubtitle"></label>
-            <label>Modo visual<select id="clientThemeMode"><option value="light">Claro elegante</option><option value="dark">Oscuro premium</option></select></label>
+            <label data-plan-control="customTheme">Modo visual<select id="clientThemeMode"><option value="light">Claro elegante</option><option value="dark">Oscuro premium</option></select></label>
           </div>
-          <label>Logo de la barbería<input id="clientLogoFile" type="file" accept="image/*"></label>
+          <label>Logo del negocio<input id="clientLogoFile" type="file" accept="image/*"></label>
           <div class="image-preview-wrap"><img id="clientLogoPreview" class="image-preview square" alt="Logo"></div>
         </div>
 
         <div class="panel">
-          <h3>Portada</h3>
-          <label>Fondo de portada<input id="clientBackgroundFile" type="file" accept="image/*"></label>
+          <div class="panel-head"><h3>Portada del cliente</h3><span class="request-badge">Todos los planes</span></div>
+          <p class="muted">Esta imagen será la portada principal que verá el cliente.</p>
+          <label>Foto de portada<input id="clientBackgroundFile" type="file" accept="image/*"></label>
           <div class="image-preview-wrap"><img id="clientBackgroundPreview" class="image-preview banner" alt="Fondo"></div>
+        </div>
+        <div class="panel" data-plan-section="customTheme">
+          <div class="panel-head"><h3>Diseño avanzado</h3><span class="request-badge">PRO+</span></div>
           <div class="form-grid">
             <label>Color principal<input id="clientPrimaryColor" type="color" value="#c89a4b"></label>
             <label>Color secundario<input id="clientSecondaryColor" type="color" value="#111111"></label>
@@ -507,15 +523,20 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><div><span class="tag">PROMOCIONES</span><h3>Promociones visibles al cliente</h3></div><button class="btn primary" id="addPromotionBtn">+ Promoción</button></div>
+      <div class="panel" data-plan-section="promotions">
+        <div class="panel-head"><div><span class="tag">PROMOCIONES · PRO+</span><h3>Promociones visibles al cliente</h3></div><button class="btn primary" id="addPromotionBtn">+ Promoción</button></div>
         <div id="promotionEditorList" class="stack"></div>
       </div>
 
       <div class="panel">
-        <div class="panel-head"><div><span class="tag">EQUIPO</span><h3>Fotos de barberos</h3></div></div>
+        <div class="panel-head"><div><span class="tag">EQUIPO</span><h3>Fotos de profesionales</h3></div></div>
         <p class="muted">Puedes escoger una foto desde la galería del teléfono o computadora.</p>
         <div id="barberPhotoEditor" class="cards"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><span class="tag">CATÁLOGO</span><h3>Fotos de productos y servicios</h3></div><span class="request-badge">Todos los planes</span></div>
+        <p class="muted">Las fotos pertenecen únicamente a este negocio. Los productos se administran desde Stock y los servicios desde Servicios; la App Cliente usa la información del negocio activo.</p>
       </div>
 
       <div class="actions">
@@ -536,8 +557,8 @@
       <div class="panel">
         <div class="panel-head"><div><span class="tag">MARCA BLANCA</span><h3>Identidad del negocio</h3></div><span id="whiteLabelPlanBadge" class="request-badge">Premium</span></div>
         <div class="form-grid">
-          <label>Slug público<input id="businessSlug" placeholder="barberia-el-patron"></label>
-          <label>Mostrar “Powered by SAMBRIX”<select id="showPoweredBy"><option value="true">Sí</option><option value="false">No</option></select></label>
+          <label data-plan-control="customSlug">Slug público<input id="businessSlug" placeholder="mi-negocio"></label>
+          <label data-plan-control="whiteLabel">Mostrar “Powered by SAMBRIX”<select id="showPoweredBy"><option value="true">Sí</option><option value="false">No</option></select></label>
         </div>
         <p class="muted">En Premium puedes ocultar completamente la marca SAMBRIX de la App Cliente.</p>
         <div class="actions"><button class="btn primary" id="saveWhiteLabelBtn">Guardar marca blanca</button></div>
@@ -573,7 +594,7 @@
         <input id="employeeEditId" type="hidden">
         <div class="form-grid">
           <label>Nombre<input id="employeeName"></label>
-          <label>Cargo<select id="employeeRole"><option>Barbero</option><option>Recepción</option><option>Administrador</option><option>Asistente</option></select></label>
+          <label>Cargo<select id="employeeRole"><option><span data-sambrix-term="professionalSingular">Profesional</span></option><option>Recepción</option><option>Administrador</option><option>Asistente</option></select></label>
           <label>Teléfono<input id="employeePhone"></label>
           <label>PIN<input id="employeePin" inputmode="numeric"></label>
           <label>Comisión servicios %<input id="employeeServiceCommission" type="number" value="40"></label>
@@ -713,7 +734,190 @@
         <p>Empieza creando el primer negocio. Después podrás configurar dueño, servicios, horarios, reservas, cobros y facturación.</p>
         <button class="btn primary" id="zeroCreateBusinessBtn">+ Crear primer negocio</button>
       </div>
-      <div class="executive-stats sambrix-kpis">
+      <div id="maintenanceQuickControl" class="maintenance-quick-control">
+<div><span class="tag">ESTADO DE PLATAFORMA</span><h3 id="maintenanceQuickTitle">Plataforma operativa</h3><p id="maintenanceQuickText" class="muted">Clientes y negocios pueden utilizar SAMBRIX normalmente.</p></div>
+<div class="maintenance-quick-actions"><span id="maintenanceQuickBadge" class="status-dot ok">OPERATIVA</span><button class="btn secondary" id="maintenanceQuickToggleBtn" type="button">Activar mantenimiento</button></div>
+</div><div id="superadminModuleDirectory" class="superadmin-module-directory">
+  <div class="panel-head">
+    <div><span class="tag">CENTRO DE MÓDULOS</span><h3>Todo SAMBRIX, organizado por áreas</h3><p class="muted">Los accesos principales permanecen visibles. El resto de herramientas se agrupa aquí.</p></div>
+    <input id="superadminModuleSearch" placeholder="Buscar módulo..." autocomplete="off">
+  </div>
+  <div class="superadmin-module-groups">
+    <section class="module-group"><div class="module-group-title"><span>01</span><div><strong>Negocios</strong><small>Alta, cuentas, planes y crecimiento</small></div></div><div class="module-grid" data-module-group="negocios">
+<button type="button" class="super-module-card" data-page-jump="saasSubscriptions" data-search="Suscripciones Planes y estado de cada negocio">
+  <span class="module-icon">SUB</span>
+  <span><strong>Suscripciones</strong><small>Planes y estado de cada negocio</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="saasPlans" data-search="Planes SaaS Configurar planes comerciales">
+  <span class="module-icon">PLAN</span>
+  <span><strong>Planes SaaS</strong><small>Configurar planes comerciales</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="activationCenter" data-search="Activación Preparar y activar negocios">
+  <span class="module-icon">ON</span>
+  <span><strong>Activación</strong><small>Preparar y activar negocios</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="onboardingCenter" data-search="Onboarding Seguimiento del proceso de alta">
+  <span class="module-icon">OB</span>
+  <span><strong>Onboarding</strong><small>Seguimiento del proceso de alta</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="trainingHandoffCenter" data-search="Entrega Capacitación y entrega al dueño">
+  <span class="module-icon">EDU</span>
+  <span><strong>Entrega</strong><small>Capacitación y entrega al dueño</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="saasMetricsCenter" data-search="Métricas SaaS MRR, ARR y riesgo comercial">
+  <span class="module-icon">MRR</span>
+  <span><strong>Métricas SaaS</strong><small>MRR, ARR y riesgo comercial</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="branches" data-search="Sucursales Gestión de sucursales">
+  <span class="module-icon">BR</span>
+  <span><strong>Sucursales</strong><small>Gestión de sucursales</small></span>
+</button>
+</div></section>
+    <section class="module-group"><div class="module-group-title"><span>02</span><div><strong>Comercial</strong><small>Cobros, renovaciones, descuentos y facturación</small></div></div><div class="module-grid" data-module-group="comercial">
+<button type="button" class="super-module-card" data-page-jump="billingOperationsCenter" data-search="Cobros Pagos y vencimientos">
+  <span class="module-icon">$</span>
+  <span><strong>Cobros</strong><small>Pagos y vencimientos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="renewalAlertsCenter" data-search="Renovaciones Alertas y seguimiento">
+  <span class="module-icon">30</span>
+  <span><strong>Renovaciones</strong><small>Alertas y seguimiento</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="discountsCenter" data-search="Descuentos Cupones y promociones">
+  <span class="module-icon">%</span>
+  <span><strong>Descuentos</strong><small>Cupones y promociones</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="invoicesCenter" data-search="Facturas Comprobantes internos">
+  <span class="module-icon">#</span>
+  <span><strong>Facturas</strong><small>Comprobantes internos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="accountStatementsCenter" data-search="Estados de cuenta Balance por negocio">
+  <span class="module-icon">AC</span>
+  <span><strong>Estados de cuenta</strong><small>Balance por negocio</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="billingCenter" data-search="Facturación SaaS Estados comerciales generales">
+  <span class="module-icon">BILL</span>
+  <span><strong>Facturación SaaS</strong><small>Estados comerciales generales</small></span>
+</button>
+</div></section>
+    <section class="module-group"><div class="module-group-title"><span>03</span><div><strong>Operaciones</strong><small>Soporte, estado del servicio y entrega</small></div></div><div class="module-grid" data-module-group="operaciones">
+<button type="button" class="super-module-card" data-page-jump="operationsCenter" data-search="Soporte operativo Casos de soporte">
+  <span class="module-icon">SUP</span>
+  <span><strong>Soporte operativo</strong><small>Casos de soporte</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="serviceStatusCenter" data-search="Estado del servicio Incidencias y comunicaciones">
+  <span class="module-icon">●</span>
+  <span><strong>Estado del servicio</strong><small>Incidencias y comunicaciones</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="supportCenter" data-search="Centro de soporte Tickets y atención">
+  <span class="module-icon">HELP</span>
+  <span><strong>Centro de soporte</strong><small>Tickets y atención</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="helpCenter" data-search="Centro de ayuda Guías y autoservicio">
+  <span class="module-icon">?</span>
+  <span><strong>Centro de ayuda</strong><small>Guías y autoservicio</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="updateCenter" data-search="Actualizaciones Versiones y comunicaciones">
+  <span class="module-icon">UP</span>
+  <span><strong>Actualizaciones</strong><small>Versiones y comunicaciones</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="notificationsHub" data-search="Notificaciones Avisos internos">
+  <span class="module-icon">NTF</span>
+  <span><strong>Notificaciones</strong><small>Avisos internos</small></span>
+</button>
+</div></section>
+    <section class="module-group"><div class="module-group-title"><span>04</span><div><strong>Seguridad</strong><small>Permisos, reglas, privacidad y credenciales</small></div></div><div class="module-grid" data-module-group="seguridad">
+<button type="button" class="super-module-card" data-page-jump="saasSecurity" data-search="Seguridad SaaS Accesos y controles">
+  <span class="module-icon">SEC</span>
+  <span><strong>Seguridad SaaS</strong><small>Accesos y controles</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="authSecurityCenter" data-search="Autenticación Políticas de acceso">
+  <span class="module-icon">AUTH</span>
+  <span><strong>Autenticación</strong><small>Políticas de acceso</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="firebaseRulesCenter" data-search="Reglas Firebase Reglas y permisos">
+  <span class="module-icon">FR</span>
+  <span><strong>Reglas Firebase</strong><small>Reglas y permisos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="privacyCenter" data-search="Privacidad Protección de datos">
+  <span class="module-icon">PRV</span>
+  <span><strong>Privacidad</strong><small>Protección de datos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="secretsSecurityCenter" data-search="Credenciales Secretos y configuración">
+  <span class="module-icon">KEY</span>
+  <span><strong>Credenciales</strong><small>Secretos y configuración</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="saasAudit" data-search="Auditoría Historial global">
+  <span class="module-icon">AUD</span>
+  <span><strong>Auditoría</strong><small>Historial global</small></span>
+</button>
+</div></section>
+    <section class="module-group"><div class="module-group-title"><span>05</span><div><strong>Calidad</strong><small>Pruebas, rendimiento, compatibilidad y recuperación</small></div></div><div class="module-grid" data-module-group="calidad">
+<button type="button" class="super-module-card" data-page-jump="launchDiagnostics" data-search="Diagnóstico Revisión técnica">
+  <span class="module-icon">DIAG</span>
+  <span><strong>Diagnóstico</strong><small>Revisión técnica</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="testCenter" data-search="Pruebas Pruebas generales">
+  <span class="module-icon">TEST</span>
+  <span><strong>Pruebas</strong><small>Pruebas generales</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="technicalAudit" data-search="Auditoría técnica Revisión de estructura">
+  <span class="module-icon">TECH</span>
+  <span><strong>Auditoría técnica</strong><small>Revisión de estructura</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="syncTestCenter" data-search="Sincronización Pruebas entre dispositivos">
+  <span class="module-icon">SYNC</span>
+  <span><strong>Sincronización</strong><small>Pruebas entre dispositivos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="dataIntegrityCenter" data-search="Integridad de datos Consistencia de información">
+  <span class="module-icon">DB</span>
+  <span><strong>Integridad de datos</strong><small>Consistencia de información</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="performanceCenter" data-search="Rendimiento Carga y desempeño">
+  <span class="module-icon">PERF</span>
+  <span><strong>Rendimiento</strong><small>Carga y desempeño</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="compatibilityCenter" data-search="Compatibilidad Navegadores y dispositivos">
+  <span class="module-icon">CMP</span>
+  <span><strong>Compatibilidad</strong><small>Navegadores y dispositivos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="recoveryCenter" data-search="Recuperación Rollback y restauración">
+  <span class="module-icon">↶</span>
+  <span><strong>Recuperación</strong><small>Rollback y restauración</small></span>
+</button>
+</div></section>
+    <section class="module-group"><div class="module-group-title"><span>06</span><div><strong>Sistema</strong><small>Despliegue, datos, caché y revisión</small></div></div><div class="module-grid" data-module-group="sistema">
+<button type="button" class="super-module-card" data-page-jump="maintenanceCenter" data-search="Mantenimiento Configuración detallada">
+  <span class="module-icon">MT</span>
+  <span><strong>Mantenimiento</strong><small>Configuración detallada</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="deploymentCenter" data-search="Despliegue Publicación y entorno">
+  <span class="module-icon">DEP</span>
+  <span><strong>Despliegue</strong><small>Publicación y entorno</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="finalReadinessCenter" data-search="Preparación final Puerta de producción">
+  <span class="module-icon">READY</span>
+  <span><strong>Preparación final</strong><small>Puerta de producción</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="demoDataCenter" data-search="Datos demo Separación de pruebas">
+  <span class="module-icon">DEMO</span>
+  <span><strong>Datos demo</strong><small>Separación de pruebas</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="cacheVersionCenter" data-search="Caché / PWA Versiones en dispositivos">
+  <span class="module-icon">SW</span>
+  <span><strong>Caché / PWA</strong><small>Versiones en dispositivos</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="reviewGateCenter" data-search="Revisión Punto de revisión">
+  <span class="module-icon">REV</span>
+  <span><strong>Revisión</strong><small>Punto de revisión</small></span>
+</button>
+<button type="button" class="super-module-card" data-page-jump="platformSettings" data-search="Plataforma Configuración general">
+  <span class="module-icon">CFG</span>
+  <span><strong>Plataforma</strong><small>Configuración general</small></span>
+</button>
+</div></section>
+  </div>
+</div>
+<div class="executive-stats sambrix-kpis">
         <article><div class="stat-icon">▦</div><div><span>Negocios activos</span><b id="saasActiveCount">0</b><small>Operando</small></div></article>
         <article><div class="stat-icon">◷</div><div><span>En prueba</span><b id="saasTrialCount">0</b><small>Conversión pendiente</small></div></article>
         <article><div class="stat-icon">!</div><div><span>Vencidos</span><b id="saasExpiredCount">0</b><small>Requieren atención</small></div></article>
@@ -750,8 +954,46 @@
         <article><span>Vencidos</span><b id="subExpired">0</b></article>
         <article><span>Pruebas</span><b id="subTrials">0</b></article>
       </div>
+
       <div class="panel"><div id="subscriptionList" class="stack"></div></div>
     </section>
+
+    <div class="modal hidden" id="planChangeModal">
+      <div class="modal-card plan-change-card">
+        <div class="modal-head">
+          <div>
+            <span class="tag">SUSCRIPCIÓN</span>
+            <h3 id="planChangeTitle">Cambiar plan</h3>
+          </div>
+          <button type="button" class="icon-btn" onclick="SaaS.closePlanChange()">×</button>
+        </div>
+
+        <input type="hidden" id="planChangeBusinessId">
+
+        <div class="panel compact-panel">
+          <span class="tag">PLAN ACTUAL</span>
+          <div id="planChangeCurrent" class="plan-change-current"></div>
+        </div>
+
+        <div class="form-grid">
+          <label class="full">
+            Nuevo plan
+            <select id="planChangeSelect" onchange="SaaS.renderPlanChangePreview()"></select>
+          </label>
+        </div>
+
+        <div id="planChangePreview" class="access-mode-note"></div>
+
+        <div class="permission-note">
+          El cambio se aplica inmediatamente al negocio. Las funciones del panel se habilitan o bloquean según el nuevo plan.
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" onclick="SaaS.closePlanChange()">Cancelar</button>
+          <button type="button" class="btn primary" onclick="SaaS.savePlanChange()">Guardar cambio</button>
+        </div>
+      </div>
+    </div>
 
     <section id="branches" class="page">
       <div class="page-head"><div><span class="tag">NEGOCIO</span><h2>Sucursales</h2></div><button class="btn primary" id="addBranchBtn">+ Sucursal</button></div>
@@ -940,17 +1182,87 @@
     </section>
 
     <div class="modal hidden" id="onboardingModal"><div class="modal-card onboarding-card">
-      <div class="modal-head"><div><span class="tag">SAMBRIX BUSINESS</span><h3>Nuevo negocio</h3></div><button class="icon-btn" id="closeOnboardingModal">×</button></div>
+      <div class="modal-head"><div><span class="tag">SAMBRIX BUSINESS</span><h3>Nuevo negocio</h3></div><button type="button" class="icon-btn" id="closeOnboardingModal" onclick="SaaS.closeOnboarding()">×</button></div>
       <div class="onboarding-progress"><div id="onboardingProgressBar"></div></div>
-      <div class="onboarding-step active" data-ob-step="1"><h3>1. Negocio</h3><div class="form-grid"><label>Nombre<input id="obBusinessName"></label><label>Tipo<select id="obBusinessType"><option>Barbería</option><option>Salón de belleza</option><option>Uñas</option><option>Spa</option><option>Estética</option><option>Otro</option></select></label><label>Teléfono<input id="obBusinessPhone"></label><label>Ciudad<input id="obBusinessCity"></label></div></div>
-      <div class="onboarding-step" data-ob-step="2"><h3>2. Dueño</h3><div class="form-grid"><label>Nombre<input id="obOwnerName"></label><label>Correo<input id="obOwnerEmail" type="email"></label><label>Teléfono<input id="obOwnerPhone"></label></div></div>
-      <div class="onboarding-step" data-ob-step="3"><h3>3. Sucursal principal</h3><div class="form-grid"><label>Nombre<input id="obBranchName" value="Principal"></label><label>Dirección<input id="obBranchAddress"></label><label>Ciudad<input id="obBranchCity"></label><label>Zona horaria<select id="obTimezone"><option value="America/Santo_Domingo">Santo Domingo</option><option value="America/New_York">New York</option><option value="America/Puerto_Rico">Puerto Rico</option></select></label></div></div>
-      <div class="onboarding-step" data-ob-step="4"><h3>4. Plan SAMBRIX</h3><div id="obPlanCards" class="addon-grid"></div></div>
-      <div class="onboarding-step" data-ob-step="5"><h3>5. Marca</h3><div class="form-grid"><label>Nombre visible<input id="obBrandName"></label><label>Color<input id="obBrandColor" type="color" value="#111827"></label><label class="full">Eslogan<input id="obBrandTagline"></label></div></div>
-      <div class="onboarding-step" data-ob-step="6"><div class="onboarding-finish"><div class="finish-mark">✓</div><h2>Listo para crear</h2><div id="obSummary" class="stack"></div></div></div>
-      <div class="modal-actions onboarding-actions"><button class="btn secondary" id="obPrevBtn">Anterior</button><button class="btn primary" id="obNextBtn">Continuar</button><button class="btn primary hidden" id="obCreateBtn">Crear negocio SAMBRIX</button></div>
+
+      <div class="onboarding-step active" data-ob-step="1">
+        <h3>1. Negocio</h3>
+        <div class="form-grid">
+          <label>Nombre del negocio<input id="obBusinessName" autocomplete="organization"></label>
+          <label>Tipo<select id="obBusinessType">
+            <option>Barbería</option><option>Salón de belleza</option><option>Uñas</option><option>Spa</option><option>Estética</option><option>Clínica</option><option>Taller</option><option>Consultorio</option><option>Otro</option>
+          </select></label>
+          <label>Teléfono<input id="obBusinessPhone" autocomplete="tel"></label>
+          <label>Ciudad<input id="obBusinessCity"></label>
+        </div>
+      </div>
+
+      <div class="onboarding-step" data-ob-step="2">
+        <h3>2. Propietario y acceso</h3>
+        <p class="muted">Este usuario será el propietario principal del negocio.</p>
+        <div class="form-grid">
+          <label>Nombre del propietario<input id="obOwnerName" autocomplete="name"></label>
+          <label>Correo de acceso<input id="obOwnerEmail" type="email" autocomplete="email"></label>
+          <label>Teléfono<input id="obOwnerPhone" autocomplete="tel"></label>
+          <label>Rol<input value="Propietario" disabled></label>
+          <label>Contraseña temporal<input id="obOwnerPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></label>
+          <label>Confirmar contraseña<input id="obOwnerPasswordConfirm" type="password" minlength="8" autocomplete="new-password"></label>
+        </div>
+        <p class="form-help">SAMBRIX intentará crear el acceso en Firebase si existe una sesión administrativa válida. Si Firebase aún no está listo, el propietario quedará registrado como pendiente de activación.</p>
+      </div>
+
+      <div class="onboarding-step" data-ob-step="3">
+        <h3>3. Ubicación y zona horaria</h3>
+        <div class="form-grid">
+          <label>País<select id="obCountry"></select></label>
+          <label>Zona horaria<select id="obTimezone"></select></label>
+          <label>Nombre de sucursal<input id="obBranchName" value="Principal"></label>
+          <label>Ciudad<input id="obBranchCity"></label>
+          <label class="full">Dirección<input id="obBranchAddress"></label>
+        </div>
+      </div>
+
+      <div class="onboarding-step" data-ob-step="4">
+        <h3>4. Plan SAMBRIX</h3>
+        <div id="obPlanCards" class="addon-grid"></div>
+      </div>
+
+      <div class="onboarding-step" data-ob-step="5">
+        <h3>5. Marca y configuración inicial</h3>
+        <div class="form-grid">
+          <label>Nombre visible<input id="obBrandName"></label>
+          <label>Color<input id="obBrandColor" type="color" value="#111827"></label>
+          <label class="full">Eslogan<input id="obBrandTagline"></label>
+        </div>
+      </div>
+
+      <div class="onboarding-step" data-ob-step="6">
+        <div class="onboarding-finish">
+          <div class="finish-mark">✓</div>
+          <h2>Revisar y crear</h2>
+          <div id="obSummary" class="stack"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions onboarding-actions">
+        <button type="button" class="btn secondary" id="obPrevBtn" onclick="SaaS.prevOnboarding()">Anterior</button>
+        <button type="button" class="btn primary" id="obNextBtn" onclick="SaaS.nextOnboarding()">Continuar</button>
+        <button type="button" class="btn primary hidden" id="obCreateBtn" onclick="SaaS.createFromOnboarding()">Crear negocio y propietario</button>
+      </div>
     </div></div>
 
+    <div class="modal hidden" id="onboardingSuccessModal"><div class="modal-card">
+      <div class="modal-head"><div><span class="tag">SAMBRIX</span><h3>Negocio creado</h3></div><button type="button" class="icon-btn" id="closeOnboardingSuccessModal" onclick="SaaS.closeOnboardingSuccess()">×</button></div>
+      <div class="onboarding-success">
+        <div class="finish-mark">✓</div>
+        <h2 id="obSuccessBusinessName">Negocio creado</h2>
+        <p id="obSuccessOwner"></p>
+        <div id="obSuccessAccessState" class="launch-result"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="obSuccessBackBtn" onclick="SaaS.closeOnboardingSuccess()">Volver al SuperAdmin</button>
+      </div>
+    </div></div>
 
     <section id="accessDenied" class="page">
       <div class="access-denied-card">
@@ -1256,12 +1568,67 @@
     </section>
 
     <div class="modal hidden" id="activationModal"><div class="modal-card onboarding-card">
-      <div class="modal-head"><div><span class="tag">ENTREGA SAMBRIX</span><h3 id="activationModalTitle">Preparar negocio</h3></div><button class="icon-btn" id="closeActivationModal">×</button></div>
+      <div class="modal-head">
+        <div>
+          <span class="tag">ENTREGA SAMBRIX</span>
+          <h3 id="activationModalTitle">Preparar negocio</h3>
+        </div>
+        <button class="icon-btn" id="closeActivationModal">×</button>
+      </div>
+
       <div id="activationChecklist" class="stack"></div>
-      <div class="panel compact-panel"><div class="panel-head"><div><span class="tag">DATOS DE ENTREGA</span><h3>Acceso del dueño</h3></div></div><div id="activationOwnerAccess" class="stack"></div></div>
-      <div class="modal-actions"><button class="btn secondary" id="activationPreviewBtn">Vista del negocio</button><button class="btn primary" id="activationDeliverBtn">Marcar como entregado</button></div>
+
+      <div class="panel compact-panel">
+        <div class="panel-head">
+          <div>
+            <span class="tag">DATOS DE ENTREGA</span>
+            <h3>Acceso del dueño</h3>
+          </div>
+        </div>
+        <div id="activationOwnerAccess" class="stack"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn secondary" id="activationPreviewBtn">Vista del negocio</button>
+        <button class="btn primary" id="activationDeliverBtn">Marcar como entregado</button>
+      </div>
     </div></div>
 
+    <div class="modal hidden" id="ownerAccessSetupModal">
+      <div class="modal-card owner-access-modal-card">
+        <div class="modal-head">
+          <div>
+            <span class="tag">ACCESO DEL PROPIETARIO</span>
+            <h3 id="ownerAccessSetupTitle">Configurar acceso</h3>
+          </div>
+          <button type="button" class="icon-btn" id="closeOwnerAccessSetupModal" onclick="SaaS.closeOwnerAccessSetup()">×</button>
+        </div>
+
+        <input type="hidden" id="ownerAccessBusinessId">
+
+        <div class="form-grid">
+          <label class="full">
+            Correo del propietario
+            <input id="ownerAccessEmail" type="email" disabled>
+          </label>
+          <label>
+            Contraseña temporal
+            <input id="ownerAccessPassword" type="password" minlength="8" autocomplete="new-password">
+          </label>
+          <label>
+            Confirmar contraseña
+            <input id="ownerAccessPasswordConfirm" type="password" minlength="8" autocomplete="new-password">
+          </label>
+        </div>
+
+        <div class="access-mode-note" id="ownerAccessModeNote"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" id="cancelOwnerAccessSetup" onclick="SaaS.closeOwnerAccessSetup()">Cancelar</button>
+          <button type="button" class="btn primary" id="saveOwnerAccessSetup" onclick="SaaS.saveOwnerAccessSetup()">Guardar acceso</button>
+        </div>
+      </div>
+    </div>
 
     <section id="launchDiagnostics" class="page">
       <div class="page-head">
@@ -3023,7 +3390,7 @@
         <button class="btn primary" id="refreshReviewGateBtn">Recalcular revisión</button>
       </div>
       <div class="executive-stats">
-        <article><div class="stat-icon">RC</div><div><span>Versión</span><b id="reviewGateVersion">19.7-HOTFIX</b><small>Paquete de revisión</small></div></article>
+        <article><div class="stat-icon">RC</div><div><span>Versión</span><b id="reviewGateVersion">20.13-RC1</b><small>Paquete de revisión</small></div></article>
         <article><div class="stat-icon">✓</div><div><span>Estructura</span><b id="reviewGateStatic">OK</b><small>Estática</small></div></article>
         <article><div class="stat-icon">F</div><div><span>Firebase real</span><b id="reviewGateFirebase">PENDIENTE</b><small>Prueba requerida</small></div></article>
         <article><div class="stat-icon">2X</div><div><span>Dos dispositivos</span><b id="reviewGateDevices">PENDIENTE</b><small>Prueba requerida</small></div></article>
@@ -3047,13 +3414,13 @@
   </main>
 
   <nav class="bottom-nav">
-    <button class="active" data-page="inicio">⌂<span>Inicio</span></button>
-    <button data-page="citas">◷<span>Citas</span></button>
-    <button data-page="clientes">♙<span>Clientes</span></button>
-    <button data-page="barberos">✂<span>Barberos</span></button>
-    <button data-page="caja">$<span>Caja</span></button>
-    <button data-page="inventario">▦<span>Stock</span></button><button data-page="servicios">✦<span>Servicios</span></button><button data-page="usuarios">♜<span>Roles</span></button><button data-page="recibos">▧<span>Recibos</span></button><button data-page="autorizaciones">✓<span>Autorizar</span></button><button data-page="reportes">▥<span>Reportes</span></button><button data-page="auditoria">⌁<span>Historial</span></button><button data-page="configuracion">⚙<span>Config.</span></button><button data-page="superadmin">◉<span>Superadmin</span></button><button data-page="saasPlans">◆<span>Planes</span></button><button data-page="saasSupport">⌘<span>Soporte</span></button><button data-page="saasSubscriptions">$<span>Suscripciones</span></button><button data-page="billingCenter">$<span>Cobros</span></button><button data-page="saasAddons">✦<span>Add-ons</span></button><button data-page="saasCRM">♙<span>CRM</span></button><button data-page="saasOnboarding">＋<span>Onboarding</span></button><button data-page="platformSettings">⚙<span>Plataforma</span></button><button data-page="saasAlerts">!<span>Alertas</span></button><button data-page="saasAudit">▤<span>Auditoría</span></button><button data-page="saasSecurity">⌾<span>Seguridad</span></button><button data-page="systemHealth">♥<span>Salud</span></button><button data-page="backupCenter">♲<span>Respaldos</span></button><button data-page="supportCenter">?<span>Soporte</span></button><button data-page="licenseCenter">◇<span>Licencias</span></button><button data-page="saasAnalytics">↗<span>Analítica</span></button><button data-page="activationCenter">★<span>Entrega</span></button><button data-page="launchDiagnostics">✓<span>Diagnóstico</span></button><button data-page="launchCenter">▶<span>Lanzamiento</span></button><button data-page="testCenter">⚙<span>Pruebas</span></button><button data-page="technicalAudit">⌕<span>Auditoría final</span></button><button data-page="firebaseTestCenter">F<span>Firebase real</span></button><button data-page="finalTestWizard">✓<span>Prueba final</span></button><button data-page="certificationCenter">★<span>Certificación</span></button><button data-page="productionCenter">▶<span>Producción</span></button><button data-page="migrationCenter">DB<span>Respaldo</span></button><button data-page="healthCenter">♥<span>Salud</span></button><button data-page="incidentCenter">!<span>Incidentes</span></button><button data-page="continuityCenter">↻<span>Continuidad</span></button><button data-page="maintenanceCenter">⚙<span>Mantenimiento</span></button><button data-page="updateCenter">↑<span>Actualizaciones</span></button><button data-page="authSecurityCenter">🔒<span>Autenticación</span></button><button data-page="firebaseRulesCenter">F<span>Reglas Firebase</span></button><button data-page="deploymentCenter">WEB<span>Despliegue</span></button><button data-page="releaseCandidateCenter">RC<span>Candidato</span></button><button data-page="smokeTestCenter">✓<span>Smoke Test</span></button><button data-page="runtimeDiagnosticsCenter">JS<span>Runtime</span></button><button data-page="bugReportCenter">!<span>Reportes QA</span></button><button data-page="syncTestCenter">⇄<span>Sincronización</span></button><button data-page="dataIntegrityCenter">DB<span>Integridad</span></button><button data-page="performanceCenter">ms<span>Rendimiento</span></button><button data-page="compatibilityCenter">📱<span>Compatibilidad</span></button><button data-page="validationSecurityCenter">🔒<span>Validación</span></button><button data-page="privacyCenter">◉<span>Privacidad</span></button><button data-page="finalReadinessCenter">✓<span>Preparación final</span></button><button data-page="secretsSecurityCenter">🔑<span>Credenciales</span></button><button data-page="demoDataCenter">DEMO<span>Datos demo</span></button><button data-page="cacheVersionCenter">SW<span>Caché/PWA</span></button><button data-page="recoveryCenter">↶<span>Recuperación</span></button><button data-page="operationsCenter">SUP<span>Soporte</span></button><button data-page="serviceStatusCenter">●<span>Estado servicio</span></button><button data-page="onboardingCenter">ON<span>Activación</span></button><button data-page="trainingHandoffCenter">EDU<span>Entrega</span></button><button data-page="helpCenter">?<span>Centro ayuda</span></button><button data-page="billingOperationsCenter">$<span>Cobros</span></button><button data-page="renewalAlertsCenter">30<span>Renovaciones</span></button><button data-page="discountsCenter">%<span>Descuentos</span></button><button data-page="invoicesCenter">#<span>Facturas</span></button><button data-page="accountStatementsCenter">AC<span>Estados cuenta</span></button><button data-page="saasMetricsCenter">MRR<span>Métricas SaaS</span></button><button data-page="reviewGateCenter">REV<span>Revisión</span></button><button data-page="branches">⌂<span>Sucursales</span></button><button data-page="clienteConfig">✦<span>App Cliente</span></button><button data-page="clienteSolicitudes">◎<span>Solicitudes</span></button><button data-page="personal">♜<span>Personal</span></button><button data-page="asistencia">✓<span>Asistencia</span></button><button data-page="horariosPersonal">◷<span>Horarios</span></button><button data-page="rendimientoPersonal">★<span>Rendimiento</span></button><button data-page="historialPersonal">▤<span>Historial</span></button><button data-page="ausenciasPersonal">⊘<span>Ausencias</span></button><button data-page="nominaPersonal">$<span>Nómina</span></button>
-    <button data-page="reservas">⌁<span>Reservas</span></button><button data-page="bookingInbox">✉<span>Solicitudes</span></button><button data-page="notificationsHub">●<span>Avisos</span></button>
+    <button class="active nav-business" data-page="inicio">⌂<span>Inicio</span></button>
+    <button class="nav-business" data-page="citas">◷<span>Citas</span></button>
+    <button class="nav-business" data-page="clientes">♙<span>Clientes</span></button>
+    <button class="nav-business" data-page="barberos">✂<span><span data-sambrix-term="professionalPlural">Profesionales</span></span></button>
+    <button class="nav-business" data-page="caja">$<span>Caja</span></button>
+    <button class="nav-business" data-page="inventario">▦<span>Stock</span></button><button class="nav-business" data-page="servicios">✦<span>Servicios</span></button><button class="nav-business" data-page="usuarios">♜<span>Roles</span></button><button class="nav-business" data-page="recibos">▧<span>Recibos</span></button><button class="nav-business" data-page="autorizaciones">✓<span>Autorizar</span></button><button class="nav-business" data-page="reportes">▥<span>Reportes</span></button><button class="nav-business" data-page="auditoria">⌁<span>Historial</span></button><button class="nav-business" data-page="configuracion">⚙<span>Config.</span></button><button class="nav-saas" data-page="superadmin">◉<span>Superadmin</span></button><button class="nav-saas" data-page="saasPlans">◆<span>Planes</span></button><button class="nav-saas" data-page="saasSupport">⌘<span>Soporte</span></button><button class="nav-saas" data-page="saasSubscriptions">$<span>Suscripciones</span></button><button class="nav-saas" data-page="billingCenter">$<span>Cobros</span></button><button class="nav-saas" data-page="saasAddons">✦<span>Add-ons</span></button><button class="nav-saas" data-page="saasCRM">♙<span>CRM</span></button><button class="nav-saas" data-page="saasOnboarding">＋<span>Onboarding</span></button><button class="nav-saas" data-page="platformSettings">⚙<span>Plataforma</span></button><button class="nav-saas" data-page="saasAlerts">!<span>Alertas</span></button><button class="nav-saas" data-page="saasAudit">▤<span>Auditoría</span></button><button class="nav-saas" data-page="saasSecurity">⌾<span>Seguridad</span></button><button class="nav-saas" data-page="systemHealth">♥<span>Salud</span></button><button class="nav-saas" data-page="backupCenter">♲<span>Respaldos</span></button><button class="nav-saas" data-page="supportCenter">?<span>Soporte</span></button><button class="nav-saas" data-page="licenseCenter">◇<span>Licencias</span></button><button class="nav-saas" data-page="saasAnalytics">↗<span>Analítica</span></button><button class="nav-saas" data-page="activationCenter">★<span>Entrega</span></button><button class="nav-saas" data-page="launchDiagnostics">✓<span>Diagnóstico</span></button><button class="nav-saas" data-page="launchCenter">▶<span>Lanzamiento</span></button><button class="nav-saas" data-page="testCenter">⚙<span>Pruebas</span></button><button class="nav-saas" data-page="technicalAudit">⌕<span>Auditoría final</span></button><button class="nav-saas" data-page="firebaseTestCenter">F<span>Firebase real</span></button><button class="nav-saas" data-page="finalTestWizard">✓<span>Prueba final</span></button><button class="nav-saas" data-page="certificationCenter">★<span>Certificación</span></button><button class="nav-saas" data-page="productionCenter">▶<span>Producción</span></button><button class="nav-saas" data-page="migrationCenter">DB<span>Respaldo</span></button><button class="nav-saas" data-page="healthCenter">♥<span>Salud</span></button><button class="nav-saas" data-page="incidentCenter">!<span>Incidentes</span></button><button class="nav-saas" data-page="continuityCenter">↻<span>Continuidad</span></button><button class="nav-saas" data-page="maintenanceCenter">⚙<span>Mantenimiento</span></button><button class="nav-saas" data-page="updateCenter">↑<span>Actualizaciones</span></button><button class="nav-saas" data-page="authSecurityCenter">🔒<span>Autenticación</span></button><button class="nav-saas" data-page="firebaseRulesCenter">F<span>Reglas Firebase</span></button><button class="nav-saas" data-page="deploymentCenter">WEB<span>Despliegue</span></button><button class="nav-saas" data-page="releaseCandidateCenter">RC<span>Candidato</span></button><button class="nav-saas" data-page="smokeTestCenter">✓<span>Smoke Test</span></button><button class="nav-saas" data-page="runtimeDiagnosticsCenter">JS<span>Runtime</span></button><button class="nav-saas" data-page="bugReportCenter">!<span>Reportes QA</span></button><button class="nav-saas" data-page="syncTestCenter">⇄<span>Sincronización</span></button><button class="nav-saas" data-page="dataIntegrityCenter">DB<span>Integridad</span></button><button class="nav-saas" data-page="performanceCenter">ms<span>Rendimiento</span></button><button class="nav-saas" data-page="compatibilityCenter">📱<span>Compatibilidad</span></button><button class="nav-saas" data-page="validationSecurityCenter">🔒<span>Validación</span></button><button class="nav-saas" data-page="privacyCenter">◉<span>Privacidad</span></button><button class="nav-saas" data-page="finalReadinessCenter">✓<span>Preparación final</span></button><button class="nav-saas" data-page="secretsSecurityCenter">🔑<span>Credenciales</span></button><button class="nav-saas" data-page="demoDataCenter">DEMO<span>Datos demo</span></button><button class="nav-saas" data-page="cacheVersionCenter">SW<span>Caché/PWA</span></button><button class="nav-saas" data-page="recoveryCenter">↶<span>Recuperación</span></button><button class="nav-saas" data-page="operationsCenter">SUP<span>Soporte</span></button><button class="nav-saas" data-page="serviceStatusCenter">●<span>Estado servicio</span></button><button class="nav-saas" data-page="onboardingCenter">ON<span>Activación</span></button><button class="nav-saas" data-page="trainingHandoffCenter">EDU<span>Entrega</span></button><button class="nav-saas" data-page="helpCenter">?<span>Centro ayuda</span></button><button class="nav-saas" data-page="billingOperationsCenter">$<span>Cobros</span></button><button class="nav-saas" data-page="renewalAlertsCenter">30<span>Renovaciones</span></button><button class="nav-saas" data-page="discountsCenter">%<span>Descuentos</span></button><button class="nav-saas" data-page="invoicesCenter">#<span>Facturas</span></button><button class="nav-saas" data-page="accountStatementsCenter">AC<span>Estados cuenta</span></button><button class="nav-saas" data-page="saasMetricsCenter">MRR<span>Métricas SaaS</span></button><button class="nav-saas" data-page="reviewGateCenter">REV<span>Revisión</span></button><button class="nav-saas" data-page="branches">⌂<span>Sucursales</span></button><button class="nav-business" data-page="clienteConfig">🎨<span>Personalización</span></button><button class="nav-saas" data-page="clienteSolicitudes">◎<span>Solicitudes</span></button><button class="nav-saas" data-page="personal">♜<span>Personal</span></button><button class="nav-saas" data-page="asistencia">✓<span>Asistencia</span></button><button class="nav-saas" data-page="horariosPersonal">◷<span>Horarios</span></button><button class="nav-saas" data-page="rendimientoPersonal">★<span>Rendimiento</span></button><button class="nav-saas" data-page="historialPersonal">▤<span>Historial</span></button><button class="nav-saas" data-page="ausenciasPersonal">⊘<span>Ausencias</span></button><button class="nav-saas" data-page="nominaPersonal">$<span>Nómina</span></button>
+    <button class="nav-saas" data-page="reservas">⌁<span>Reservas</span></button><button class="nav-saas" data-page="bookingInbox">✉<span>Solicitudes</span></button><button class="nav-saas" data-page="notificationsHub">●<span>Avisos</span></button>
   </nav>
 </div>
 
@@ -3067,19 +3434,19 @@
     <section id="clientHome" class="client-page active">
       <div class="client-hero">
         <div>
-          <span class="client-badge">BARBERÍA</span>
+          <span class="client-badge">NEGOCIO</span>
           <h1 id="clientHeroTitleView">Tu estilo.<br><em>Tu momento.</em></h1>
-          <p id="clientHeroSubtitleView">Elige servicio, barbero y horario disponible.</p>
+          <p id="clientHeroSubtitleView">Elige servicio, profesional y horario disponible.</p>
           <button class="btn primary" data-client-go="clientBook">Reservar ahora</button>
         </div>
       </div>
       <div class="client-card"><h3>Servicios</h3><div id="clientServicesHome" class="client-grid"></div></div>
-      <div class="client-card"><h3>Barberos</h3><div id="clientBarbersHome" class="client-grid"></div></div><div class="client-card"><h3>Promociones</h3><div id="clientPromotionsHome" class="client-grid"></div></div><div class="client-card"><h3>Síguenos</h3><div id="clientSocialLinks" class="social-grid"></div></div>
+      <div class="client-card"><h3><span data-sambrix-term="professionalPlural">Profesionales</span></h3><div id="clientBarbersHome" class="client-grid"></div></div><div class="client-card"><h3>Promociones</h3><div id="clientPromotionsHome" class="client-grid"></div></div><div class="client-card"><h3>Síguenos</h3><div id="clientSocialLinks" class="social-grid"></div></div>
     </section>
 
     <section id="clientBook" class="client-page">
       <div class="client-card"><h2>1. Servicio</h2><div id="clientServicePicker" class="client-grid"></div></div>
-      <div class="client-card"><h2>2. Barbero</h2><div id="clientBarberPicker" class="client-grid"></div></div>
+      <div class="client-card"><h2>2. Profesional</h2><div id="clientBarberPicker" class="client-grid"></div></div>
       <div class="client-card">
         <h2>3. Fecha y hora</h2>
         <label>Fecha<input id="clientBookDate" type="date"></label>
@@ -3120,7 +3487,7 @@
 
 
 
-    <section id="clientHistory" class="client-page">
+    <section id="clientHistory" class="client-page" data-client-capability="clientHistory">
       <div class="client-card">
         <h2>Mi historial</h2>
         <div class="form-grid">
@@ -3132,10 +3499,10 @@
       </div>
     </section>
 
-    <section id="clientShop" class="client-page">
+    <section id="clientShop" class="client-page" data-client-capability="clientShop">
       <div class="client-card">
         <h2>Tienda</h2>
-        <p class="muted">Productos disponibles para comprar en la barbería.</p>
+        <p class="muted">Productos disponibles para comprar en este negocio.</p>
         <div id="clientShopList" class="client-grid"></div><div id="clientOrderNoteWrap" class="client-card hidden"><label>Nota para la tienda<textarea id="clientOrderNote" placeholder="Ej.: apartar producto, retirar en la tarde..."></textarea></label></div><div id="clientCart" class="shop-cart hidden"><div><strong id="clientCartCount">0 productos</strong><span id="clientCartTotal">$0.00</span></div><button class="btn primary" id="clientCheckoutBtn">Solicitar compra</button></div>
       </div>
     </section>
@@ -3144,7 +3511,7 @@
       <button class="active" data-client-page="clientHome">⌂<span>Inicio</span></button>
       <button data-client-page="clientBook">◷<span>Reservar</span></button>
       <button data-client-page="clientAppointments">▧<span>Mis citas</span></button>
-      <button data-client-page="clientProfile">★<span>Mi perfil</span></button><button data-client-page="clientHistory">▤<span>Historial</span></button><button data-client-page="clientShop">▣<span>Tienda</span></button>
+      <button data-client-page="clientProfile">★<span>Mi perfil</span></button><button data-client-page="clientHistory" data-client-capability="clientHistory">▤<span>Historial</span></button><button data-client-page="clientShop" data-client-capability="clientShop">▣<span>Tienda</span></button>
     </nav>
   </div>
 </div>
@@ -3160,7 +3527,7 @@
       <label>Nombre<input id="memberName"></label>
       <label>Correo<input id="memberEmail" type="email"></label>
       <label>Contraseña inicial<input id="memberPassword" type="password" minlength="6"></label>
-      <label>Rol<select id="memberRole"><option value="owner">Dueño</option><option value="admin">Administrador</option><option value="reception">Recepción/Caja</option><option value="barber">Barbero/Empleado</option></select></label>
+      <label>Rol<select id="memberRole"><option value="owner">Dueño</option><option value="admin">Administrador</option><option value="reception">Recepción/Caja</option><option value="barber">Profesional/Empleado</option></select></label>
     </div>
     <div class="actions"><button class="btn primary" id="createMemberBtn">Crear acceso</button></div>
     <div id="businessMembersList" class="stack"></div>
@@ -3223,6 +3590,7 @@
 <script src="js/saas/saas-core.js"></script>
 <script src="js/saas/saas-admin.js"></script>
 <script src="js/saas/tenant-store.js"></script>
+<script src="js/business-terminology.js"></script>
 <script src="js/saas/saas-billing.js"></script>
 <script src="js/saas/saas-branches.js"></script>
 <script src="js/saas/saas-branding.js"></script>
@@ -3286,13 +3654,69 @@
 <script src="js/saas/tenant-bridge.js"></script>
 <script src="js/saas/saas-security.js"></script>
 <script src="js/saas/saas-onboarding.js"></script>
+<script src="js/saas/sambrix-owner-access.js"></script>
 <script src="js/saas/sambrix-portal.js"></script>
 <script src="js/saas/sambrix-session.js"></script>
+<script src="js/saas/sambrix-superadmin-organizer.js"></script>
 <script src="js/saas/saas-main.js"></script>
+<script src="js/agenda-20-30.js"></script>
+<script src="js/client-accounts-20-31.js"></script>
+<script src="js/appointment-approval-20-32.js"></script>
+<script src="js/saas/sambrix-production-v5.js"></script>
 <script type="module" src="js/firebase/firebase-main.js"></script>
 <script type="module" src="js/saas/public-cloud.js"></script>
+<script type="module" src="js/saas/client-cloud-auth.js"></script>
 <script type="module" src="js/saas/saas-access.js"></script>
 <script type="module" src="js/saas/saas-cloud-main.js"></script>
 <script src="js/saas/public-runtime.js"></script>
+    
+
+    <div id="editClientModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="panel-head">
+          <div><span class="tag">CLIENTE</span><h3>Editar cliente</h3></div>
+          <button type="button" class="btn secondary" onclick="App.closeEditClient()">Cerrar</button>
+        </div>
+        <input type="hidden" id="editClientId">
+        <div class="form-grid">
+          <label>Nombre<input id="editClientName"></label>
+          <label>WhatsApp<input id="editClientPhone"></label>
+          <label>Cumpleaños<input id="editClientBirthday" type="date"></label>
+          <label>Frecuencia de visita (días)<input id="editClientFrequency" type="number"></label>
+          <label class="full">Notas / estilo<textarea id="editClientStyle"></textarea></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn secondary" onclick="App.closeEditClient()">Cancelar</button>
+          <button type="button" class="btn primary" onclick="App.saveEditedClient()">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="clientHistoryModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card client-history-modal">
+        <div class="panel-head">
+          <div><span class="tag">FICHA DEL CLIENTE</span><h3 id="clientHistoryTitle">Historial</h3></div>
+          <button class="btn secondary" type="button" onclick="App.closeClientHistory()">Cerrar</button>
+        </div>
+        <div id="clientRecordSummary" class="permission-note"></div>
+
+        <div id="clientHistoryEntryForm" class="panel compact-panel hidden">
+          <input type="hidden" id="clientHistoryEntryClientId">
+          <div class="form-grid">
+            <label>Fecha<input id="clientHistoryEntryDate" type="date"></label>
+            <label class="full">Trabajo realizado / observaciones<textarea id="clientHistoryEntryNote"></textarea></label>
+            <label class="full">Fotos (máximo 3)<input id="clientHistoryEntryPhotos" type="file" accept="image/*" multiple></label>
+          </div>
+          <div id="clientHistoryEntryPreview" class="history-thumbs"></div>
+          <div class="actions">
+            <button type="button" class="btn secondary" onclick="App.cancelClientHistoryEntry()">Cancelar</button>
+            <button type="button" class="btn primary" onclick="App.saveClientHistoryEntry()">Guardar en historial</button>
+          </div>
+        </div>
+
+        <div id="clientHistoryTimeline" class="client-history-timeline"></div>
+      </div>
+    </div>
+
 </body>
 </html>

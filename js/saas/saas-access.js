@@ -2,14 +2,20 @@
 import {firebaseConfig} from "../firebase/firebase-config.js";
 import {firebaseApp,firestore,doc,getDoc,setDoc,serverTimestamp} from "../firebase/firebase-core.js";
 import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-import {getAuth,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {collection,getDocs,deleteDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {getAuth,createUserWithEmailAndPassword,signOut,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import {collection,getDocs,deleteDoc,updateDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 let platformConfig=null,currentProfile=null;
 
 async function loadPlatformConfig(){
-  const s=await getDoc(doc(firestore,"platform","config"));
-  platformConfig=s.exists()?s.data():null;
+  try{
+    const s=await getDoc(doc(firestore,"platform","config"));
+    platformConfig=s.exists()?s.data():null;
+  }catch(error){
+    // Business users are intentionally not allowed to read platform metadata.
+    platformConfig=null;
+    if(String(error?.code||"")!=="permission-denied")console.warn("[SAMBRIX platform config]",error);
+  }
   return platformConfig;
 }
 
@@ -35,28 +41,50 @@ async function ensureSuperAdminProfile(){
 }
 
 async function createAuthUser(email,password){
-  const name="secondary-"+Date.now();
-  const secondary=initializeApp(firebaseConfig,name);
-  const auth=getAuth(secondary);
-  try{
-    const c=await createUserWithEmailAndPassword(auth,email,password);
-    await signOut(auth);
-    return c.user;
-  }finally{
-    await deleteApp(secondary);
-  }
+  const app=initializeApp(firebaseConfig,"secondary-"+Date.now()+"-"+Math.random().toString(36).slice(2));
+  const auth=getAuth(app);
+  const credential=await createUserWithEmailAndPassword(auth,email,password);
+  return {app,auth,user:credential.user};
 }
 
 async function createBusinessMember({businessId,name,email,password,role}){
-  if(!businessId||!email||!password||password.length<6)throw new Error("Completa correo y contraseña mínima de 6 caracteres.");
-  const u=await createAuthUser(email,password);
-  await setDoc(doc(firestore,"businesses",businessId,"members",u.uid),{
-    uid:u.uid,businessId,name:name||email,email,role:role||"barber",active:true,createdAt:serverTimestamp()
-  });
-  await setDoc(doc(firestore,"platform_users",u.uid),{
-    uid:u.uid,email,name:name||email,role:"business_user",active:true,createdAt:serverTimestamp()
-  },{merge:true});
-  return u;
+  const memberRole=String(role||"barber").toLowerCase();
+  const allowedRoles=["owner","admin","manager","reception","cashier","barber"];
+  if(!businessId||!email||!password||password.length<8)throw new Error("Completa correo y contraseña mínima de 8 caracteres.");
+  if(!allowedRoles.includes(memberRole))throw new Error("Rol de usuario inválido.");
+  if(memberRole==="owner"&&!isSuperAdmin())throw new Error("Solo SuperAdmin puede crear otro propietario.");
+
+  const secondary=await createAuthUser(email,password);
+  const u=secondary.user;
+  let memberCreated=false;
+  try{
+    await setDoc(doc(firestore,"businesses",businessId,"members",u.uid),{
+      uid:u.uid,businessId,name:name||email,email,role:memberRole,active:true,createdAt:serverTimestamp()
+    });
+    memberCreated=true;
+
+    const business=SaaS.db.businesses?.find(b=>b.id===businessId);
+    if(business){
+      await setDoc(doc(firestore,"businesses",businessId),{
+        id:businessId,name:business.name||"Negocio",type:business.type||"",status:business.status||"Activo",
+        owner:business.owner||name||email,ownerEmail:business.ownerEmail||email,
+        branches:business.branches||[],brand:business.brand||{},planId:business.planId||business.plan||"",
+        updatedAt:serverTimestamp()
+      },{merge:true});
+    }
+
+    await setDoc(doc(firestore,"platform_users",u.uid),{
+      uid:u.uid,email,name:name||email,role:"business_user",businessId,active:true,createdAt:serverTimestamp()
+    },{merge:true});
+    return u;
+  }catch(error){
+    if(memberCreated){try{await deleteDoc(doc(firestore,"businesses",businessId,"members",u.uid))}catch{}}
+    try{await deleteUser(u)}catch{}
+    throw error;
+  }finally{
+    try{await signOut(secondary.auth)}catch{}
+    try{await deleteApp(secondary.app)}catch{}
+  }
 }
 
 async function listBusinessMembers(businessId){
@@ -65,7 +93,12 @@ async function listBusinessMembers(businessId){
 }
 
 async function removeBusinessMember(businessId,uid){
-  await deleteDoc(doc(firestore,"businesses",businessId,"members",uid));
+  // Revoke access without deleting identity, so the same email can be reactivated later.
+  await updateDoc(doc(firestore,"businesses",businessId,"members",uid),{active:false,updatedAt:serverTimestamp()});
+}
+
+async function reactivateBusinessMember(businessId,uid){
+  await updateDoc(doc(firestore,"businesses",businessId,"members",uid),{active:true,updatedAt:serverTimestamp()});
 }
 
 async function myBusinessMemberships(){
@@ -78,6 +111,36 @@ async function myBusinessMemberships(){
   return out;
 }
 
+
+async function resolveMyBusiness(){
+  const u=window.FirebaseBridge?.user;if(!u)return null;
+  await loadCurrentProfile();
+  const businessId=String(currentProfile?.businessId||"");
+  if(!businessId)return null;
+  const member=await getDoc(doc(firestore,"businesses",businessId,"members",u.uid));
+  if(!member.exists()||member.data()?.active===false)return null;
+  const businessSnap=await getDoc(doc(firestore,"businesses",businessId));
+  const business=businessSnap.exists()?{id:businessId,...businessSnap.data()}:{id:businessId,name:"Mi negocio",branches:[]};
+  return {business,membership:{businessId,...member.data()}};
+}
+
+async function repairBusinessUserLinks(){
+  if(!isSuperAdmin())return 0;
+  let repaired=0;
+  for(const business of SaaS.db.businesses||[]){
+    const members=await getDocs(collection(firestore,"businesses",business.id,"members"));
+    for(const m of members.docs){
+      const data=m.data()||{};
+      await setDoc(doc(firestore,"platform_users",m.id),{
+        uid:m.id,email:data.email||"",name:data.name||data.email||"Usuario",role:"business_user",
+        businessId:business.id,active:data.active!==false,updatedAt:serverTimestamp()
+      },{merge:true});
+      repaired++;
+    }
+  }
+  return repaired;
+}
+
 function isSuperAdmin(){
   const u=window.FirebaseBridge?.user;
   return !!(u&&platformConfig?.ownerUid===u.uid);
@@ -85,10 +148,9 @@ function isSuperAdmin(){
 
 function updateSuperAdminUI(){
   const superOn=isSuperAdmin();
-  document.querySelectorAll('[data-page="superadmin"],[data-page="saasPlans"],[data-page="saasSupport"],[data-page="saasSubscriptions"],[data-page="platformSettings"],[data-page="saasAlerts"],[data-page="saasAudit"],[data-page="saasSecurity"],[data-page="systemHealth","backupCenter","supportCenter","licenseCenter","saasAnalytics","activationCenter","launchDiagnostics","launchCenter","testCenter","technicalAudit","firebaseTestCenter","finalTestWizard","certificationCenter","productionCenter","migrationCenter","healthCenter","incidentCenter","continuityCenter","maintenanceCenter","updateCenter","authSecurityCenter","firebaseRulesCenter","deploymentCenter","releaseCandidateCenter","smokeTestCenter","runtimeDiagnosticsCenter","bugReportCenter","syncTestCenter","dataIntegrityCenter","performanceCenter","compatibilityCenter","validationSecurityCenter","privacyCenter","finalReadinessCenter","secretsSecurityCenter","demoDataCenter","cacheVersionCenter","recoveryCenter","operationsCenter","serviceStatusCenter","onboardingCenter","trainingHandoffCenter","helpCenter","billingOperationsCenter","renewalAlertsCenter","discountsCenter","invoicesCenter","accountStatementsCenter","saasMetricsCenter","reviewGateCenter","saasAddons","saasCRM"],[data-page="saasAddons","saasCRM"],[data-page="saasCRM"]').forEach(el=>{
-    el.style.display=superOn?"":"none";
-  });
-  if(!superOn&&["superadmin","saasPlans","saasSupport","saasSubscriptions","platformSettings","saasAlerts","saasAudit","saasSecurity","systemHealth","backupCenter","supportCenter","licenseCenter","saasAnalytics","activationCenter","launchDiagnostics","launchCenter","testCenter","technicalAudit","firebaseTestCenter","finalTestWizard","certificationCenter","productionCenter","migrationCenter","healthCenter","incidentCenter","continuityCenter","maintenanceCenter","updateCenter","authSecurityCenter","firebaseRulesCenter","deploymentCenter","releaseCandidateCenter","smokeTestCenter","runtimeDiagnosticsCenter","bugReportCenter","syncTestCenter","dataIntegrityCenter","performanceCenter","compatibilityCenter","validationSecurityCenter","privacyCenter","finalReadinessCenter","secretsSecurityCenter","demoDataCenter","cacheVersionCenter","recoveryCenter","operationsCenter","serviceStatusCenter","onboardingCenter","trainingHandoffCenter","helpCenter","billingOperationsCenter","renewalAlertsCenter","discountsCenter","invoicesCenter","accountStatementsCenter","saasMetricsCenter","reviewGateCenter","saasAddons","saasCRM"].some(id=>document.getElementById(id)?.classList.contains("active"))){
+  const superPages=["superadmin","saasPlans","saasSupport","saasSubscriptions","platformSettings","saasAlerts","saasAudit","saasSecurity","systemHealth","backupCenter","supportCenter","licenseCenter","saasAnalytics","activationCenter","launchDiagnostics","launchCenter","testCenter","technicalAudit","firebaseTestCenter","finalTestWizard","certificationCenter","productionCenter","migrationCenter","healthCenter","incidentCenter","continuityCenter","maintenanceCenter","updateCenter","authSecurityCenter","firebaseRulesCenter","deploymentCenter","releaseCandidateCenter","smokeTestCenter","runtimeDiagnosticsCenter","bugReportCenter","syncTestCenter","dataIntegrityCenter","performanceCenter","compatibilityCenter","validationSecurityCenter","privacyCenter","finalReadinessCenter","secretsSecurityCenter","demoDataCenter","cacheVersionCenter","recoveryCenter","operationsCenter","serviceStatusCenter","onboardingCenter","trainingHandoffCenter","helpCenter","billingOperationsCenter","renewalAlertsCenter","discountsCenter","invoicesCenter","accountStatementsCenter","saasMetricsCenter","reviewGateCenter","saasAddons","saasCRM"];
+  document.querySelectorAll(superPages.map(p=>`[data-page="${p}"]`).join(",")).forEach(el=>{el.style.display=superOn?"":"none";});
+  if(!superOn&&superPages.some(id=>document.getElementById(id)?.classList.contains("active"))){
     window.App?.go?.("inicio");
   }
 }
@@ -102,7 +164,7 @@ async function refreshAccess(){
 }
 
 window.SaaSAuthAdmin={
-  refreshAccess,isSuperAdmin,createBusinessMember,listBusinessMembers,removeBusinessMember,myBusinessMemberships,
+  refreshAccess,isSuperAdmin,createBusinessMember,listBusinessMembers,removeBusinessMember,reactivateBusinessMember,myBusinessMemberships,resolveMyBusiness,repairBusinessUserLinks,
   get profile(){return currentProfile},
   get platform(){return platformConfig}
 };

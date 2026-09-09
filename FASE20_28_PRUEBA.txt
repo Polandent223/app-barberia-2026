@@ -1,0 +1,14 @@
+SAMBRIX 20.28 — Personalización Pro/Premium
+
+Corregido:
+- Detección única del nivel del plan: Básico / Pro / Premium.
+- Pro habilita Diseño avanzado, colores, tema y promociones.
+- Premium habilita todo Pro + Marca blanca + slug personalizado + ocultar Powered by SAMBRIX.
+- Nombre, eslogan, contacto, frases, portada y logo se guardan correctamente.
+- Los colores elegidos se aplican realmente a botones, selecciones, navegación y elementos de la App Cliente.
+- Guardar personalización persiste en el tenant activo y aplica los cambios inmediatamente.
+
+Prueba:
+1. Pro -> Personalización -> cambia color principal/secundario y tema -> Guardar -> Vista previa.
+2. Premium -> Personalización -> Marca blanca -> cambiar slug y Powered by -> Guardar.
+3. Abrir App Cliente y confirmar los cambios visuales.

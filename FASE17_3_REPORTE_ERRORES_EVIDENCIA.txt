@@ -1,0 +1,15 @@
+SAMBRIX — Fase 17.3 Reporte de Errores y Evidencia
+
+- Reportes QA con severidad y estado.
+- Negocio, página y candidato asociados.
+- Pasos para reproducir.
+- Resultado esperado vs. resultado actual.
+- Adjunta hasta 10 errores recientes del Runtime Diagnostics.
+- Incluye navegador, rol, usuario, URL, versión y hash.
+- Exportación JSON por reporte.
+- Errores críticos bloquean aprobación del candidato.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

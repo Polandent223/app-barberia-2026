@@ -1,0 +1,14 @@
+SAMBRIX — Fase 20.10 Fix Modal Acceso
+
+Corrección:
+- sambrix-owner-access.js ahora está enlazado realmente en index.html.
+- ownerAccessSetupModal es un modal independiente.
+- activationOwnerAccess queda dentro del modal de Activación.
+- El botón Configurar acceso puede abrir la ventana correspondiente.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0
+Script owner access cargado: True
+Owner modal único: 1

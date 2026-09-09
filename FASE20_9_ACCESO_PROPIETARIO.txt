@@ -1,0 +1,36 @@
+SAMBRIX — Fase 20.9 Acceso del Propietario
+
+Objetivo:
+Permitir probar de verdad "Entrar en mi negocio" sin confundir
+credenciales locales de revisión con credenciales Firebase de producción.
+
+Cambios:
+- Business usa Correo + Contraseña; ya no usa usuario/PIN.
+- SuperAdmin conserva admin / 1234 únicamente para la revisión local actual.
+- Si Firebase está disponible, el login intenta autenticación real.
+- Si Firebase no está disponible, SAMBRIX permite un acceso LOCAL DE PRUEBA.
+- La contraseña local nunca se guarda en texto plano:
+  PBKDF2-SHA256 + salt aleatorio + 120000 iteraciones.
+- El modo local queda rotulado "OWNER · PRUEBA LOCAL".
+- Ese acceso permite probar Business, pero NO cuenta como acceso real
+  para Activación/Entrega de producción.
+- Desde Activación → Acceso del dueño aparece "Configurar acceso".
+- Negocios antiguos pendientes pueden recibir ahora una contraseña local
+  sin tener que volver a crearlos.
+- Nuevos negocios crean automáticamente acceso local de prueba cuando
+  Firebase no está disponible.
+
+Prueba esperada:
+1. SuperAdmin → Activación → Revisar negocio.
+2. En "Acceso del dueño", pulsar Configurar acceso.
+3. Crear una contraseña temporal de mínimo 8 caracteres.
+4. Salir al inicio de SAMBRIX.
+5. Entrar en mi negocio.
+6. Usar el correo del propietario + esa contraseña.
+7. Debe abrir exactamente ese negocio y mostrar "OWNER · PRUEBA LOCAL".
+8. Activación seguirá indicando que falta acceso de producción, lo cual es correcto.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

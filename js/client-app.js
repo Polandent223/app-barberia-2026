@@ -12,11 +12,11 @@ App.openClientApp=()=>{App.show("clientApp");App.renderClientApp()};
 App.closeClientApp=()=>App.hide("clientApp");
 App.clientGo=function(page){document.querySelectorAll(".client-page").forEach(x=>x.classList.toggle("active",x.id===page));document.querySelectorAll(".client-bottom button").forEach(x=>x.classList.toggle("active",x.dataset.clientPage===page));if(page==="clientBook")App.renderClientBooking();if(page==="clientShop")App.renderClientShop()};
 App.selectClientService=id=>{App.clientSelection.serviceId=id;App.clientSelection.time="";App.renderClientBooking();const s=App.db.services.find(x=>x.id===id);App.toast(`Servicio seleccionado: ${s?.name||''}`)};
-App.selectClientBarber=id=>{App.clientSelection.barberId=id;App.clientSelection.time="";App.renderClientBooking();App.toast(id?`Barbero seleccionado: ${App.barberName(id)}`:'Cualquier barbero disponible')};
+App.selectClientBarber=id=>{App.clientSelection.barberId=id;App.clientSelection.time="";App.renderClientBooking();App.toast(id?`${(App.businessVocabulary?.().staffOne||"profesional").replace(/^./,c=>c.toUpperCase())} seleccionado: ${App.barberName(id)}`:`Cualquier ${App.businessVocabulary?.().staffOne||"profesional"} disponible`)};
 App.selectClientTime=t=>{App.clientSelection.time=t;App.renderClientSlots()};
 App.renderClientApp=function(){
-  App.byId("clientServicesHome").innerHTML=App.db.services.map(s=>`<article class="client-service"><h3>${s.name}</h3><div class="muted">${s.duration} min</div><div class="big">${App.money(s.price)}</div></article>`).join("");
-  const photos=App.db.business.clientApp.barberPhotos||{};App.byId("clientBarbersHome").innerHTML=App.db.barbers.map(b=>`<article class="client-barber"><img src="${photos[b.id]||""}" style="width:100%;height:150px;object-fit:cover;border-radius:13px;margin-bottom:8px"><h3>${b.name}</h3><div class="muted">Disponible por horario</div></article>`).join("");
+  App.byId("clientServicesHome").innerHTML=App.db.services.map(s=>`<article class="client-service">${s.photo?`<img class="client-catalog-photo" src="${s.photo}" alt="${s.name}">`:""}<h3>${s.name}</h3><div class="muted">${s.duration} min</div><div class="big">${App.money(s.price)}</div></article>`).join("");
+  const photos=App.db.business.clientApp.barberPhotos||{};App.byId("clientBarbersHome").innerHTML=App.db.barbers.map(b=>{const photo=b.photo||photos[b.id]||"";return `<article class="client-barber">${photo?`<img src="${photo}" class="client-catalog-photo professional" alt="${b.name}">`:""}<h3>${b.name}</h3><div class="muted">Disponible por horario</div></article>`}).join("");
   if(!App.val("clientBookDate"))App.byId("clientBookDate").value=App.today();App.renderClientBooking();App.renderClientShop();App.applyClientCustomization();
 };
 App.renderClientBooking=function(){
@@ -25,24 +25,24 @@ App.renderClientBooking=function(){
 
   App.byId("clientServicePicker").innerHTML=App.db.services.map(s=>`
     <article class="client-service choice-card ${App.clientSelection.serviceId===s.id?"selected":""}" onclick="App.selectClientService('${s.id}')">
-      <h3>${s.name}</h3><div class="muted">${s.duration} min</div><div class="big">${App.money(s.price)}</div>
+      ${s.photo?`<img class="client-catalog-photo" src="${s.photo}" alt="${s.name}">`:""}<h3>${s.name}</h3><div class="muted">${s.duration} min</div><div class="big">${App.money(s.price)}</div>
       <button class="btn ${App.clientSelection.serviceId===s.id?"selected-btn":"secondary"}" type="button">${App.clientSelection.serviceId===s.id?"Elegido":"Elegir"}</button>
     </article>`).join("");
 
   App.byId("clientBarberPicker").innerHTML=`
     <article class="client-barber choice-card ${App.clientSelection.barberId===""?"selected":""}" onclick="App.selectClientBarber('')">
-      <h3>Cualquiera disponible</h3><div class="muted">Asignaremos un barbero libre.</div>
+      <h3>Cualquiera disponible</h3><div class="muted">Asignaremos ${(App.businessVocabulary?.().staffOne||"profesional")==="profesional"?"un profesional disponible":`un ${App.businessVocabulary?.().staffOne||"profesional"} disponible`}.</div>
       <button class="btn ${App.clientSelection.barberId===""?"selected-btn":"secondary"}" type="button">${App.clientSelection.barberId===""?"Elegido":"Elegir"}</button>
     </article>`+
-    App.db.barbers.map(b=>`
+    App.db.barbers.map(b=>{const photo=b.photo||App.db.business.clientApp?.barberPhotos?.[b.id]||"";return `
     <article class="client-barber choice-card ${App.clientSelection.barberId===b.id?"selected":""}" onclick="App.selectClientBarber('${b.id}')">
-      <h3>${b.name}</h3><div class="muted">Ver horarios disponibles.</div>
+      ${photo?`<img class="client-catalog-photo professional" src="${photo}" alt="${b.name}">`:""}<h3>${b.name}</h3><div class="muted">Ver horarios disponibles.</div>
       <button class="btn ${App.clientSelection.barberId===b.id?"selected-btn":"secondary"}" type="button">${App.clientSelection.barberId===b.id?"Elegido":"Elegir"}</button>
-    </article>`).join("");
+    </article>`}).join("");
 
   let summary=[];
   if(selectedService)summary.push(`Servicio: <strong>${selectedService.name}</strong>`);
-  summary.push(`Barbero: <strong>${selectedBarber?selectedBarber.name:"Cualquiera disponible"}</strong>`);
+  summary.push(`${(App.businessVocabulary?.().staffOne||"profesional").replace(/^./,c=>c.toUpperCase())}: <strong>${selectedBarber?selectedBarber.name:"Cualquiera disponible"}</strong>`);
   if(App.clientSelection.time)summary.push(`Hora: <strong>${App.clientSelection.time}</strong>`);
   const existing=document.getElementById("clientSelectionSummary");
   if(existing)existing.remove();
@@ -66,7 +66,7 @@ App.submitClientReservation=function(){
 };
 App.lookupClientAppointments=function(){const phone=App.val("clientLookupPhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);App.byId("clientAppointmentsList").innerHTML=c?App.db.appointments.filter(a=>a.clientId===c.id).map(a=>`<div class="row"><strong>${a.date} ${a.time}</strong><small>${App.serviceName(a.serviceId)} · ${App.barberName(a.barberId)}</small></div>`).join(""):'<div class="muted">No encontrado.</div>'};
 App.lookupClientProfile=function(){const phone=App.val("clientProfilePhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);App.byId("clientProfileData").innerHTML=c?`<div class="stats"><article><span>Visitas</span><b>${c.visits||0}</b></article><article><span>Puntos</span><b>${c.points||0}</b></article></div>`:'<div class="muted">No encontrado.</div>'};
-App.renderClientShop=function(){App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>`<article class="shop-card"><h3>${p.name}</h3><div class="muted">${p.stock} disponibles</div><div class="big">${App.money(p.price)}</div></article>`).join("")||'<div class="muted">No hay productos disponibles.</div>'};
+App.renderClientShop=function(){App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>`<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.stock} disponibles</div><div class="big">${App.money(p.price)}</div></article>`).join("")||'<div class="muted">No hay productos disponibles.</div>'};
 
 
 App.renderClientBookingSummary=function(){
@@ -76,7 +76,7 @@ App.renderClientBookingSummary=function(){
   const date=App.val("clientBookDate")||"—";
   App.byId("clientBookingSummary").innerHTML=`
     <div class="summary-line"><span>Servicio</span><strong>${s?.name||"Sin seleccionar"}</strong></div>
-    <div class="summary-line"><span>Barbero</span><strong>${App.clientSelection.barberId===""?"Cualquiera disponible":(b?.name||"Sin seleccionar")}</strong></div>
+    <div class="summary-line"><span>${(App.businessVocabulary?.().staffOne||"profesional").replace(/^./,c=>c.toUpperCase())}</span><strong>${App.clientSelection.barberId===""?"Cualquiera disponible":(b?.name||"Sin seleccionar")}</strong></div>
     <div class="summary-line"><span>Fecha</span><strong>${date}</strong></div>
     <div class="summary-line"><span>Hora</span><strong>${App.clientSelection.time||"Sin seleccionar"}</strong></div>
     <div class="summary-line"><span>Total</span><strong>${s?App.money(s.price):"—"}</strong></div>`;
@@ -91,7 +91,7 @@ App.addShopItem=function(id){
 App.renderClientShop=function(){
   App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>{
     const item=App.clientCart.find(x=>x.id===p.id);
-    return `<article class="shop-card"><span class="qty-badge">${p.stock} disp.</span><h3>${p.name}</h3><div class="muted">${p.category}</div><div class="big">${App.money(p.price)}</div><button class="btn primary" onclick="App.addShopItem('${p.id}')">${item?`Agregar otro (${item.qty})`:"Agregar"}</button></article>`;
+    return `<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<span class="qty-badge">${p.stock} disp.</span><h3>${p.name}</h3><div class="muted">${p.category}</div><div class="big">${App.money(p.price)}</div><button class="btn primary" onclick="App.addShopItem('${p.id}')">${item?`Agregar otro (${item.qty})`:"Agregar"}</button></article>`;
   }).join("")||'<div class="muted">No hay productos disponibles.</div>';
   const count=App.clientCart.reduce((s,x)=>s+x.qty,0),total=App.clientCart.reduce((s,x)=>s+x.qty*x.price,0);
   App.byId("clientCart").classList.toggle("hidden",count===0);
@@ -127,7 +127,7 @@ App.lookupClientHistory=function(){
   const phone=App.val("clientHistoryPhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);
   if(!c){App.byId("clientHistorySummary").innerHTML="";App.byId("clientHistoryList").innerHTML='<div class="muted">No encontrado.</div>';return}
   const visits=App.db.appointments.filter(a=>a.clientId===c.id&&a.status==="Finalizada").sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
-  const spent=App.db.sales.filter(s=>s.clientName===c.name).reduce((sum,s)=>sum+Number(s.total||0),0);
+  const spent=App.db.sales.filter(s=>(s.clientId&&s.clientId===c.id)||(!s.clientId&&s.clientName===c.name)).reduce((sum,s)=>sum+Number(s.total||0),0);
   App.byId("clientHistorySummary").innerHTML=`<article><span>Visitas</span><b>${visits.length}</b></article><article><span>Puntos</span><b>${c.points||0}</b></article><article><span>Gastado</span><b>${App.money(spent)}</b></article><article><span>Última visita</span><b style="font-size:14px">${c.lastVisit||"—"}</b></article>`;
   App.byId("clientHistoryList").innerHTML=`<div class="client-timeline">${visits.map(a=>`<div class="timeline-item"><strong>${a.date} · ${App.serviceName(a.serviceId)}</strong><div class="muted">${App.barberName(a.barberId)} · ${a.time}</div></div>`).join("")||'<div class="muted">Aún no tienes visitas finalizadas.</div>'}</div>`;
 };
@@ -147,4 +147,59 @@ App.clientCheckout=function(){
   if(!App.clientCart.length)return;
   App.byId("clientOrderNoteWrap").classList.remove("hidden");
   App.confirmAction("Enviar solicitud de compra",`Total: ${App.money(App.clientCart.reduce((s,x)=>s+x.qty*x.price,0))}`,()=>App.createShopOrder());
+};
+
+/* ===== FASE 20.24 — APP CLIENTE SEGÚN PLAN ===== */
+App.applyClientPlanUI=function(){
+  const canHistory=window.SaaS?.planCapability?.("clientHistory")??false;
+  const canShop=window.SaaS?.planCapability?.("clientShop")??false;
+  const caps={clientHistory:canHistory,clientShop:canShop};
+
+  document.querySelectorAll("[data-client-capability]").forEach(el=>{
+    const allowed=!!caps[el.dataset.clientCapability];
+    el.hidden=!allowed;
+    el.classList.toggle("plan-client-hidden",!allowed);
+  });
+
+  const active=document.querySelector(".client-page.active");
+  if(active?.dataset?.clientCapability && !caps[active.dataset.clientCapability]){
+    App.clientGo("clientHome");
+  }
+};
+
+const _clientGo2024=App.clientGo;
+App.clientGo=function(page){
+  if(page==="clientHistory" && !(window.SaaS?.planCapability?.("clientHistory")??false)){
+    return App.toast("Historial del cliente está disponible desde Pro");
+  }
+  if(page==="clientShop" && !(window.SaaS?.planCapability?.("clientShop")??false)){
+    return App.toast("Tienda está disponible desde Pro");
+  }
+  return _clientGo2024(page);
+};
+
+const _renderClientApp2024=App.renderClientApp;
+App.renderClientApp=function(){
+  const r=_renderClientApp2024();
+  App.applyClientPlanUI();
+  return r;
+};
+
+/* ===== FASE 20.25 — PORTADA BÁSICA ===== */
+App.applyBasicClientCover=function(){
+  const c=App.db.business.clientApp||{},hero=document.querySelector("#clientHome .client-hero");
+  if(!hero)return;
+  if(c.background){
+    hero.style.backgroundImage=`linear-gradient(rgba(0,0,0,.34),rgba(0,0,0,.34)),url("${c.background}")`;
+    hero.classList.add("has-business-cover");
+  }else{
+    hero.style.backgroundImage="";
+    hero.classList.remove("has-business-cover");
+  }
+};
+const _renderClientApp2025=App.renderClientApp;
+App.renderClientApp=function(){
+  const r=_renderClientApp2025();
+  App.applyBasicClientCover();
+  return r;
 };

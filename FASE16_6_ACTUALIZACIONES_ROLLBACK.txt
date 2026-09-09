@@ -1,0 +1,14 @@
+SAMBRIX — Fase 16.6 Actualizaciones y Rollback
+
+- Canal estable y canal beta.
+- Versión objetivo por negocio.
+- Rollout gradual.
+- Promoción beta -> estable.
+- Rollback manual a una versión anterior.
+- Historial de despliegues y rollback.
+- Auditoría de cambios de canal y versiones.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

@@ -1,0 +1,12 @@
+SAMBRIX — Fase 16.4 Continuidad Operativa
+
+- Plan de respuesta ante fallas.
+- Verificación de snapshot, Firebase, auditoría, incidentes y soporte.
+- Detección de incidentes críticos activos.
+- Procedimiento: identificar, proteger, registrar, recuperar y verificar.
+- No confunde snapshot local con backup real de Firebase.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

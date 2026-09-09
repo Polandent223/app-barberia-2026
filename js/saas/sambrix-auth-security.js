@@ -74,7 +74,8 @@ SaaS.applyAuthGuard=function(){
   const role=SaaS.session?.role||"guest";
   const protectedArea=SaaS.isProtectedAreaVisible();
 
-  if(SaaS.authSecurity.requireFirebase && protectedArea && SaaS.isProtectedRole(role) && !user){
+  const localSuperAdminReview=role==="superadmin" && SaaS.session?.user?.localReview===true;
+  if(SaaS.authSecurity.requireFirebase && protectedArea && SaaS.isProtectedRole(role) && !user && !localSuperAdminReview){
     document.getElementById("adminApp")?.classList.add("hidden");
     SaaS.ensureAuthBlocker("No hay una sesión Firebase válida. Inicia sesión con tu correo y contraseña.");
     return false;

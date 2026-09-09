@@ -1,0 +1,11 @@
+SAMBRIX — Fase 14.8 Respaldo y Recuperación
+
+- Centro de respaldos del SuperAdmin.
+- Respaldo completo de plataforma o por negocio.
+- Exportación JSON.
+- Restauración protegida: antes de restaurar crea una copia del estado actual.
+- Papelera con retención de 30 días.
+- Recuperación de clientes, citas, productos, personal y ventas.
+- Eliminación definitiva auditada.
+- Restauraciones auditadas.
+- Preparado para conectar respaldos de nube posteriormente.

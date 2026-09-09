@@ -1,0 +1,18 @@
+SAMBRIX — Fase 20.15 Terminología Dinámica en Citas
+
+Cambios:
+- Citas deja de usar "Barbero" como texto fijo.
+- La etiqueta profesional cambia según el tipo de negocio.
+- Barbería → Barbero(s)
+- Salón/Belleza → Estilista(s)
+- Spa → Terapeuta(s)
+- Taller → Técnico(s)
+- Otros, Uñas, Clínica → Profesional(es)
+- Se aplica también a títulos y botones heredados.
+- Los nombres internos de datos se conservan por compatibilidad.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0
+Posibles términos visibles restantes para revisión: 20

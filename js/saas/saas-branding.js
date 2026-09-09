@@ -30,22 +30,38 @@ SaaS.renderWhiteLabel=function(){
   const b=SaaS.currentBusiness();if(!b)return;
   b.slug=b.slug||SaaS.normalizeSlug(b.name)||b.id;
   b.whiteLabel=b.whiteLabel||{showPoweredBy:true};
-  if(document.getElementById("businessSlug"))document.getElementById("businessSlug").value=b.slug;
-  if(document.getElementById("showPoweredBy"))document.getElementById("showPoweredBy").value=String(b.whiteLabel.showPoweredBy!==false);
-  const premium=b.planId==="plan-premium";
-  document.getElementById("whiteLabelPlanBadge")&&(document.getElementById("whiteLabelPlanBadge").textContent=premium?"Premium activo":"Requiere Premium");
-  if(document.getElementById("showPoweredBy"))document.getElementById("showPoweredBy").disabled=!premium;
+
+  const premium=!!SaaS.planCapability?.("whiteLabel",b);
+  const slug=document.getElementById("businessSlug");
+  const powered=document.getElementById("showPoweredBy");
+  const badge=document.getElementById("whiteLabelPlanBadge");
+
+  if(slug){slug.value=b.slug;slug.disabled=!SaaS.planCapability?.("customSlug",b)}
+  if(powered){powered.value=String(b.whiteLabel.showPoweredBy!==false);powered.disabled=!premium}
+  if(badge)badge.textContent=premium?"Premium activo":"Exclusivo Premium";
+
   const footer=document.getElementById("nexoPoweredBy");
   if(footer)footer.classList.toggle("white-label-hidden",premium&&b.whiteLabel.showPoweredBy===false);
 };
 SaaS.saveWhiteLabel=function(){
   const b=SaaS.currentBusiness();if(!b)return;
+  if(!SaaS.planCapability?.("whiteLabel",b)){
+    return window.App?.toast?.("Marca blanca está disponible en Premium");
+  }
+
   const slug=SaaS.normalizeSlug(document.getElementById("businessSlug")?.value||b.name);
-  if(SaaS.db.businesses.some(x=>x.id!==b.id&&x.slug===slug))return window.App?.toast?.("Ese slug ya está en uso");
+  if(SaaS.db.businesses.some(x=>x.id!==b.id&&x.slug===slug)){
+    return window.App?.toast?.("Ese slug ya está en uso");
+  }
+
   b.slug=slug||b.id;
   b.whiteLabel=b.whiteLabel||{};
-  b.whiteLabel.showPoweredBy=b.planId==="plan-premium"?(document.getElementById("showPoweredBy").value==="true"):true;
-  SaaS.save();SaaS.renderAll();SaaS.renderPublicLink?.();window.App?.toast?.("Marca blanca actualizada");
+  b.whiteLabel.showPoweredBy=document.getElementById("showPoweredBy")?.value!=="false";
+
+  SaaS.save();
+  SaaS.renderWhiteLabel();
+  SaaS.renderPublicLink?.();
+  window.App?.toast?.("Marca blanca actualizada");
 };
 
 const oldPublicUrl_136=SaaS.publicBusinessUrl;
@@ -57,3 +73,40 @@ SaaS.publicBusinessUrl=function(){
   u.searchParams.set("cliente","app");
   return u.toString();
 };
+
+/* ===== FASE 20.21 — PERSONALIZACIÓN POR PLAN ===== */
+SaaS.renderBrandingPlanAccess=function(){
+  const b=SaaS.currentBusiness?.();if(!b)return;
+  const p=SaaS.getPlan?.(b.planId);
+  const tier=SaaS.planTier?.(b)||"basic";
+
+  const box=document.getElementById("brandingPlanSummary");
+  if(box){
+    const rows=[
+      ["Logo, nombre, eslogan y contacto",true],
+      ["Fotos del equipo, productos y servicios",true],
+      ["Foto de portada",true],
+      ["Colores y tema avanzados",SaaS.planCapability("customTheme",b)],
+      ["Promociones visuales",SaaS.planCapability("promotions",b)],
+      ["Marca blanca / ocultar SAMBRIX",SaaS.planCapability("whiteLabel",b)]
+    ];
+    box.innerHTML=`<div><span class="tag">PLAN ACTUAL</span><h3>${p?.name||tier}</h3></div>
+      <div class="branding-plan-pills">${rows.map(([t,on])=>`<span class="${on?"included":"upgrade"}">${on?"✓":"↑"} ${t}</span>`).join("")}</div>`;
+  }
+
+  document.querySelectorAll("[data-plan-control]").forEach(w=>{
+    const allowed=!!SaaS.planCapability(w.dataset.planControl,b);
+    w.classList.toggle("plan-control-locked",!allowed);
+    w.querySelectorAll("input,select,textarea,button").forEach(el=>el.disabled=!allowed);
+  });
+
+  document.querySelectorAll("[data-plan-section]").forEach(w=>{
+    const allowed=!!SaaS.planCapability(w.dataset.planSection,b);
+    w.classList.toggle("plan-section-locked",!allowed);
+    w.querySelectorAll("input,select,textarea,button").forEach(el=>el.disabled=!allowed);
+  });
+
+  SaaS.renderWhiteLabel?.();
+};
+
+

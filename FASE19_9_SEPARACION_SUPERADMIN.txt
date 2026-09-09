@@ -1,0 +1,17 @@
+SAMBRIX — Fase 19.9 Separación SuperAdmin
+
+- SuperAdmin ya no muestra Inicio, Citas, Clientes, Barberos, Caja,
+  Inventario, Servicios, Roles, Recibos, Autorizaciones, Reportes,
+  Historial ni Configuración del negocio.
+- El menú inferior del SuperAdmin contiene únicamente módulos de plataforma.
+- Los roles Business conservan únicamente navegación del negocio.
+- SuperAdmin queda protegido contra rutas legacy de barbería.
+- El CTA principal "Entrar a SAMBRIX" abre el acceso Business.
+- Se añade contexto visual PLATAFORMA SAMBRIX.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0
+Botones Business: 13
+Botones SaaS: 75

@@ -1,0 +1,18 @@
+SAMBRIX 1.0 PRODUCCION v4 — endurecimiento multi-tenant y acceso desde dispositivo nuevo
+
+1. Se unificó la identidad de SuperAdmin entre la aplicación y Firestore usando platform/config.ownerUid.
+2. Se cerró la posibilidad de que un usuario normal se autoeleve mediante platform_users.
+3. Cada usuario de negocio guarda su businessId en platform_users.
+4. Al crear acceso de propietario se crea/actualiza también el documento raíz businesses/{businessId}.
+5. El propietario puede resolver su negocio desde Firebase aunque el dispositivo no tenga catálogo local previo.
+6. La sincronización cloud ahora distingue SuperAdmin y usuarios de negocio:
+   - SuperAdmin: catálogo de plataforma + funciones centrales.
+   - Dueño/empleado: solo el tenant al que pertenece.
+7. Se evita que un usuario de negocio intente leer el catálogo privado de toda la plataforma antes de cargar su tenant.
+8. Persistencia del tenant continúa sincronizando únicamente el negocio activo.
+
+Nota de despliegue: platform/config con ownerUid debe existir/provisionarse desde un entorno administrativo confiable antes de aplicar estas reglas en una instalación nueva.
+9. El SuperAdmin repara automáticamente vínculos businessId de miembros creados por versiones anteriores.
+10. La aprobación de reservas es idempotente: reintentar tras un error no duplica la cita.
+11. Al finalizar una cita pública, el cliente ve estado Finalizada y se sincronizan puntos/visitas.
+12. Los cambios operativos del negocio actualizan también el snapshot público para horarios/servicios disponibles.

@@ -1,0 +1,16 @@
+SAMBRIX — Fase 15.9 Evidencia y Certificación
+
+- Certificación bloqueada hasta completar pruebas reales.
+- Requiere auditoría técnica, pruebas automáticas, checklist final,
+  roles Firebase y sincronización entre dispositivos.
+- Genera código de certificación y registra versión, fecha y SuperAdmin.
+- Historial de certificaciones.
+- Estado formal de autorización para producción.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores de sintaxis JavaScript: 0
+
+La certificación NO se genera automáticamente: exige que las pruebas reales
+sean confirmadas primero.

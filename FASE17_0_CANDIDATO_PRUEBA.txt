@@ -1,0 +1,17 @@
+SAMBRIX — Fase 17.0 Candidato de Prueba
+
+- Centro para congelar un Release Candidate.
+- Versión por defecto: 17.0-RC1.
+- Project ID detectado: app-barberia-2026.
+- Huella local de candidato.
+- Manifiesto SHA-256 de archivos.
+- Una vez congelado, los cambios deben continuar en una versión nueva.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias locales faltantes: 0
+Errores JavaScript: 0
+
+IMPORTANTE:
+Este paquete queda preparado como candidato de prueba.
+Todavía no significa que Firebase real o la sincronización hayan sido aprobados.

@@ -1,0 +1,18 @@
+SAMBRIX — Fase 16.9 Hosting y Despliegue
+
+- Centro de checklist de despliegue.
+- firebase.json base para Hosting SPA.
+- .firebaserc.example.
+- Project ID detectado: app-barberia-2026.
+- Control de auditoría, certificación, entorno, URL HTTPS y snapshot.
+- Flujo recomendado GitHub -> Firebase CLI -> reglas -> Hosting -> prueba post-deploy.
+
+IMPORTANTE:
+No ejecuta firebase deploy automáticamente.
+La publicación real debe hacerse con el proyecto Firebase correcto y después
+de completar la prueba real y certificación.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

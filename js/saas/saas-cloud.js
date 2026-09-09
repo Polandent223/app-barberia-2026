@@ -43,30 +43,48 @@ export async function downloadBusinessCatalog(){
 }
 
 function split(state){
+  // SAMBRIX 1.0: tenant state is separated by operational domain.
+  // This lets Firestore grant staff only the write access their job needs.
   return {
     config:{
-      business:state.business||{},users:state.users||[],barbers:state.barbers||[],services:state.services||[],products:state.products||[],employees:state.employees||[],meta:state.meta||{}
+      business:state.business||{},users:state.users||[],barbers:state.barbers||[],services:state.services||[],meta:state.meta||{}
     },
-    operations:{
-      clients:state.clients||[],appointments:state.appointments||[],cash:state.cash||[],stockMoves:state.stockMoves||[],sales:state.sales||[],approvalRequests:state.approvalRequests||[],clientRequests:state.clientRequests||[],shopOrders:state.shopOrders||[]
+    crm:{
+      clients:state.clients||[],approvalRequests:state.approvalRequests||[],clientRequests:state.clientRequests||[]
     },
-    history:{
-      auditLog:state.auditLog||[],clientActivity:state.clientActivity||[],attendance:state.attendance||[],absences:state.absences||[]
-    }
+    schedule:{appointments:state.appointments||[]},
+    finance:{cash:state.cash||[],sales:state.sales||[]},
+    inventory:{products:state.products||[],stockMoves:state.stockMoves||[],shopOrders:state.shopOrders||[]},
+    staff:{employees:state.employees||[]},
+    attendance:{attendance:state.attendance||[],absences:state.absences||[]},
+    history:{auditLog:state.auditLog||[],clientActivity:state.clientActivity||[]}
   };
+}
+
+function writablePartsForRole(role){
+  role=String(role||"").toLowerCase();
+  if(["superadmin","owner","admin","manager"].includes(role))return null; // all domains
+  if(role==="reception")return new Set(["crm","schedule","finance"]);
+  if(role==="cashier")return new Set(["crm","finance","inventory"]);
+  if(role==="barber")return new Set(["schedule","attendance"]);
+  return new Set();
 }
 
 export async function uploadCurrentTenant(){
   const b=SaaS.currentBusiness();if(!b||!A()?.db)return;
-  const parts=split(A().db);
-  await Promise.all(Object.entries(parts).map(([name,payload])=>setDoc(doc(firestore,BUSINESSES,b.id,"state",name),{
+  const parts=split(A().db),allowed=writablePartsForRole(SaaS.session?.role);
+  const entries=Object.entries(parts).filter(([name])=>allowed===null||allowed.has(name));
+  if(!entries.length)return;
+  await Promise.all(entries.map(([name,payload])=>setDoc(doc(firestore,BUSINESSES,b.id,"state",name),{
     payload,updatedAt:serverTimestamp(),updatedBy:authEmail()
   },{merge:true})));
   SaaS.saveTenantState(b.id,A().db);
 }
 
 export async function downloadTenant(businessId){
-  const names=["config","operations","history"];
+  // Legacy documents are read first so existing businesses migrate without data loss.
+  // New domain documents override the legacy aggregate documents when present.
+  const names=["operations","config","history","crm","schedule","finance","inventory","staff","attendance"];
   const snaps=await Promise.all(names.map(n=>getDoc(doc(firestore,BUSINESSES,businessId,"state",n))));
   if(!snaps.some(s=>s.exists()))return false;
   let state=SaaS.loadTenantState(businessId);
@@ -93,7 +111,7 @@ export function watchCatalog(){
 export function watchCurrentTenant(){
   stateUnsubs.forEach(u=>u());stateUnsubs=[];
   const b=SaaS.currentBusiness();if(!b)return;
-  ["config","operations","history"].forEach(name=>{
+  ["config","crm","schedule","finance","inventory","staff","attendance","history"].forEach(name=>{
     stateUnsubs.push(onSnapshot(doc(firestore,BUSINESSES,b.id,"state",name),s=>{
       if(!s.exists()||!s.data()?.payload)return;
       const state={...SaaS.loadTenantState(b.id),...s.data().payload};

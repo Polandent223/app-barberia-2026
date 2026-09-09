@@ -34,7 +34,27 @@ SaaS.portal={
     if(subtitle){
       subtitle.textContent=mode==="superadmin"
         ?"Centro de control de toda la plataforma"
-        :"Acceso del dueño y personal del negocio";
+        :"Acceso del propietario y personal del negocio";
+    }
+
+    const userLabel=document.getElementById("loginUserLabel");
+    const pinLabel=document.getElementById("loginPinLabel");
+    const userInput=document.getElementById("loginUser");
+    const pinInput=document.getElementById("loginPin");
+    const hint=document.getElementById("loginHint");
+
+    if(mode==="superadmin"){
+      if(userLabel)userLabel.childNodes[0].nodeValue="Correo";
+      if(pinLabel)pinLabel.childNodes[0].nodeValue="Contraseña";
+      if(userInput){userInput.type="email";userInput.value="";userInput.placeholder="superadmin@sambrix.com";}
+      if(pinInput){pinInput.value="";pinInput.placeholder="Tu contraseña";}
+      if(hint){hint.textContent="Acceso protegido con Firebase. Solo cuentas autorizadas de SuperAdmin.";hint.classList.remove("hidden");}
+    }else{
+      if(userLabel)userLabel.childNodes[0].nodeValue="Correo";
+      if(pinLabel)pinLabel.childNodes[0].nodeValue="Contraseña";
+      if(userInput){userInput.type="email";userInput.value="";userInput.placeholder="propietario@negocio.com";}
+      if(pinInput){pinInput.value="";pinInput.placeholder="Tu contraseña";}
+      if(hint){hint.textContent="Usa el correo y la contraseña asignados al propietario.";hint.classList.remove("hidden");}
     }
   },
 
@@ -77,10 +97,18 @@ SaaS.portal={
     const requested=params.get("business");
     let b=requested?SaaS.db?.businesses?.find(x=>x.id===requested):null;
 
-    if(!b){
+    if(!b && !window.App?.PRODUCTION_MODE){
       b=(SaaS.db?.businesses||[]).find(
         x=>x.id!==SaaS.portal._demoBusinessId && !["Suspendido","Vencido"].includes(x.status)
       );
+    }
+
+    // In production never guess a tenant from browser cache. Public booking links
+    // must identify the business explicitly (?business=ID&cliente=app).
+    if(!b && window.App?.PRODUCTION_MODE){
+      SaaS.portal.show();
+      window.App?.toast?.("Abre el enlace de reservas de tu negocio.");
+      return;
     }
 
     SaaS.portal.hide();
@@ -129,7 +157,7 @@ SaaS.installPortal=function(){
   SaaS.portal.show();
 
   document.getElementById("portalLoginBtn")?.addEventListener("click",()=>SaaS.portal.openLogin("business"));
-  document.getElementById("portalStartBtn")?.addEventListener("click",()=>document.getElementById("portalAccessGrid")?.scrollIntoView({behavior:"smooth"}));
+  document.getElementById("portalStartBtn")?.addEventListener("click",()=>SaaS.portal.openLogin("business"));
   document.getElementById("portalClientBtn")?.addEventListener("click",SaaS.portal.openClient);
   document.getElementById("portalDemoBtn")?.addEventListener("click",SaaS.portal.demo);
 

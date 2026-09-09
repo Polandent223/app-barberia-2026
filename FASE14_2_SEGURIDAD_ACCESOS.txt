@@ -1,0 +1,10 @@
+SAMBRIX — Fase 14.2 Seguridad y Accesos
+
+- Centro de seguridad del SuperAdmin.
+- Matriz de roles: SuperAdmin, Dueño, Gerente, Cajero y Barbero.
+- Acciones sensibles protegidas.
+- Cajero/barbero/gerente no eliminan directamente operaciones protegidas.
+- Pueden enviar solicitud de autorización.
+- SuperAdmin puede aprobar o rechazar.
+- Solicitudes y resoluciones quedan auditadas.
+- Preparación para integrar permisos con Firebase Authentication/claims.

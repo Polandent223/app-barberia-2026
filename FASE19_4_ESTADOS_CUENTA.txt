@@ -1,0 +1,12 @@
+SAMBRIX — Fase 19.4 Estados de Cuenta
+
+- Balance comercial por negocio.
+- Une facturas, pagos, descuentos y vencimientos.
+- Detecta saldos pendientes y facturas vencidas.
+- Vista de cartera global del SuperAdmin.
+- No sustituye contabilidad fiscal.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

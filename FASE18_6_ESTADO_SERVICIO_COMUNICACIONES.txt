@@ -1,0 +1,13 @@
+SAMBRIX — Fase 18.6 Estado del Servicio y Comunicaciones
+
+- Incidencias, mantenimientos e información general.
+- Impacto y estado de cada comunicación.
+- Alcance: todos los negocios o SuperAdmin.
+- Historial operativo.
+- Estado global: OPERATIVO / AVISO / DEGRADADO / CRÍTICO.
+- No envía mensajes externos automáticamente; prepara el control dentro del SaaS.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

@@ -1,0 +1,19 @@
+BARBERÍA LOS HERMANOS CAMEJO — FASE 11.1 PERSONAL CONTROL
+
+NUEVO
+- Ausencias, permisos, vacaciones y días libres.
+- Historial de ausencias.
+- Cálculo de días ausentes por periodo.
+- Nómina por rango de fechas.
+- Horas trabajadas, ventas, retardos y ausencias.
+- Comisión servicios y productos desglosada.
+- Recibo de pago imprimible.
+- Metas semanales y mensuales.
+- Mantiene estructura modular.
+
+MÓDULO ACTUALIZADO
+js/staff.js
+
+
+FASE 12
+Firebase separado en js/firebase/. Firestore/Auth no se mezclan con los módulos del negocio.

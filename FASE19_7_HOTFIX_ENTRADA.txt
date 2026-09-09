@@ -1,0 +1,18 @@
+SAMBRIX — Fase 19.7 HOTFIX Entrada
+
+Problemas corregidos:
+- Los modales ya no aparecen automáticamente al cargar.
+- SuperAdmin con 0 negocios muestra "Crear primer negocio".
+- Nueva factura queda bloqueada cuando no existen negocios.
+- Cliente ya no depende obligatoriamente de un QR:
+  si no hay negocio real abre una experiencia demo.
+- Demo abre SAMBRIX Demo Studio sin crear datos persistentes.
+- Login local de revisión respeta SuperAdmin vs Business.
+- Se eliminó el doble evento del botón "Nuevo negocio".
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0
+Modales sin hidden inicial: 0
+Clases modal dañadas: 0

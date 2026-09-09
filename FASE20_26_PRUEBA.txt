@@ -1,0 +1,11 @@
+SAMBRIX 20.26
+
+FALLOS ENCONTRADOS Y CORREGIDOS:
+1. Personalización estaba clasificada como navegación SaaS/SuperAdmin.
+   Ahora es navegación del negocio y aparece al dueño cuando su plan permite clienteConfig.
+2. La Tienda de App Cliente tenía dos renderizadores y ninguno pintaba p.photo.
+   Ahora ambos muestran la foto del producto.
+
+PRUEBA:
+- Básico -> debe aparecer “Personalización”.
+- Pro -> producto con foto -> App Cliente -> Tienda -> debe verse la foto.

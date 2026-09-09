@@ -1,0 +1,17 @@
+SAMBRIX — Fase 16.7 Seguridad y Autenticación
+
+- Firebase Auth obligatorio para áreas protegidas.
+- Bloqueo de acceso legacy/guest al administrador.
+- SuperAdmin y Business requieren sesión válida.
+- Timeout de sesión por inactividad.
+- Panel de políticas de seguridad.
+- Auditoría de cambios de seguridad y cierre por inactividad.
+
+IMPORTANTE:
+Esto corrige el riesgo de entrar al administrador sin contraseña/sesión real.
+La validación final requiere probar cuentas Firebase reales.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

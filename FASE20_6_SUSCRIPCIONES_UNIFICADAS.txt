@@ -1,0 +1,25 @@
+SAMBRIX — Fase 20.6 Suscripciones Unificadas
+
+Objetivo:
+Corregir la inconsistencia donde Suscripciones aparecía vacío aunque
+Cobros y otros módulos sí reconocían los negocios.
+
+Cambios:
+- Una suscripción única por businessId.
+- Negocio y suscripción nacen juntos en Nuevo negocio.
+- Los negocios ya creados localmente se reconcilian automáticamente.
+- Suscripciones, Billing Ops y Métricas pueden leer SaaS.db.subscriptions.
+- El módulo Suscripciones ahora forma parte explícita de renderAll().
+- Renovar o suspender actualiza negocio y suscripción al mismo tiempo.
+- No se eliminan los negocios de prueba existentes.
+
+Prueba esperada:
+- Abrir Suscripciones.
+- Deben aparecer todos los negocios existentes.
+- Cada fila muestra plan, precio mensual, estado, vencimiento y propietario.
+- El MRR debe coincidir con la suma de planes activos.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

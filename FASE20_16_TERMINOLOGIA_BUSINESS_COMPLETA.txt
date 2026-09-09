@@ -1,0 +1,35 @@
+SAMBRIX — Fase 20.16 Terminología Business Completa
+
+Objetivo:
+Eliminar de la interfaz Business la suposición de que todos los negocios son barberías.
+
+Cubierto:
+- Inicio / panel del dueño.
+- Citas y búsqueda.
+- Página de profesionales.
+- Reportes de rendimiento.
+- Recibos y operaciones.
+- Configuración del negocio.
+- Configuración de marca/cliente.
+- Fotos del equipo.
+- Roles visibles de personal.
+- App del cliente y resumen de reserva.
+- Tienda pública.
+- Mensajes y modales de edición/eliminación.
+
+Terminología:
+- Barbería -> Barbero(s)
+- Salón/Belleza -> Estilista(s)
+- Taller -> Técnico(s)
+- Uñas/Spa/Clínica/Otros -> Profesional(es)
+
+Nota:
+Se mantienen nombres internos como "barbers", barberId y rol técnico "barber"
+cuando forman parte del esquema de datos existente. Eso evita romper compatibilidad;
+solo la interfaz se vuelve universal.
+
+Validación:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0
+Términos barbería/barbero restantes (incluye código interno y reglas dinámicas): 69

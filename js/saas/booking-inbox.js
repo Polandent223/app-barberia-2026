@@ -39,9 +39,11 @@ SaaS.renderBookingInbox=function(){
 
 SaaS.createAppointmentFromRequest=function(req){
   const A=window.App;if(!A?.db)return null;
-  let client=A.db.clients?.find(c=>c.phone===req.phone);
+  const existing=(A.db.appointments||[]).find(x=>x.publicRequestId===req.id);
+  if(existing)return existing;
+  let client=A.db.clients?.find(c=>(req.clientUid&&c.firebaseUid===req.clientUid)||(req.clientId&&c.id===req.clientId)||c.phone===req.phone);
   if(!client){
-    client={id:"client_"+SaaS.uid(),name:req.name||"Cliente",phone:req.phone||"",email:"",businessId:SaaS.getContext()?.businessId||"",branchId:req.branchId||SaaS.getContext()?.branchId||""};
+    client={id:req.clientId||("client_"+SaaS.uid()),firebaseUid:req.clientUid||"",name:req.name||"Cliente",phone:req.phone||"",email:"",businessId:SaaS.getContext()?.businessId||"",branchId:req.branchId||SaaS.getContext()?.branchId||""};
     A.db.clients=A.db.clients||[];A.db.clients.push(client);
   }
 
@@ -76,7 +78,7 @@ SaaS.publicBookingConflict=function(req){
   if(typeof A?.isBarberAvailable==="function"){
     try{return !A.isBarberAvailable(req.barberId,req.date,req.time,duration)}catch{}
   }
-  return (A?.db?.appointments||[]).some(a=>a.barberId===req.barberId&&a.date===req.date&&a.time===req.time&&a.status!=="Cancelada");
+  return (A?.db?.appointments||[]).some(a=>a.publicRequestId!==req.id&&a.barberId===req.barberId&&a.date===req.date&&a.time===req.time&&a.status!=="Cancelada");
 };
 
 SaaS.approvePublicBooking=async function(id){
@@ -114,3 +116,71 @@ if(oldSwitchTenant_145){
 
 const oldRenderAll_145=SaaS.renderAll;
 SaaS.renderAll=function(){oldRenderAll_145();SaaS.renderBookingInbox()};
+
+/* SAMBRIX 1.0 — Cloud client cancellation/reschedule requests */
+SaaS.bookingChangeInbox=SaaS.bookingChangeInbox||[];
+SaaS.bookingChangeUnsub=null;
+
+SaaS.renderBookingChangeInbox=function(){
+  const box=document.getElementById("bookingInboxList");if(!box||!SaaS.bookingChangeInbox?.length)return;
+  const pending=SaaS.bookingChangeInbox.filter(x=>x.status==="Pendiente");
+  if(!pending.length)return;
+  const html=`<div class="permission-note"><strong>Solicitudes sobre citas confirmadas</strong></div>`+pending.map(r=>{
+    const b=SaaS.bookingInbox.find(x=>x.id===r.bookingRequestId)||{};
+    return `<div class="row booking-request"><div><strong>${r.type==="cancel"?"Cancelar":"Reprogramar"} · ${b.name||"Cliente"}</strong><small>${r.oldDate||b.date||""} ${r.oldTime||b.time||""}${r.type==="reschedule"?` → ${r.newDate} ${r.newTime}`:""}</small></div><div class="manage-actions"><button class="btn primary tiny" onclick="SaaS.approveBookingChange('${r.id}')">Aprobar</button><button class="btn danger tiny" onclick="SaaS.rejectBookingChange('${r.id}')">Rechazar</button></div></div>`;
+  }).join("");
+  box.insertAdjacentHTML("beforeend",html);
+};
+
+SaaS.approveBookingChange=async function(id){
+  const r=SaaS.bookingChangeInbox.find(x=>x.id===id);if(!r)return;
+  const booking=SaaS.bookingInbox.find(x=>x.id===r.bookingRequestId);if(!booking)return window.App?.toast?.("No se encontró la reserva original");
+  const A=window.App,appt=(A.db.appointments||[]).find(x=>x.publicRequestId===booking.id);
+  if(!appt)return window.App?.toast?.("No se encontró la cita vinculada");
+  if(r.type==="reschedule"){
+    const candidate={...appt,date:r.newDate,time:r.newTime};
+    if(A.appointmentConflict?.(candidate,appt.id))return A.toast("El nuevo horario está ocupado");
+    appt.date=r.newDate;appt.time=r.newTime;appt.status="Confirmada";
+    await NexoPublicCloud.updateBookingRequest(SaaS.getContext().businessId,booking.id,{date:r.newDate,time:r.newTime,status:"Aprobada",resolvedAt:new Date().toISOString()});
+  }else{
+    appt.status="Cancelada";
+    await NexoPublicCloud.updateBookingRequest(SaaS.getContext().businessId,booking.id,{status:"Cancelada",resolvedAt:new Date().toISOString()});
+  }
+  A.persist?.();A.renderAll?.();
+  await NexoPublicCloud.updateBookingChangeRequest(SaaS.getContext().businessId,id,{status:"Aprobada",resolvedAt:new Date().toISOString()});
+  A.toast("Solicitud aprobada");
+};
+SaaS.rejectBookingChange=async function(id){
+  try{await NexoPublicCloud.updateBookingChangeRequest(SaaS.getContext().businessId,id,{status:"Rechazada",resolvedAt:new Date().toISOString()});window.App?.toast?.("Solicitud rechazada")}catch(e){window.App?.toast?.(e.message||"No se pudo rechazar")}
+};
+SaaS.watchBookingChanges=function(){
+  if(SaaS.bookingChangeUnsub){try{SaaS.bookingChangeUnsub()}catch{}SaaS.bookingChangeUnsub=null}
+  const businessId=SaaS.getContext()?.businessId;
+  if(!businessId||!window.NexoPublicCloud?.watchBookingChangeRequests)return;
+  SaaS.bookingChangeUnsub=NexoPublicCloud.watchBookingChangeRequests(businessId,rows=>{SaaS.bookingChangeInbox=rows;SaaS.renderBookingInbox();SaaS.renderBookingChangeInbox()});
+};
+const oldWatchBookingInbox_10=SaaS.watchBookingInbox;
+SaaS.watchBookingInbox=function(){const r=oldWatchBookingInbox_10?.();setTimeout(()=>SaaS.watchBookingChanges(),50);return r};
+const oldRenderBookingInbox_10=SaaS.renderBookingInbox;
+SaaS.renderBookingInbox=function(){const r=oldRenderBookingInbox_10?.();SaaS.renderBookingChangeInbox();return r};
+
+
+/* SAMBRIX 1.0 v4 — keep client cloud state aligned with the completed service */
+const oldFinishAppointmentV4=window.App?.finishAppointment;
+if(oldFinishAppointmentV4){
+  window.App.finishAppointment=function(id){
+    const A=window.App,appt=(A.db.appointments||[]).find(x=>x.id===id);
+    const already=appt?.status==="Finalizada";
+    const result=oldFinishAppointmentV4.call(A,id);
+    if(!appt||already)return result;
+    const businessId=SaaS.getContext?.()?.businessId||A.db?.meta?.businessId||"";
+    const client=(A.db.clients||[]).find(c=>c.id===appt.clientId);
+    if(appt.publicRequestId&&businessId){
+      window.NexoPublicCloud?.updateBookingRequest?.(businessId,appt.publicRequestId,{status:"Finalizada",resolvedAt:new Date().toISOString()}).catch(console.error);
+    }
+    if(client?.firebaseUid&&businessId){
+      window.NexoPublicCloud?.updateClientAccount?.(businessId,client.firebaseUid,{points:Number(client.points||0),visits:Number(client.visits||0),lastVisit:client.lastVisit||""}).catch(console.error);
+    }
+    return result;
+  };
+}

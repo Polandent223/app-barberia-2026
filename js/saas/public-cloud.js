@@ -67,4 +67,22 @@ export function watchPublicBookingRequests(businessId,callback){
   });
 }
 
-window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,createPublicBooking,updateBookingRequest,watchPublicBookingRequests};
+
+export function watchBookingChangeRequests(businessId,callback){
+  return onSnapshot(collection(firestore,"public_businesses",businessId,"booking_change_requests"),snap=>{
+    callback(snap.docs.map(d=>({id:d.id,...d.data()})));
+  });
+}
+
+export async function updateBookingChangeRequest(businessId,requestId,data){
+  await updateDoc(doc(firestore,"public_businesses",businessId,"booking_change_requests",requestId),data);
+}
+
+export async function updateClientAccount(businessId,uid,data){
+  if(!businessId||!uid)return;
+  const safe={};
+  ["points","visits","lastVisit","status","name","phone"].forEach(k=>{if(data[k]!==undefined)safe[k]=data[k]});
+  if(Object.keys(safe).length)await updateDoc(doc(firestore,"public_businesses",businessId,"client_accounts",uid),safe);
+}
+
+window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,createPublicBooking,updateBookingRequest,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};

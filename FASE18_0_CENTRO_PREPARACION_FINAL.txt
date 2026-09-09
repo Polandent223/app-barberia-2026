@@ -1,0 +1,14 @@
+SAMBRIX — Fase 18.0 Centro de Preparación Final
+
+- Vista única de preparación general.
+- Resume auditoría, autenticación, reglas, candidato, respaldo, runtime, QA,
+  incidentes, privacidad y despliegue.
+- Resume smoke test, sincronización, persistencia, rendimiento,
+  compatibilidad, validación y recorrido final.
+- Resultado: NO LISTO / LISTO PARA PRUEBAS REALES / TODO APROBADO.
+- No marca pruebas manuales como aprobadas automáticamente.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

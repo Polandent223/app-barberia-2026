@@ -29,6 +29,8 @@ const Bridge={
   autoReady:false,
   lastSync:null,
   scheduleImagePush,
+  loginWithEmailPassword:firebaseLogin,
+  logoutUser:firebaseLogout,
   setError(e){
     console.error("[Firebase]",e);
     status("offline","Error");
@@ -43,11 +45,20 @@ window.FirebaseBridge=Bridge;
 
 function controls(){
   const on=Bridge.connected;
+  const saasMode=!!window.SaaS;
   ["firebaseUploadBtn","firebaseDownloadBtn","firebaseRealtimeBtn","firebaseUploadImagesBtn","firebaseDownloadImagesBtn"].forEach(id=>{
-    if($(id))$(id).disabled=!on;
+    const el=$(id);
+    if(el){
+      el.disabled=!on||saasMode;
+      // These buttons target the legacy single-business collections and must
+      // never be used by the multi-tenant production app.
+      el.classList.toggle("hidden",saasMode);
+    }
   });
   $("firebaseLoginBtn")?.classList.toggle("hidden",on);
-  $("firebaseCreateAdminBtn")?.classList.toggle("hidden",on);
+  // First-admin creation only creates an Auth identity; SAMBRIX SuperAdmin
+  // must be provisioned through trusted platform/config setup instead.
+  $("firebaseCreateAdminBtn")?.classList.toggle("hidden",on||saasMode);
   $("firebaseLogoutBtn")?.classList.toggle("hidden",!on);
 
   if($("firebaseAccountInfo")){
@@ -129,6 +140,9 @@ function realtime(){
 
 async function autoSynchronize(){
   if(!Bridge.connected || Bridge.autoReady)return;
+  // Tenant synchronization is handled by saas-cloud-main.js. Using the
+  // legacy global collection here could mix data between businesses.
+  if(window.SaaS){Bridge.autoReady=true;status("online","Conectado");return;}
   status("connecting","Sincronizando...");
   try{
     // A second/new device should always receive cloud state first.
@@ -155,6 +169,9 @@ async function autoSynchronize(){
 }
 
 function hookPersist(){
+  // SAMBRIX SaaS has a tenant-aware cloud layer. The legacy global sync
+  // (barberia_state) must never be attached in multi-tenant production.
+  if(window.SaaS)return;
   const App=window.App;
   if(!App||App.__firebasePersistHook||!App.persist)return;
   const old=App.persist.bind(App);

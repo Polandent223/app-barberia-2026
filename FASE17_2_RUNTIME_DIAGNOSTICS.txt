@@ -1,0 +1,13 @@
+SAMBRIX — Fase 17.2 Runtime Diagnostics
+
+- Captura window.onerror.
+- Captura unhandledrejection.
+- Detecta recursos que no cargan.
+- Guarda hasta 100 errores por sesión.
+- Registra página, rol, businessId y entorno.
+- Panel de errores durante pruebas.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

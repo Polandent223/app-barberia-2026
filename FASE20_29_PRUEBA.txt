@@ -1,0 +1,11 @@
+SAMBRIX FASE 20.29 — DESBLOQUEO REAL POR PLAN
+
+Corregido conflicto de planTier por orden de carga.
+Básico: personalización esencial.
+Pro: Básico + Diseño avanzado + colores/tema + promociones.
+Premium: Pro + Marca blanca + slug + ocultar Powered by SAMBRIX.
+
+PRUEBA:
+- Pro: Diseño avanzado y Promociones editables.
+- Premium: Diseño avanzado, Promociones y Marca blanca editables.
+- Básico: esas funciones avanzadas permanecen bloqueadas.

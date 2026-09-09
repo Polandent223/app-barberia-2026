@@ -1,0 +1,12 @@
+SAMBRIX — Fase 16.2 Salud del Sistema
+
+- Panel de salud del SaaS.
+- Firebase Bridge, autenticación, multi-tenant, auditoría, respaldo y soporte.
+- Alertas por configuración incompleta, licencia bloqueada y correo faltante.
+- Indicador general de salud.
+- Revisión manual bajo demanda.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JS: 0

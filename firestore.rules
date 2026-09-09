@@ -8,7 +8,8 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return signedIn() &&
-        exists(/databases/$(database)/documents/platform_admins/$(request.auth.uid));
+        exists(/databases/$(database)/documents/platform/config) &&
+        get(/databases/$(database)/documents/platform/config).data.ownerUid == request.auth.uid;
     }
 
     function memberDoc(businessId) {
@@ -17,7 +18,8 @@ service cloud.firestore {
 
     function isBusinessMember(businessId) {
       return signedIn() &&
-        exists(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid));
+        exists(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/businesses/$(businessId)/members/$(request.auth.uid)).data.active != false;
     }
 
     function role(businessId) {
@@ -30,9 +32,42 @@ service cloud.firestore {
           role(businessId) in ['owner','admin','manager']);
     }
 
-    match /platform_admins/{uid} {
-      allow read: if isSuperAdmin();
-      allow write: if false; // gestionar solo desde entorno administrativo seguro
+    function canManageMembers(businessId) {
+      return isSuperAdmin() ||
+        (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
+    }
+
+    function validBusinessRole(value) {
+      return value in ['owner','admin','manager','reception','cashier','barber'];
+    }
+
+
+    // Platform metadata is private to the SAMBRIX super administrator.
+    // platform_admins/{uid} must be provisioned from a trusted admin environment.
+    match /platform/{documentId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /platform_users/{uid} {
+      allow read: if isSuperAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isSuperAdmin() ||
+        (signedIn() && request.auth.uid == uid &&
+          request.resource.data.keys().hasOnly(['uid','email','name','role','active','createdAt','businessId']) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.role == 'business_user') ||
+        // Owner/admin can provision staff only after the tenant member document exists.
+        (signedIn() && request.resource.data.role == 'business_user' &&
+          request.resource.data.uid == uid &&
+          request.resource.data.businessId is string &&
+          canManageMembers(request.resource.data.businessId) &&
+          exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)/members/$(uid)) &&
+          get(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)/members/$(uid)).data.businessId == request.resource.data.businessId &&
+          get(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)/members/$(uid)).data.role != 'owner');
+      allow update: if isSuperAdmin() || (signedIn() && request.auth.uid == uid &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.businessId == resource.data.businessId);
+      allow delete: if isSuperAdmin();
     }
 
     match /businesses/{businessId} {
@@ -43,8 +78,41 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isSuperAdmin() || (signedIn() && request.auth.uid == uid) || canManageBusiness(businessId);
-        allow create, update: if isSuperAdmin() || canManageBusiness(businessId);
-        allow delete: if isSuperAdmin() || (canManageBusiness(businessId) && uid != request.auth.uid);
+
+        // Only SuperAdmin provisions the owner. Owners/admins can add staff,
+        // but cannot create another owner from the browser.
+        allow create: if isSuperAdmin() ||
+          (canManageMembers(businessId) &&
+            request.resource.data.uid == uid &&
+            request.resource.data.businessId == businessId &&
+            validBusinessRole(request.resource.data.role) &&
+            request.resource.data.role != 'owner');
+
+        // Prevent privilege escalation. A user cannot change their own role,
+        // and business admins cannot convert anybody into an owner.
+        allow update: if isSuperAdmin() ||
+          (canManageMembers(businessId) &&
+            uid != request.auth.uid &&
+            request.resource.data.uid == resource.data.uid &&
+            request.resource.data.businessId == resource.data.businessId &&
+            validBusinessRole(request.resource.data.role) &&
+            request.resource.data.role != 'owner' &&
+            resource.data.role != 'owner');
+
+        allow delete: if isSuperAdmin() ||
+          (canManageMembers(businessId) && uid != request.auth.uid && resource.data.role != 'owner');
+      }
+
+      // Domain-scoped tenant state. Staff can save only what their role needs.
+      match /state/{stateName} {
+        allow read: if isSuperAdmin() || isBusinessMember(businessId);
+        allow write: if isSuperAdmin() ||
+          (isBusinessMember(businessId) && (
+            role(businessId) in ['owner','admin','manager'] ||
+            (role(businessId) == 'reception' && stateName in ['crm','schedule','finance']) ||
+            (role(businessId) == 'cashier' && stateName in ['crm','finance','inventory']) ||
+            (role(businessId) == 'barber' && stateName in ['schedule','attendance'])
+          ));
       }
 
       match /{document=**} {
@@ -57,9 +125,62 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSuperAdmin() || canManageBusiness(businessId);
 
+      match /client_accounts/{uid} {
+        // Customer accounts are isolated by Firebase Auth UID and business.
+        allow create: if signedIn() && request.auth.uid == uid &&
+          request.resource.data.keys().hasOnly([
+            'clientId','name','phone','phoneNormalized','status','createdAt','points','visits'
+          ]) &&
+          request.resource.data.clientId == ('client_' + uid) &&
+          request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120 &&
+          request.resource.data.phone is string && request.resource.data.phone.size() >= 7 && request.resource.data.phone.size() <= 30 &&
+          request.resource.data.phoneNormalized is string && request.resource.data.phoneNormalized.size() >= 7 && request.resource.data.phoneNormalized.size() <= 20 &&
+          request.resource.data.status == 'Activo' &&
+          request.resource.data.points == 0 && request.resource.data.visits == 0;
+        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && request.auth.uid == uid);
+        allow update: if isSuperAdmin() || canManageBusiness(businessId);
+        allow delete: if isSuperAdmin() || canManageBusiness(businessId);
+      }
+
+      match /booking_change_requests/{changeId} {
+        allow create: if signedIn() &&
+          request.resource.data.keys().hasOnly([
+            'clientUid','clientId','bookingRequestId','type','oldDate','oldTime','newDate','newTime','status','createdAt'
+          ]) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.type in ['cancel','reschedule'] &&
+          request.resource.data.status == 'Pendiente' &&
+          request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
+          exists(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)) &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientUid == request.auth.uid &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.status == 'Aprobada';
+        allow read: if isSuperAdmin() || canManageBusiness(businessId) ||
+          (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+      }
+
       match /booking_requests/{requestId} {
-        allow create: if true;
-        allow read: if isSuperAdmin() || canManageBusiness(businessId);
+        // A booking must belong to an authenticated customer account from this business.
+        allow create: if signedIn() &&
+          exists(/databases/$(database)/documents/public_businesses/$(businessId)/client_accounts/$(request.auth.uid)) &&
+          request.resource.data.keys().hasOnly([
+            'name','phone','clientUid','clientId','serviceId','barberId','date','time','note','branchId','status','createdAt'
+          ]) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(/databases/$(database)/documents/public_businesses/$(businessId)/client_accounts/$(request.auth.uid)).data.clientId &&
+          request.resource.data.name == get(/databases/$(database)/documents/public_businesses/$(businessId)/client_accounts/$(request.auth.uid)).data.name &&
+          request.resource.data.phone == get(/databases/$(database)/documents/public_businesses/$(businessId)/client_accounts/$(request.auth.uid)).data.phone &&
+          request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120 &&
+          request.resource.data.phone is string && request.resource.data.phone.size() >= 7 && request.resource.data.phone.size() <= 30 &&
+          request.resource.data.serviceId is string && request.resource.data.serviceId.size() > 0 && request.resource.data.serviceId.size() <= 120 &&
+          request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 && request.resource.data.barberId.size() <= 120 &&
+          request.resource.data.date is string && request.resource.data.date.size() == 10 &&
+          request.resource.data.time is string && request.resource.data.time.size() >= 4 && request.resource.data.time.size() <= 5 &&
+          request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
+          request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 &&
+          request.resource.data.status == 'Pendiente';
+        allow read: if isSuperAdmin() || canManageBusiness(businessId) ||
+          (signedIn() && resource.data.clientUid == request.auth.uid);
         allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
       }
     }

@@ -1,0 +1,14 @@
+SAMBRIX 20.27 — Personalización Pro
+
+Corrección:
+- clienteConfig (Personalización) queda explícitamente permitida en Básico y Pro.
+- El guard de plan reconoce clienteConfig como página Business válida.
+- Se fuerza una regla final después de cargar todos los scripts para evitar que
+  una definición antigua vuelva a redirigir Personalización hacia Inicio.
+
+Prueba:
+1. Dejar empresa en Pro.
+2. Entrar como propietario.
+3. Pulsar Personalización.
+4. Debe abrir la pantalla de personalización, no Inicio.
+5. Confirmar que Pro permita portada, colores/tema y promociones.

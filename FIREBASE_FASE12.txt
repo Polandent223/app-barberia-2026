@@ -1,0 +1,47 @@
+BARBERÍA LOS HERMANOS CAMEJO — FASE 12 FIREBASE MODULAR
+
+Firebase queda separado en js/firebase/.
+
+Archivos:
+- firebase-config.js
+- firebase-core.js
+- firebase-auth.js
+- firebase-data.js
+- firebase-sync.js
+- firebase-main.js
+
+Flujo inicial:
+1. Sube esta versión a GitHub.
+2. En la app entra como Administrador > Configuración > Firebase.
+3. Escribe un correo y una contraseña.
+4. Si aún no existe usuario en Firebase Auth, pulsa “Crear primer administrador”.
+5. Pulsa “Subir datos actuales”.
+6. Cuando confirme, activa “Tiempo real”.
+7. En otro dispositivo inicia sesión con el mismo correo, pulsa “Bajar datos de la nube” y activa “Tiempo real”.
+
+Seguridad:
+- localStorage sigue funcionando como respaldo local.
+- Firestore solo sincroniza cuando Firebase Auth está conectado.
+- Las fotos no se guardan todavía en Firestore.
+- Después de probar el login, copia firestore.rules en Firebase Console > Firestore > Reglas y publica.
+
+
+FASE 12.1 — IMÁGENES SIN STORAGE
+- Logo, fondo, fotos de barberos y fotos de empleados se comprimen antes de guardar.
+- Se sincronizan en Firestore en barberia_assets/images.
+- No usa Firebase Storage.
+- Botones nuevos: Subir imágenes / Bajar imágenes.
+- Tiempo real también sincroniza imágenes.
+- Recomendación: después de subir datos, pulsa Subir imágenes una vez.
+
+
+FASE 12.2 — FIREBASE AUTOMÁTICO
+- Firebase ya no aparece en la barra general.
+- Solo se administra desde Configuración.
+- Al iniciar sesión en un nuevo dispositivo:
+  1. descarga datos automáticamente;
+  2. descarga imágenes automáticamente;
+  3. activa tiempo real automáticamente.
+- Los cambios normales se suben automáticamente.
+- Las fotos nuevas también se suben automáticamente.
+- Los botones de subir/bajar permanecen solo como respaldo manual.

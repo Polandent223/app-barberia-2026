@@ -10,6 +10,8 @@
     SaaS.loadSecurity?.();
     SaaS.loadNotifications?.();
     SaaS.loadBilling?.();
+    SaaS.ensureSubscriptionRecords?.();
+    SaaS.ensureRenewalDates?.();
     SaaS.loadBackupSystem?.();
     SaaS.loadSupport?.();
     SaaS.loadReleases?.();
@@ -88,9 +90,6 @@
     document.getElementById("createBusinessBtn")?.addEventListener("click",SaaS.openOnboarding);
     document.getElementById("zeroCreateBusinessBtn")?.addEventListener("click",SaaS.openOnboarding);
     document.getElementById("closeTenantActivationModal")?.addEventListener("click",SaaS.closeOnboarding);
-    document.getElementById("obPrevBtn")?.addEventListener("click",SaaS.prevOnboarding);
-    document.getElementById("obNextBtn")?.addEventListener("click",SaaS.nextOnboarding);
-    document.getElementById("obCreateBtn")?.addEventListener("click",SaaS.createFromOnboarding);
     document.getElementById("returnPortalBtn")?.addEventListener("click",()=>SaaS.portal?.show?.());
     document.getElementById("refreshBookingInboxBtn")?.addEventListener("click",SaaS.watchBookingInbox);
     document.getElementById("bookingStatusFilter")?.addEventListener("change",SaaS.renderBookingInbox);
@@ -249,6 +248,7 @@
     document.getElementById("statementSearch")?.addEventListener("input",SaaS.renderAccountStatements);
     document.getElementById("refreshSaasMetricsBtn")?.addEventListener("click",SaaS.refreshSaasMetrics);
     document.getElementById("refreshReviewGateBtn")?.addEventListener("click",SaaS.refreshReviewGate);
+    document.getElementById("superadminModuleSearch")?.addEventListener("input",SaaS.filterSuperAdminModules);
     document.getElementById("exitSupportModeBtn")?.addEventListener("click",SaaS.exitSupport);
     document.getElementById("closeBusinessUsersModal")?.addEventListener("click",SaaS.closeMembers);
     document.getElementById("createMemberBtn")?.addEventListener("click",SaaS.createMember);
@@ -263,3 +263,183 @@
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 })();
 
+
+/* FASE 20.2 */
+if(SaaS.renderAll&&!SaaS.__organizerRenderWrapped){
+ const _r202=SaaS.renderAll;
+ SaaS.renderAll=function(){const r=_r202();SaaS.organizeSuperAdminNavigation?.();SaaS.renderSuperAdminModuleDirectory?.();SaaS.renderMaintenanceQuickControl?.();return r;};
+ SaaS.__organizerRenderWrapped=true;
+}
+SaaS.installSuperAdminOrganizer?.();
+SaaS.renderMaintenanceQuickControl?.();
+document.getElementById("maintenanceQuickToggleBtn")?.addEventListener("click",SaaS.toggleMaintenanceQuickControl);
+
+/* ===== FASE 20.5 ALTA COMPLETA ===== */
+document.getElementById("obCountry")?.addEventListener("change",SaaS.renderOnboardingTimezones);
+/* FASE 20.6 — reconciliación comercial */
+SaaS.ensureSubscriptionRecords?.();
+SaaS.renderSubscriptions?.();
+
+/* FASE 20.7 — normalización de ciclos */
+SaaS.ensureRenewalDates?.();
+SaaS.ensureSubscriptionRecords?.();
+SaaS.renderSubscriptions?.();
+
+/* ===== FASE 20.8 — reconciliación de entregas ===== */
+SaaS.reconcileDeliveryStates?.();
+SaaS.renderActivation?.();
+SaaS.renderTrainingHandoff?.();
+
+/* ===== FASE 20.9 — ACCESO PROPIETARIO ===== */
+document.getElementById("closeOwnerAccessSetupModal")?.addEventListener("click",SaaS.closeOwnerAccessSetup);
+document.getElementById("cancelOwnerAccessSetup")?.addEventListener("click",SaaS.closeOwnerAccessSetup);
+document.getElementById("saveOwnerAccessSetup")?.addEventListener("click",SaaS.saveOwnerAccessSetup);
+
+
+/* ===== FASE 20.13 — AISLAMIENTO TENANT ===== */
+(SaaS.db.businesses||[]).forEach(b=>SaaS.reconcileTenantIsolation?.(b.id));
+
+
+/* ===== FASE 20.15 — TERMINOLOGÍA DINÁMICA ===== */
+SaaS.businessTerms=function(business){
+  const type=String(business?.type||"").toLowerCase();
+
+  let professionalSingular="Profesional";
+  let professionalPlural="Profesionales";
+
+  if(type.includes("barber")){
+    professionalSingular="Barbero";
+    professionalPlural="Barberos";
+  }else if(type.includes("salón")||type.includes("salon")||type.includes("belleza")){
+    professionalSingular="Estilista";
+    professionalPlural="Estilistas";
+  }else if(type.includes("uña")||type.includes("nail")){
+    professionalSingular="Profesional";
+    professionalPlural="Profesionales";
+  }else if(type.includes("spa")){
+    professionalSingular="Terapeuta";
+    professionalPlural="Terapeutas";
+  }else if(type.includes("clínica")||type.includes("clinica")||type.includes("consultorio")){
+    professionalSingular="Profesional";
+    professionalPlural="Profesionales";
+  }else if(type.includes("taller")){
+    professionalSingular="Técnico";
+    professionalPlural="Técnicos";
+  }
+
+  return {
+    professionalSingular,
+    professionalPlural,
+    clientSingular:"Cliente",
+    clientPlural:"Clientes",
+    serviceSingular:"Servicio",
+    servicePlural:"Servicios",
+    appointmentSingular:"Cita",
+    appointmentPlural:"Citas"
+  };
+};
+
+SaaS.applyBusinessTerminology=function(){
+  const b=SaaS.currentBusiness?.();
+  if(!b)return;
+  const t=SaaS.businessTerms(b);
+
+  document.querySelectorAll("[data-sambrix-term]").forEach(el=>{
+    const key=el.dataset.sambrixTerm;
+    if(t[key])el.textContent=t[key];
+  });
+
+  // Fallback for legacy labels that do not yet have data attributes.
+  document.querySelectorAll("label").forEach(label=>{
+    const txt=(label.childNodes[0]?.nodeValue||"").trim();
+    if(txt==="Barbero" || txt==="Barbera"){
+      label.childNodes[0].nodeValue=t.professionalSingular;
+    }
+    if(txt==="Barberos"){
+      label.childNodes[0].nodeValue=t.professionalPlural;
+    }
+  });
+
+  // Headings and buttons.
+  document.querySelectorAll("h1,h2,h3,h4,button,span,small").forEach(el=>{
+    if(el.children.length) return;
+    const txt=(el.textContent||"").trim();
+    if(txt==="Barberos") el.textContent=t.professionalPlural;
+    if(txt==="+ Barbero") el.textContent=`+ ${t.professionalSingular}`;
+  });
+};
+
+/* FASE 20.15 — aplicar términos del negocio activo */
+const oldRenderAll_2015=SaaS.renderAll;
+SaaS.renderAll=function(){
+  const r=oldRenderAll_2015();
+  SaaS.applyBusinessTerminology?.();
+  return r;
+};
+
+/* ===== FASE 20.16 — TERMINOLOGÍA BUSINESS COMPLETA ===== */
+const oldRenderAll_2016=SaaS.renderAll;
+SaaS.renderAll=function(){
+  const r=oldRenderAll_2016();
+  window.App?.applyBusinessIdentity?.();
+  SaaS.applyBusinessTerminology?.();
+  return r;
+};
+
+/* ===== FASE 20.18 — PLAN POR NEGOCIO ===== */
+SaaS.applyPlanUI?.();
+
+
+/* ===== FASE 20.20 — REGLA FINAL DE PLAN (NO TOCA SUPERADMIN) ===== */
+SaaS.applyPlanUI?.();
+SaaS.renderCurrentPlanBadge?.();
+
+/* FASE 20.21 */
+setTimeout(()=>SaaS.renderBrandingPlanAccess?.(),0);
+
+
+/* ===== FASE 20.27 — PERSONALIZACIÓN PRO ===== */
+SaaS.featureAllowed=function(page,business=SaaS.currentBusiness()){
+  if(!business)return false;
+
+  const role=String(SaaS.session?.role||"").toLowerCase();
+  const isSuper=role==="superadmin" || !!window.SaaSAuthAdmin?.isSuperAdmin?.();
+  if(isSuper)return true;
+
+  const status=String(business.status||"Activo").toLowerCase();
+  if(status.includes("suspend")||status.includes("venc")||status.includes("cancel"))return false;
+
+  const features=SaaS.PLAN_FEATURES?.[business.planId]||[];
+  return features.includes("*")||features.includes(page);
+};
+
+SaaS.applyPlanUI=function(){
+  const role=String(SaaS.session?.role||"").toLowerCase();
+  const isSuper=role==="superadmin" || !!window.SaaSAuthAdmin?.isSuperAdmin?.();
+
+  document.querySelectorAll(".nav-business[data-page]").forEach(btn=>{
+    const allowed=isSuper ? true : SaaS.featureAllowed(btn.dataset.page);
+    btn.hidden=!allowed;
+    btn.classList.toggle("plan-hidden",!allowed);
+    btn.disabled=false;
+
+    if(!allowed){
+      btn.setAttribute("aria-hidden","true");
+      btn.setAttribute("tabindex","-1");
+    }else{
+      btn.removeAttribute("aria-hidden");
+      btn.removeAttribute("tabindex");
+    }
+  });
+
+  SaaS.renderCurrentPlanBadge?.();
+  SaaS.renderBrandingPlanAccess?.();
+};
+
+/* ===== FASE 20.28 — REFRESCO FINAL DE PERSONALIZACIÓN ===== */
+setTimeout(()=>{
+  SaaS.renderBrandingPlanAccess?.();
+  SaaS.renderWhiteLabel?.();
+  window.App?.loadClientCustomization?.();
+  window.App?.applyClientCustomization?.();
+},0);

@@ -1,0 +1,11 @@
+SAMBRIX — Fase 14.9 Soporte Remoto
+
+- Tickets de soporte creados por cada negocio.
+- Prioridad Normal, Alta o Urgente.
+- Estados Abierto, En progreso y Resuelto.
+- SuperAdmin puede entrar al tenant en modo soporte.
+- Se exige motivo de acceso.
+- Banner visible durante asistencia.
+- Entrada y salida auditadas.
+- Datos permanecen aislados por negocio.
+- Salida rápida de modo soporte.

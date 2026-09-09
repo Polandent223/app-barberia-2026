@@ -1,0 +1,14 @@
+SAMBRIX — Fase 19.0 Cobros y Renovaciones
+
+- Estado comercial por negocio.
+- Suscripciones activas, por vencer, atrasadas y suspendidas.
+- Registro manual de pagos y próximo vencimiento.
+- Días de gracia configurables.
+- Suspensión/reactivación manual, nunca automática.
+- Historial y auditoría de cobros.
+- No se presenta como pasarela de pago automática.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

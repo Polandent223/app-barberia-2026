@@ -1,0 +1,18 @@
+SAMBRIX — Fase 20.3
+
+Problema corregido:
+- El botón "Volver a modo operativo" cambiaba el estado en memoria,
+  pero saveMaintenance volvía a leer el toggle antiguo marcado y
+  guardaba mantenimiento=true otra vez.
+- Por eso después de F5 reaparecía el bloqueo.
+
+Corrección:
+- Persistencia directa del estado global sin releer controles obsoletos.
+- Sincronización del toggle legacy cuando existe.
+- Estado operativo/mantenimiento normalizado al cargar.
+- El cambio debe sobrevivir a F5 y a cerrar/reabrir la página.
+
+Revisión:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

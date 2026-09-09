@@ -16,7 +16,7 @@ App.ensureStaff=function(){
   App.db.barbers.forEach(b=>{
     if(!App.db.employees.some(e=>e.barberId===b.id)){
       App.db.employees.push({
-        id:App.uid(),barberId:b.id,name:b.name,role:"Barbero",phone:b.phone||"",pin:"1234",
+        id:App.uid(),barberId:b.id,name:b.name,role:(App.businessVocabulary?.().staffRole||"Profesional"),phone:b.phone||"",pin:"1234",
         serviceCommission:Number(b.commission||40),productCommission:0,monthlyGoal:500,weeklyGoal:125,active:true,
         photo:App.db.business.clientApp.barberPhotos?.[b.id]||"",schedule:App.defaultSchedule()
       });
@@ -62,7 +62,7 @@ App.editEmployee=function(id){
   App.show("employeeForm");
   App.byId("employeeEditId").value=e.id;
   App.byId("employeeName").value=e.name||"";
-  App.byId("employeeRole").value=e.role||"Barbero";
+  App.byId("employeeRole").value=e.role||"Profesional";
   App.byId("employeePhone").value=e.phone||"";
   App.byId("employeePin").value=e.pin||"";
   App.byId("employeeServiceCommission").value=e.serviceCommission||0;

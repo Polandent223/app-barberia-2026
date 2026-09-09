@@ -1,0 +1,10 @@
+SAMBRIX FASE 20.18 - HOTFIX BOTONES SUPERADMIN
+
+Corrección aplicada:
+- El guard de planes podía lanzar ReferenceError cuando SaaSAuthAdmin no existía en ejecución local (file://).
+- Ese error detenía App.go() y hacía parecer que todos los botones del SuperAdmin estaban congelados.
+- Ahora el SuperAdmin se reconoce primero por SaaS.session.role y no queda condicionado al plan del negocio.
+- Se mantiene el filtrado por plan para usuarios de negocio.
+
+Archivo corregido:
+js/saas/saas-billing.js

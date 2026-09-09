@@ -1,0 +1,14 @@
+SAMBRIX FASE 20.14 — IDENTIDAD Y TERMINOLOGÍA MULTINEGOCIO
+
+- Cabecera del propietario: SAMBRIX + negocio activo + tipo de negocio.
+- Eliminada la identidad fija "Los Hermanos Camejo" de la cabecera operativa.
+- "Nombre de la barbería" pasa a "Nombre del negocio".
+- Personal operativo usa vocabulario dinámico por tipo de negocio:
+  Barbería -> Barberos
+  Salón/Belleza -> Estilistas
+  Taller -> Técnicos
+  Clínica/Spa/otros -> Profesionales/Personal
+- La App Cliente adapta la etiqueta del tipo de negocio y el profesional.
+- Migración 20.14 elimina de tenants secundarios únicamente los registros demo
+  inequívocos de la barbería original (servicios, productos, barberos y cliente demo).
+- Los IDs internos existentes se conservan para no romper compatibilidad.

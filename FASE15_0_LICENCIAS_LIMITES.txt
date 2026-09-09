@@ -1,0 +1,10 @@
+SAMBRIX — Fase 15.0 Licencias y Límites
+
+- Control central de licencia por negocio.
+- Planes Basic, Pro y Premium con límites distintos.
+- Límites de sucursales, personal y usuarios.
+- Funciones habilitadas por plan.
+- Bloqueo de acceso para cuentas vencidas o suspendidas.
+- SuperAdmin conserva acceso de soporte.
+- Los datos no se eliminan al bloquear una licencia.
+- Panel de uso y capacidad por negocio.

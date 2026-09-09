@@ -50,7 +50,7 @@ App.exportBackup=function(){
   App.logAction("Respaldo descargado","Seguridad","Copia JSON completa");
   localStorage.setItem(App.KEY,JSON.stringify(App.db));
   const blob=new Blob([JSON.stringify(App.db,null,2)],{type:"application/json"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`barberia_respaldo_${App.today()}.json`;a.click();URL.revokeObjectURL(a.href);
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`sambrix_respaldo_${App.today()}.json`;a.click();URL.revokeObjectURL(a.href);
 };
 App.importBackup=function(file){
   if(!file)return;
@@ -70,7 +70,7 @@ App.printReceipt=function(id){
   const s=App.db.sales.find(x=>x.id===id);if(!s)return;
   const b=App.db.business;
   const w=window.open("","_blank","width=480,height=720");
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo ${s.number}</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#171717}.brand{text-align:center;border-bottom:2px solid #171717;padding-bottom:14px}.brand h1{font-size:23px;margin:0}.muted{color:#666;font-size:12px}.row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #ddd}.total{font-size:20px;font-weight:800}.footer{text-align:center;margin-top:25px;font-size:12px}</style></head><body><div class="brand"><h1>${b.name}</h1><div class="muted">${b.address||""} ${b.whatsapp?("· "+b.whatsapp):""}</div></div><h3>Recibo #${s.number}</h3><div class="muted">${s.date} ${s.time}</div><p><strong>Cliente:</strong> ${s.clientName}<br><strong>Barbero:</strong> ${s.barberName}</p>${s.items.map(i=>`<div class="row"><span>${i.qty} × ${i.name}</span><strong>${s.currency}${Number(i.total).toFixed(2)}</strong></div>`).join("")}<div class="row total"><span>Total</span><span>${s.currency}${Number(s.total).toFixed(2)}</span></div><div class="footer">Gracias por preferirnos.</div><script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo ${s.number}</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#171717}.brand{text-align:center;border-bottom:2px solid #171717;padding-bottom:14px}.brand h1{font-size:23px;margin:0}.muted{color:#666;font-size:12px}.row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #ddd}.total{font-size:20px;font-weight:800}.footer{text-align:center;margin-top:25px;font-size:12px}</style></head><body><div class="brand"><h1>${b.name}</h1><div class="muted">${b.address||""} ${b.whatsapp?("· "+b.whatsapp):""}</div></div><h3>Recibo #${s.number}</h3><div class="muted">${s.date} ${s.time}${s.paymentMethod?` · ${s.paymentMethod}`:""}</div><p><strong>Cliente:</strong> ${s.clientName}<br><strong>${(App.businessVocabulary?.().staffOne||"profesional").replace(/^./,c=>c.toUpperCase())}:</strong> ${s.barberName}</p>${s.items.map(i=>`<div class="row"><span>${i.qty} × ${i.name}</span><strong>${s.currency}${Number(i.total).toFixed(2)}</strong></div>`).join("")}<div class="row total"><span>Total</span><span>${s.currency}${Number(s.total).toFixed(2)}</span></div><div class="footer">Gracias por preferirnos.</div><script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
   App.logAction("Recibo impreso","Recibos",`#${s.number}`);
   localStorage.setItem(App.KEY,JSON.stringify(App.db));

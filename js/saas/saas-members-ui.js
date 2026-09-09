@@ -13,7 +13,7 @@ SaaS.renderMembers=async function(){
   const box=document.getElementById("businessMembersList");
   try{
     const list=await SaaSAuthAdmin.listBusinessMembers(id);
-    box.innerHTML=list.map(m=>`<div class="row"><div><strong>${m.name||m.email}</strong><small>${m.email} · ${m.role}</small></div><button class="btn danger" onclick="SaaS.removeMember('${m.uid}')">Quitar acceso</button></div>`).join("")||'<div class="muted">Sin usuarios Firebase en este negocio.</div>';
+    box.innerHTML=list.map(m=>`<div class="row"><div><strong>${m.name||m.email}</strong><small>${m.email} · ${m.role}${m.active===false?' · ACCESO SUSPENDIDO':''}</small></div>${m.role==='owner'?'':(m.active===false?`<button class="btn secondary" onclick="SaaS.reactivateMember('${m.uid}')">Reactivar</button>`:`<button class="btn danger" onclick="SaaS.removeMember('${m.uid}')">Suspender acceso</button>`)}</div>`).join("")||'<div class="muted">Sin usuarios Firebase en este negocio.</div>';
   }catch(e){box.innerHTML=`<div class="muted">${e.message}</div>`}
 };
 SaaS.createMember=async function(){
@@ -33,6 +33,11 @@ SaaS.createMember=async function(){
 };
 SaaS.removeMember=async function(uid){
   const businessId=document.getElementById("businessUsersBusinessId").value;
-  if(!confirm("¿Quitar acceso a este negocio?"))return;
-  try{await SaaSAuthAdmin.removeBusinessMember(businessId,uid);await SaaS.renderMembers();window.App?.toast?.("Acceso retirado")}catch(e){window.App?.toast?.(e.message)}
+  if(!confirm("¿Suspender el acceso de este usuario? Podrás reactivarlo después."))return;
+  try{await SaaSAuthAdmin.removeBusinessMember(businessId,uid);await SaaS.renderMembers();window.App?.toast?.("Acceso suspendido")}catch(e){window.App?.toast?.(e.message)}
+};
+
+SaaS.reactivateMember=async function(uid){
+  const businessId=document.getElementById("businessUsersBusinessId").value;
+  try{await SaaSAuthAdmin.reactivateBusinessMember(businessId,uid);await SaaS.renderMembers();window.App?.toast?.("Acceso reactivado")}catch(e){window.App?.toast?.(e.message||"No se pudo reactivar")}
 };

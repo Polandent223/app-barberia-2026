@@ -1,0 +1,13 @@
+SAMBRIX — Fase 18.9 Centro de Ayuda
+
+- Guías de autoservicio para Dueño, Personal y SuperAdmin.
+- Buscador y filtro por rol.
+- Primer ingreso, citas, clientes, personal, reserva pública, caché,
+  soporte, aislamiento multi-tenant e incidencias.
+- Escalamiento a soporte cuando una guía no resuelve el problema.
+- No incluye contraseñas ni secretos en documentación.
+
+Revisión estática:
+IDs duplicados: 0
+Referencias faltantes: 0
+Errores JavaScript: 0

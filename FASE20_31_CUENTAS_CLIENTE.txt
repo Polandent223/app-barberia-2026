@@ -1,0 +1,12 @@
+SAMBRIX FASE 20.31 — CUENTAS DEL CLIENTE
+
+- Registro obligatorio antes de reservar.
+- Inicio de sesión por WhatsApp + PIN.
+- Cada cuenta queda enlazada a un clientId único.
+- Si el teléfono ya existe como cliente del negocio, el registro enlaza esa ficha y NO crea un duplicado.
+- Una reserva nunca crea un cliente nuevo; usa el cliente autenticado.
+- Mis citas, Perfil e Historial muestran solo el clientId autenticado.
+- Reprogramaciones siguen asociadas a la misma cita y al mismo cliente.
+- La sesión se separa por negocio/tenant.
+
+NOTA: el acceso actual es para revisión local file://. Para producción debe migrarse la credencial de cliente a Firebase Auth.
