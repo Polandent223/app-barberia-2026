@@ -8,6 +8,19 @@ let catalogUnsub=null,stateUnsubs=[];
 function authEmail(){return window.FirebaseBridge?.user?.email||""}
 function A(){return window.App}
 
+function applyCloudCatalog(data){
+  window.__sambrixApplyingCloudCatalog=true;
+  try{
+    if(Array.isArray(data?.businesses))SaaS.db.businesses=data.businesses;
+    if(Array.isArray(data?.plans))SaaS.db.plans=data.plans;
+    if(Array.isArray(data?.supportAudit))SaaS.db.supportAudit=data.supportAudit;
+    SaaS.save();
+    SaaS.renderAll?.();
+  }finally{
+    window.__sambrixApplyingCloudCatalog=false;
+  }
+}
+
 export async function cloudBootstrapPlatform(){
   const cfgRef=doc(firestore,PLATFORM,"config");
   const snap=await getDoc(cfgRef);
@@ -22,10 +35,15 @@ export async function cloudBootstrapPlatform(){
 }
 
 export async function uploadBusinessCatalog(){
+  // Snapshot the arrays before awaiting Firestore so a later local mutation
+  // cannot change the payload of an upload already in progress.
+  const businesses=structuredClone(SaaS.db.businesses||[]);
+  const plans=structuredClone(SaaS.db.plans||[]);
+  const supportAudit=structuredClone(SaaS.db.supportAudit||[]);
   await setDoc(doc(firestore,PLATFORM,"business_catalog"),{
-    businesses:SaaS.db.businesses,
-    plans:SaaS.db.plans,
-    supportAudit:SaaS.db.supportAudit||[],
+    businesses,
+    plans,
+    supportAudit,
     updatedAt:serverTimestamp(),
     updatedBy:authEmail()
   },{merge:true});
@@ -34,11 +52,7 @@ export async function uploadBusinessCatalog(){
 export async function downloadBusinessCatalog(){
   const s=await getDoc(doc(firestore,PLATFORM,"business_catalog"));
   if(!s.exists())return false;
-  const d=s.data();
-  if(Array.isArray(d.businesses))SaaS.db.businesses=d.businesses;
-  if(Array.isArray(d.plans))SaaS.db.plans=d.plans;
-  if(Array.isArray(d.supportAudit))SaaS.db.supportAudit=d.supportAudit;
-  SaaS.save();SaaS.renderAll?.();
+  applyCloudCatalog(s.data());
   return true;
 }
 
@@ -100,12 +114,8 @@ export function watchCatalog(){
   if(catalogUnsub)catalogUnsub();
   catalogUnsub=onSnapshot(doc(firestore,PLATFORM,"business_catalog"),s=>{
     if(!s.exists())return;
-    const d=s.data();
-    if(Array.isArray(d.businesses))SaaS.db.businesses=d.businesses;
-    if(Array.isArray(d.plans))SaaS.db.plans=d.plans;
-    if(Array.isArray(d.supportAudit))SaaS.db.supportAudit=d.supportAudit;
-    SaaS.save();SaaS.renderAll?.();
-  });
+    applyCloudCatalog(s.data());
+  },error=>console.error("[SAMBRIX catalog watch]",error));
 }
 
 export function watchCurrentTenant(){
@@ -119,7 +129,7 @@ export function watchCurrentTenant(){
       if(SaaS.getContext().businessId===b.id){
         A().db=state;A().ensurePermissionsData?.();A().ensureStaff?.();localStorage.setItem(A().KEY,JSON.stringify(state));A().renderAll?.();
       }
-    }));
+    },error=>console.error(`[SAMBRIX tenant watch:${name}]`,error)));
   });
 }
 
