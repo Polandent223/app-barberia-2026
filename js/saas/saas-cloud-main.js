@@ -1,4 +1,4 @@
-import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,downloadTenant,watchCatalog,watchCurrentTenant} from "./saas-cloud.js";
+import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant} from "./saas-cloud.js";
 
 let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve();
 
@@ -9,13 +9,18 @@ function queueCatalogUpload(){
   return catalogPushChain;
 }
 
+async function ensureCatalogTenants(){
+  for(const business of SaaS.db.businesses||[]){
+    if(!business?.id)continue;
+    try{await ensureTenantState(business.id)}catch(e){console.error(`[SAMBRIX init tenant:${business.id}]`,e)}
+  }
+}
+
 function installHooks(){
   if(hooked||!window.SaaS||!window.App)return;
   const oldSave=SaaS.save.bind(SaaS);
   SaaS.save=function(){
     oldSave();
-    // A snapshot received from Firestore must never be echoed back as a new
-    // catalog write. saas-cloud.js toggles this flag while applying snapshots.
     if(SaaS.__applyingCloudCatalog)return;
     if(window.FirebaseBridge?.connected&&SaaS.session?.role==="superadmin")queueCatalogUpload().catch(console.error);
   };
@@ -56,6 +61,7 @@ async function syncForCurrentSession(){
     const got=await downloadBusinessCatalog();
     if(!got)await queueCatalogUpload();
     await window.SaaSAuthAdmin?.repairBusinessUserLinks?.();
+    await ensureCatalogTenants();
     watchCatalog();
     return true;
   }
@@ -74,6 +80,7 @@ async function forceUploadCatalog(){
   await window.SaaSAuthAdmin?.refreshAccess?.();
   if(!window.SaaSAuthAdmin?.isSuperAdmin?.())throw new Error("La sesión actual no tiene permisos de SuperAdmin.");
   await queueCatalogUpload();
+  await ensureCatalogTenants();
   return true;
 }
 
