@@ -86,6 +86,17 @@ export async function uploadTenantState(businessId,state){
   return true;
 }
 
+export async function ensureTenantState(businessId){
+  if(!businessId)return false;
+  const cfg=await getDoc(doc(firestore,BUSINESSES,businessId,"state","config"));
+  if(cfg.exists())return false;
+  const business=(SaaS.db.businesses||[]).find(b=>b.id===businessId);
+  const fallback=SaaS.blankBusinessState?.(business)||{meta:{businessId},business:{name:business?.name||"Negocio"}};
+  const state=SaaS.loadTenantState?.(businessId)||fallback;
+  await uploadTenantState(businessId,state);
+  return true;
+}
+
 export async function uploadCurrentTenant(){
   const b=SaaS.currentBusiness();if(!b||!A()?.db)return;
   const allowed=writablePartsForRole(SaaS.session?.role);
