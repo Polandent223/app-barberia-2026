@@ -89,17 +89,18 @@ function ensurePasswordResetButton(){
   return btn;
 }
 
-function loadStaffProductionPatch(){
-  if(document.querySelector('script[data-sambrix-staff-patch]'))return;
+function loadProductionPatch(src,key,label){
+  if(document.querySelector(`script[data-sambrix-patch="${key}"]`))return;
   const script=document.createElement("script");
-  script.src="js/staff-production-patch.js";
+  script.src=src;
   script.defer=true;
-  script.dataset.sambrixStaffPatch="1";
-  script.onerror=()=>console.error("[SAMBRIX] No se pudo cargar el refuerzo de personal");
+  script.dataset.sambrixPatch=key;
+  script.onerror=()=>console.error(`[SAMBRIX] No se pudo cargar ${label}`);
   document.body.appendChild(script);
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
   ensurePasswordResetButton()?.addEventListener("click",App.requestPasswordReset);
-  loadStaffProductionPatch();
+  loadProductionPatch("js/staff-production-patch.js","staff","el refuerzo de personal");
+  loadProductionPatch("js/saas/session-production-guard.js","session","el refuerzo de sesión");
 });
