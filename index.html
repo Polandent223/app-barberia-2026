@@ -2,10 +2,11 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111111">
 <title>SAMBRIX · Business Platform</title>
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/app.css?v=1.0.9">
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -360,7 +361,7 @@
           <label>Nombre<input id="userName"></label>
           <label>Usuario<input id="userLogin"></label>
           <label>PIN<input id="userPin" inputmode="numeric"></label>
-          <label>Rol<select id="userRole"><option>Administrador</option><option>Recepción</option><option><span data-sambrix-term="professionalSingular">Profesional</span></option></select></label>
+          <label>Rol<select id="userRole"><option>Administrador</option><option>Recepción</option><option>Profesional</option></select></label>
         </div>
         <div id="rolePreview" class="permission-box"></div>
         <div class="actions">
@@ -594,7 +595,7 @@
         <input id="employeeEditId" type="hidden">
         <div class="form-grid">
           <label>Nombre<input id="employeeName"></label>
-          <label>Cargo<select id="employeeRole"><option><span data-sambrix-term="professionalSingular">Profesional</span></option><option>Recepción</option><option>Administrador</option><option>Asistente</option></select></label>
+          <label>Cargo<select id="employeeRole"><option>Profesional</option><option>Recepción</option><option>Administrador</option><option>Asistente</option></select></label>
           <label>Teléfono<input id="employeePhone"></label>
           <label>PIN<input id="employeePin" inputmode="numeric"></label>
           <label>Comisión servicios %<input id="employeeServiceCommission" type="number" value="40"></label>

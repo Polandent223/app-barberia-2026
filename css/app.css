@@ -886,3 +886,36 @@ body[data-sambrix-role="superadmin"] .bottom-nav .nav-saas.nav-secondary{display
 
 /* SAMBRIX 20.31 — cuenta privada del cliente */
 .client-auth-2031{padding:28px 16px;max-width:760px;margin:0 auto}.client-auth-card{background:var(--panel,#fff);border:1px solid rgba(127,127,127,.18);border-radius:22px;padding:24px;box-shadow:0 18px 45px rgba(0,0,0,.08)}.client-auth-locked{display:none!important}.client-account-badge{margin-left:auto;display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:14px;background:rgba(127,127,127,.08)}.client-account-badge div{display:flex;flex-direction:column;line-height:1.2}.client-account-badge small{opacity:.7}.client-account-badge.hidden{display:none!important}.client-account-search-hidden{display:none!important}.client-auth-card .permission-note{margin-top:16px}
+
+/* ===== SAMBRIX 1.0 PRODUCCION v9 — SELECTS NATIVOS LEGIBLES =====
+   Evita listas negras/invisibles en Windows/Edge cuando el SO usa modo oscuro.
+   El popup nativo se fuerza a esquema claro aunque la app tenga secciones oscuras. */
+select{
+  color-scheme:light;
+  background-color:#fff;
+  color:var(--text,#181716);
+}
+select option,
+select optgroup{
+  background-color:#fff!important;
+  color:#181716!important;
+}
+select option:checked{
+  background-color:#e9edf5!important;
+  color:#111!important;
+}
+select:disabled{
+  background-color:#f3f1ed;
+  color:#8a847c;
+}
+.client-app.client-dark select{
+  color-scheme:light;
+  background:#141414;
+  color:#fff;
+  border-color:#333;
+}
+.client-app.client-dark select option,
+.client-app.client-dark select optgroup{
+  background:#fff!important;
+  color:#181716!important;
+}

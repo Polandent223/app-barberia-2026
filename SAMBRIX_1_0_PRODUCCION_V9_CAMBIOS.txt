@@ -1,0 +1,16 @@
+SAMBRIX 1.0 PRODUCCION v9
+Fecha: 2026-09-09
+
+CORRECCION GLOBAL DE LISTAS DESPLEGABLES
+- Corregido fondo negro/opciones invisibles en select nativos bajo Windows/Edge con modo oscuro.
+- Todos los select fuerzan color-scheme claro para el popup nativo.
+- option/optgroup usan fondo blanco y texto oscuro de alto contraste.
+- Las secciones visuales oscuras conservan el select cerrado oscuro, pero el listado abierto permanece legible.
+- Se limpiaron option con HTML interno invalido.
+- Se agrego cache-busting a css/app.css (v=1.0.9) para evitar que GitHub Pages/navegador siga usando CSS antiguo.
+- Se agrego meta color-scheme para estabilizar controles nativos.
+
+ALCANCE VERIFICADO
+- 79 elementos select.
+- 213 opciones.
+- 0 option con elementos HTML hijos despues de la limpieza.
