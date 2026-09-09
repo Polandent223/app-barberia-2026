@@ -1,4 +1,4 @@
-import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,downloadTenant,watchCatalog,watchCurrentTenant} from "./saas-cloud.js";
+import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,downloadTenant,watchCatalog,watchCurrentTenant} from "./saas-cloud.js";
 
 let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve();
 
@@ -14,9 +14,9 @@ function installHooks(){
   const oldSave=SaaS.save.bind(SaaS);
   SaaS.save=function(){
     oldSave();
-    // Cloud snapshots also call SaaS.save(). Never echo those snapshots back to
-    // Firestore or the catalog watcher can enter a write/read loop.
-    if(window.__sambrixApplyingCloudCatalog)return;
+    // A snapshot received from Firestore must never be echoed back as a new
+    // catalog write. saas-cloud.js toggles this flag while applying snapshots.
+    if(SaaS.__applyingCloudCatalog)return;
     if(window.FirebaseBridge?.connected&&SaaS.session?.role==="superadmin")queueCatalogUpload().catch(console.error);
   };
   const oldSwitch=SaaS.switchTenant.bind(SaaS);
@@ -77,7 +77,15 @@ async function forceUploadCatalog(){
   return true;
 }
 
-window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog};
+async function initializeTenant(businessId,state){
+  if(!window.FirebaseBridge?.connected)throw new Error("Firebase no está conectado.");
+  await window.SaaSAuthAdmin?.refreshAccess?.();
+  if(!window.SaaSAuthAdmin?.isSuperAdmin?.())throw new Error("Solo SuperAdmin puede inicializar un negocio.");
+  await uploadTenantState(businessId,state);
+  return true;
+}
+
+window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog,initializeTenant};
 
 async function attemptSync(){
   const uid=window.FirebaseBridge?.user?.uid||"";
