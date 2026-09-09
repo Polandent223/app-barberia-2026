@@ -26,7 +26,6 @@ App.login = async function(){
     if(btn){btn.disabled=true;btn.textContent="Entrando...";}
     try{
       await FirebaseBridge.loginWithEmailPassword(email,password);
-      // Firebase auth observer updates FirebaseBridge.user; allow a brief microtask turn.
       await new Promise(r=>setTimeout(r,0));
       const session=await SaaS.resolveFirebaseSession?.();
       if(session?.role!=="superadmin"){
@@ -44,42 +43,36 @@ App.login = async function(){
     }
   }
 
-  if(App.PRODUCTION_MODE){
-    return App.toast("Este acceso local está desactivado en producción");
-  }
-
+  if(App.PRODUCTION_MODE)return App.toast("Este acceso local está desactivado en producción");
   const u=App.db.users.find(x=>x.login===App.val("loginUser")&&String(x.pin)===String(App.val("loginPin")));
   if(!u)return App.toast("Usuario o PIN incorrecto");
-
   if(mode==="superadmin"&&window.SaaS){
     localStorage.setItem(App.SESSION_KEY,u.id);
     SaaS.session={role:"superadmin",user:{email:"admin-local@sambrix",localReview:true},businessId:"",branchId:""};
-    SaaS.installPermissionBridge?.();
-    App.hide("loginView");
-    App.show("adminApp");
-    SaaS.applyRoleUI?.();
-    App.renderAll();
-    App.go("superadmin");
-    SaaS.renderSuperAdminZeroState?.();
-    return;
+    SaaS.installPermissionBridge?.();App.hide("loginView");App.show("adminApp");SaaS.applyRoleUI?.();App.renderAll();App.go("superadmin");SaaS.renderSuperAdminZeroState?.();return;
   }
-
-  localStorage.setItem(App.SESSION_KEY,u.id);
-  App.hide("loginView");
-  App.show("adminApp");
-  App.renderAll();
+  localStorage.setItem(App.SESSION_KEY,u.id);App.hide("loginView");App.show("adminApp");App.renderAll();
 };
 
 App.logout = function(){
   localStorage.removeItem(App.SESSION_KEY);
-  if(window.SaaS?.signOutToPortal){
-    SaaS.signOutToPortal();
-    return;
-  }
-  App.show("loginView");
-  App.hide("adminApp");
+  if(window.SaaS?.signOutToPortal){SaaS.signOutToPortal();return;}
+  App.show("loginView");App.hide("adminApp");
 };
 
-App.applyRoleUI = function(){
-  document.querySelectorAll(".bottom-nav button").forEach(b=>b.style.display=App.allowed(b.dataset.page)?"flex":"none");
+App.applyRoleUI = function(){document.querySelectorAll(".bottom-nav button").forEach(b=>b.style.display=App.allowed(b.dataset.page)?"flex":"none")};
+
+App.requestPasswordReset=async function(){
+  const mode=window.SaaS?.requestedLoginMode||document.body.dataset.loginMode||"business";
+  if(!["business","superadmin"].includes(mode))return App.toast("Recuperación no disponible para este acceso");
+  const email=App.val("loginUser").trim();
+  if(!email)return App.toast("Escribe primero tu correo");
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return App.toast("Escribe un correo válido");
+  if(!window.FirebaseBridge?.sendPasswordReset)return App.toast("Firebase todavía no está disponible");
+  const btn=App.byId("loginResetBtn");
+  try{if(btn){btn.disabled=true;btn.textContent="Enviando...";}await FirebaseBridge.sendPasswordReset(email);App.toast("Te enviamos un enlace para cambiar la contraseña")}
+  catch(error){console.error("[SAMBRIX password reset]",error);App.toast("Si el correo está registrado, recibirás el enlace de recuperación")}
+  finally{if(btn){btn.disabled=false;btn.textContent="¿Olvidaste tu contraseña?";}}
 };
+
+document.addEventListener("DOMContentLoaded",()=>App.byId("loginResetBtn")?.addEventListener("click",App.requestPasswordReset));
