@@ -12,7 +12,6 @@ async function loadPlatformConfig(){
     const s=await getDoc(doc(firestore,"platform","config"));
     platformConfig=s.exists()?s.data():null;
   }catch(error){
-    // Business users are intentionally not allowed to read platform metadata.
     platformConfig=null;
     if(String(error?.code||"")!=="permission-denied")console.warn("[SAMBRIX platform config]",error);
   }
@@ -93,34 +92,43 @@ async function listBusinessMembers(businessId){
 }
 
 async function removeBusinessMember(businessId,uid){
-  // Revoke access without deleting identity, so the same email can be reactivated later.
   await updateDoc(doc(firestore,"businesses",businessId,"members",uid),{active:false,updatedAt:serverTimestamp()});
+  try{await updateDoc(doc(firestore,"platform_users",uid),{active:false,updatedAt:serverTimestamp()})}catch{}
 }
 
 async function reactivateBusinessMember(businessId,uid){
   await updateDoc(doc(firestore,"businesses",businessId,"members",uid),{active:true,updatedAt:serverTimestamp()});
+  try{await updateDoc(doc(firestore,"platform_users",uid),{active:true,updatedAt:serverTimestamp()})}catch{}
 }
 
 async function myBusinessMemberships(){
   const u=window.FirebaseBridge?.user;if(!u)return [];
+  await loadCurrentProfile();
+  if(currentProfile?.active===false)return [];
   const out=[];
   for(const b of SaaS.db.businesses||[]){
     const s=await getDoc(doc(firestore,"businesses",b.id,"members",u.uid));
-    if(s.exists()&&s.data()?.active!==false)out.push({businessId:b.id,...s.data()});
+    if(!s.exists()||s.data()?.active===false)continue;
+    const businessSnap=await getDoc(doc(firestore,"businesses",b.id));
+    const status=String(businessSnap.data()?.status||b.status||"Activo").toLowerCase();
+    if(["suspendido","suspended","inactivo","inactive","bloqueado","blocked"].includes(status))continue;
+    out.push({businessId:b.id,...s.data()});
   }
   return out;
 }
 
-
 async function resolveMyBusiness(){
   const u=window.FirebaseBridge?.user;if(!u)return null;
   await loadCurrentProfile();
+  if(!currentProfile||currentProfile.active===false)return null;
   const businessId=String(currentProfile?.businessId||"");
   if(!businessId)return null;
   const member=await getDoc(doc(firestore,"businesses",businessId,"members",u.uid));
   if(!member.exists()||member.data()?.active===false)return null;
   const businessSnap=await getDoc(doc(firestore,"businesses",businessId));
   const business=businessSnap.exists()?{id:businessId,...businessSnap.data()}:{id:businessId,name:"Mi negocio",branches:[]};
+  const status=String(business.status||"Activo").toLowerCase();
+  if(["suspendido","suspended","inactivo","inactive","bloqueado","blocked"].includes(status))return null;
   return {business,membership:{businessId,...member.data()}};
 }
 
