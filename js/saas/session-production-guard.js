@@ -1,5 +1,7 @@
 /* SAMBRIX · Refuerzo de sesión y acceso de producción */
 (function(){
+  const blockedStatuses=new Set(["suspendido","suspended","inactivo","inactive","bloqueado","blocked"]);
+
   function install(){
     const S=window.SaaS;
     if(!S?.resolveFirebaseSession||S.__productionSessionGuard)return false;
@@ -12,15 +14,17 @@
       const profile=window.SaaSAuthAdmin?.profile;
       if(profile?.active===false){
         S.session={role:"guest",user:session.user||null,businessId:"",branchId:""};
+        window.SaaSCloudProduction?.stopSessionCloud?.();
         window.App?.toast?.("Este acceso está suspendido. Contacta al administrador del negocio.");
         return S.session;
       }
 
       const business=(S.db.businesses||[]).find(b=>b.id===session.businessId);
       const status=String(business?.status||"").trim().toLowerCase();
-      if(status==="suspendido"||status==="suspended"){
+      if(blockedStatuses.has(status)){
         S.session={role:"guest",user:session.user||null,businessId:"",branchId:""};
-        window.App?.toast?.("Este negocio está suspendido temporalmente.");
+        window.SaaSCloudProduction?.stopSessionCloud?.();
+        window.App?.toast?.("Este negocio no está disponible temporalmente.");
         return S.session;
       }
 
