@@ -1,6 +1,6 @@
-import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant} from "./saas-cloud.js";
+import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant,stopSaaSCloud} from "./saas-cloud.js";
 
-let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve();
+let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve(),sessionGeneration=0,lastObservedUid="";
 const hydrationPromises=new Map();
 const hydratedTenants=new Set();
 
@@ -19,20 +19,34 @@ async function ensureCatalogTenants(){
 function currentBusinessId(){return String(SaaS.getContext?.()?.businessId||SaaS.session?.businessId||"").trim()}
 function tenantHydrating(id=currentBusinessId()){return !!id&&hydrationPromises.has(id)}
 
+function resetCloudSession(){
+  sessionGeneration++;
+  lastSyncKey="";
+  hydratedTenants.clear();
+  hydrationPromises.clear();
+  try{stopSaaSCloud()}catch(e){console.warn("[SAMBRIX cloud reset]",e)}
+}
+
 function hydrateTenant(id,{createIfMissing=false}={}){
   id=String(id||"").trim();
   if(!id)return Promise.resolve(false);
   if(hydrationPromises.has(id))return hydrationPromises.get(id);
+  const generation=sessionGeneration;
+  const uid=String(window.FirebaseBridge?.user?.uid||"");
   const task=(async()=>{
     const got=await downloadTenant(id);
+    if(generation!==sessionGeneration||uid!==String(window.FirebaseBridge?.user?.uid||""))return got;
     if(!got&&createIfMissing){
       if(currentBusinessId()!==id)throw new Error("El negocio cambió durante la sincronización inicial.");
       await uploadCurrentTenant();
     }
+    if(generation!==sessionGeneration)return got;
     hydratedTenants.add(id);
     if(currentBusinessId()===id)watchCurrentTenant();
     return got;
-  })().finally(()=>hydrationPromises.delete(id));
+  })().finally(()=>{
+    if(hydrationPromises.get(id)===task)hydrationPromises.delete(id);
+  });
   hydrationPromises.set(id,task);
   return task;
 }
@@ -48,7 +62,12 @@ function installHooks(){
 
   const oldSwitch=SaaS.switchTenant.bind(SaaS);
   SaaS.switchTenant=function(id,opts){
+    const previous=currentBusinessId();
     const r=oldSwitch(id,opts);
+    if(r&&previous&&previous!==String(id||"")){
+      try{stopSaaSCloud()}catch{}
+      hydratedTenants.delete(previous);
+    }
     if(r&&window.FirebaseBridge?.connected&&SaaS.session?.role!=="guest"){
       hydrateTenant(id,{createIfMissing:false}).catch(console.error);
     }
@@ -61,15 +80,11 @@ function installHooks(){
     const id=currentBusinessId();
     const role=SaaS.session?.role;
     if(!window.FirebaseBridge?.connected||!["owner","admin","manager","reception","cashier","barber","superadmin"].includes(role))return r;
-
-    // A clean device may temporarily contain an empty local tenant while Firebase is downloading.
-    // Never let that temporary state overwrite the real cloud tenant.
     if(id&&tenantHydrating(id))return r;
     if(id&&!hydratedTenants.has(id)&&role!=="superadmin"){
       hydrateTenant(id,{createIfMissing:true}).catch(console.error);
       return r;
     }
-
     uploadCurrentTenant().then(()=>{
       if(["owner","admin","manager","superadmin"].includes(SaaS.session?.role))return window.NexoPublicCloud?.publishCurrentBusiness?.();
     }).catch(console.error);
@@ -124,15 +139,19 @@ async function initializeTenant(businessId,state){
   return true;
 }
 
-window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog,initializeTenant,isTenantHydrating:tenantHydrating};
+window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog,initializeTenant,isTenantHydrating:tenantHydrating,resetCloudSession};
 
 async function attemptSync(){
-  const uid=window.FirebaseBridge?.user?.uid||"";
+  const uid=String(window.FirebaseBridge?.user?.uid||"");
+  if(uid!==lastObservedUid){
+    resetCloudSession();
+    lastObservedUid=uid;
+  }
   const role=SaaS.session?.role||"guest";
   const key=`${uid}:${role}:${SaaS.session?.businessId||""}`;
   if(!uid||role==="guest"||key===lastSyncKey)return;
   try{if(await syncForCurrentSession())lastSyncKey=key}catch(e){console.error("[SaaS Cloud]",e)}
 }
 
-const timer=setInterval(()=>{if(window.FirebaseBridge?.connected)attemptSync()},700);
+const timer=setInterval(()=>{attemptSync()},700);
 setTimeout(()=>clearInterval(timer),60000);
