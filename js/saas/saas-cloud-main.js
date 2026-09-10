@@ -1,11 +1,11 @@
 import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant} from "./saas-cloud.js";
 
 let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve();
+const hydrationPromises=new Map();
+const hydratedTenants=new Set();
 
 function queueCatalogUpload(){
-  catalogPushChain=catalogPushChain
-    .catch(()=>{})
-    .then(()=>uploadBusinessCatalog());
+  catalogPushChain=catalogPushChain.catch(()=>{}).then(()=>uploadBusinessCatalog());
   return catalogPushChain;
 }
 
@@ -16,6 +16,27 @@ async function ensureCatalogTenants(){
   }
 }
 
+function currentBusinessId(){return String(SaaS.getContext?.()?.businessId||SaaS.session?.businessId||"").trim()}
+function tenantHydrating(id=currentBusinessId()){return !!id&&hydrationPromises.has(id)}
+
+function hydrateTenant(id,{createIfMissing=false}={}){
+  id=String(id||"").trim();
+  if(!id)return Promise.resolve(false);
+  if(hydrationPromises.has(id))return hydrationPromises.get(id);
+  const task=(async()=>{
+    const got=await downloadTenant(id);
+    if(!got&&createIfMissing){
+      if(currentBusinessId()!==id)throw new Error("El negocio cambió durante la sincronización inicial.");
+      await uploadCurrentTenant();
+    }
+    hydratedTenants.add(id);
+    if(currentBusinessId()===id)watchCurrentTenant();
+    return got;
+  })().finally(()=>hydrationPromises.delete(id));
+  hydrationPromises.set(id,task);
+  return task;
+}
+
 function installHooks(){
   if(hooked||!window.SaaS||!window.App)return;
   const oldSave=SaaS.save.bind(SaaS);
@@ -24,22 +45,34 @@ function installHooks(){
     if(SaaS.__applyingCloudCatalog)return;
     if(window.FirebaseBridge?.connected&&SaaS.session?.role==="superadmin")queueCatalogUpload().catch(console.error);
   };
+
   const oldSwitch=SaaS.switchTenant.bind(SaaS);
   SaaS.switchTenant=function(id,opts){
     const r=oldSwitch(id,opts);
     if(r&&window.FirebaseBridge?.connected&&SaaS.session?.role!=="guest"){
-      downloadTenant(id).then(()=>watchCurrentTenant()).catch(console.error);
+      hydrateTenant(id,{createIfMissing:false}).catch(console.error);
     }
     return r;
   };
+
   const A=window.App,oldPersist=A.persist.bind(A);
   A.persist=function(){
     const r=oldPersist();
-    if(window.FirebaseBridge?.connected&&["owner","admin","manager","reception","cashier","barber","superadmin"].includes(SaaS.session?.role)){
-      uploadCurrentTenant().then(()=>{
-        if(["owner","admin","manager","superadmin"].includes(SaaS.session?.role))return window.NexoPublicCloud?.publishCurrentBusiness?.();
-      }).catch(console.error);
+    const id=currentBusinessId();
+    const role=SaaS.session?.role;
+    if(!window.FirebaseBridge?.connected||!["owner","admin","manager","reception","cashier","barber","superadmin"].includes(role))return r;
+
+    // A clean device may temporarily contain an empty local tenant while Firebase is downloading.
+    // Never let that temporary state overwrite the real cloud tenant.
+    if(id&&tenantHydrating(id))return r;
+    if(id&&!hydratedTenants.has(id)&&role!=="superadmin"){
+      hydrateTenant(id,{createIfMissing:true}).catch(console.error);
+      return r;
     }
+
+    uploadCurrentTenant().then(()=>{
+      if(["owner","admin","manager","superadmin"].includes(SaaS.session?.role))return window.NexoPublicCloud?.publishCurrentBusiness?.();
+    }).catch(console.error);
     return r;
   };
   hooked=true;
@@ -66,12 +99,10 @@ async function syncForCurrentSession(){
     return true;
   }
 
-  const businessId=SaaS.session?.businessId||SaaS.getContext?.()?.businessId;
+  const businessId=String(SaaS.session?.businessId||SaaS.getContext?.()?.businessId||"").trim();
   if(!businessId)return false;
   if(SaaS.getContext?.()?.businessId!==businessId)SaaS.switchTenant?.(businessId,{support:false});
-  const tenantGot=await downloadTenant(businessId);
-  if(!tenantGot)await uploadCurrentTenant();
-  watchCurrentTenant();
+  await hydrateTenant(businessId,{createIfMissing:true});
   return true;
 }
 
@@ -89,10 +120,11 @@ async function initializeTenant(businessId,state){
   await window.SaaSAuthAdmin?.refreshAccess?.();
   if(!window.SaaSAuthAdmin?.isSuperAdmin?.())throw new Error("Solo SuperAdmin puede inicializar un negocio.");
   await uploadTenantState(businessId,state);
+  hydratedTenants.add(String(businessId||""));
   return true;
 }
 
-window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog,initializeTenant};
+window.SaaSCloudProduction={syncForCurrentSession,forceUploadCatalog,initializeTenant,isTenantHydrating:tenantHydrating};
 
 async function attemptSync(){
   const uid=window.FirebaseBridge?.user?.uid||"";
@@ -102,7 +134,5 @@ async function attemptSync(){
   try{if(await syncForCurrentSession())lastSyncKey=key}catch(e){console.error("[SaaS Cloud]",e)}
 }
 
-const timer=setInterval(()=>{
-  if(window.FirebaseBridge?.connected)attemptSync();
-},700);
+const timer=setInterval(()=>{if(window.FirebaseBridge?.connected)attemptSync()},700);
 setTimeout(()=>clearInterval(timer),60000);
