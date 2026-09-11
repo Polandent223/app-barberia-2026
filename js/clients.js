@@ -1,5 +1,11 @@
 
+App.requireClientAccess=function(){
+  if(window.SaaS&& !SaaS.pageAllowed?.("clientes")){App.toast("Tu rol no tiene permiso para gestionar clientes");return false}
+  return true;
+};
+
 App.saveClient = function(){
+  if(!App.requireClientAccess())return;
   if(!App.val("clientName"))return App.toast("Escribe el nombre");
   if(App.val("clientPhone")&&!App.validPhone(App.val("clientPhone")))return App.toast("WhatsApp inválido");
   if(App.hasDuplicateClient(App.val("clientPhone")))return App.toast("Ya existe un cliente con ese WhatsApp");
@@ -8,6 +14,7 @@ App.saveClient = function(){
 };
 
 App.editClient=function(id){
+  if(!App.requireClientAccess())return;
   const c=App.db.clients.find(x=>x.id===id);if(!c)return;
   App.byId("editClientId").value=c.id;
   App.byId("editClientName").value=c.name||"";
@@ -23,6 +30,7 @@ App.closeEditClient=function(){
   App.byId("editClientModal")?.setAttribute("aria-hidden","true");
 };
 App.saveEditedClient=function(){
+  if(!App.requireClientAccess())return;
   const id=App.val("editClientId"),c=App.db.clients.find(x=>x.id===id);if(!c)return;
   const name=App.val("editClientName").trim(),phone=App.val("editClientPhone").trim();
   if(!name)return App.toast("Escribe el nombre");
@@ -34,17 +42,9 @@ App.saveEditedClient=function(){
   App.closeEditClient();App.persist();App.toast("Cliente actualizado");
 };
 
-App.deleteClient = function(id){App.requestDelete("client",id);return;
-  const c=App.db.clients.find(x=>x.id===id);if(!c)return;
-  App.openConfirmModal({
-    title:"Eliminar cliente",
-    message:`Vas a eliminar a <strong>${c.name}</strong> y sus citas asociadas.`,
-    onConfirm:()=>{
-      App.db.clients=App.db.clients.filter(x=>x.id!==id);
-      App.db.appointments=App.db.appointments.filter(a=>a.clientId!==id);
-      App.closeModal();App.persist();App.toast("Cliente eliminado");
-    }
-  });
+App.deleteClient = function(id){
+  if(!App.requireClientAccess())return;
+  App.requestDelete("client",id);
 };
 
 App.renderClients = function(){
@@ -61,10 +61,10 @@ App.renderClients = function(){
   </article>`).join("");
 };
 
-/* ===== FASE 20.23 — FICHA E HISTORIAL DEL CLIENTE ===== */
 App.ensureClientHistory=function(){App.db.clientHistory=Array.isArray(App.db.clientHistory)?App.db.clientHistory:[]};
 
 App.openClientHistory=function(id){
+ if(!App.requireClientAccess())return;
  App.ensureClientHistory();
  const c=App.db.clients.find(x=>x.id===id);if(!c)return;
  const appts=App.db.appointments.filter(a=>a.clientId===id).slice().sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
@@ -81,6 +81,7 @@ App.openClientHistory=function(id){
 App.closeClientHistory=function(){App.byId("clientHistoryModal")?.classList.add("hidden");App.byId("clientHistoryModal")?.setAttribute("aria-hidden","true")};
 
 App.addClientHistoryEntry=function(clientId){
+  if(!App.requireClientAccess())return;
   App.byId("clientHistoryEntryClientId").value=clientId;
   App.byId("clientHistoryEntryDate").value=App.today();
   App.byId("clientHistoryEntryNote").value="";
@@ -89,32 +90,23 @@ App.addClientHistoryEntry=function(clientId){
   App.byId("clientHistoryEntryForm").classList.remove("hidden");
   App.byId("clientHistoryEntryForm").scrollIntoView?.({behavior:"smooth",block:"center"});
 };
-App.cancelClientHistoryEntry=function(){
-  App.byId("clientHistoryEntryForm")?.classList.add("hidden");
-};
+App.cancelClientHistoryEntry=function(){App.byId("clientHistoryEntryForm")?.classList.add("hidden")};
 App.previewClientHistoryPhotos=function(){
   const files=[...(App.byId("clientHistoryEntryPhotos")?.files||[])].slice(0,3);
   const box=App.byId("clientHistoryEntryPreview");if(!box)return;
   box.innerHTML="";
-  files.forEach(file=>{
-    const r=new FileReader();r.onload=()=>box.insertAdjacentHTML("beforeend",`<img src="${r.result}" alt="Vista previa">`);r.readAsDataURL(file);
-  });
+  files.forEach(file=>{const r=new FileReader();r.onload=()=>box.insertAdjacentHTML("beforeend",`<img src="${r.result}" alt="Vista previa">`);r.readAsDataURL(file)});
 };
 App.saveClientHistoryEntry=async function(){
+  if(!App.requireClientAccess())return;
   const clientId=App.val("clientHistoryEntryClientId"),c=App.db.clients.find(x=>x.id===clientId);if(!c)return;
   const date=App.val("clientHistoryEntryDate")||App.today(),note=App.val("clientHistoryEntryNote").trim();
   const files=[...(App.byId("clientHistoryEntryPhotos")?.files||[])].slice(0,3),photos=[];
   if(!note&&!files.length)return App.toast("Agrega una nota o una foto");
-  for(const f of files){
-    try{photos.push(await App.compressImageLocal(f,320,.60))}catch(e){}
-  }
+  for(const f of files){try{photos.push(await App.compressImageLocal(f,320,.60))}catch(e){}}
   App.ensureClientHistory();
   App.db.clientHistory.push({id:App.uid(),clientId,date,note,photos,createdAt:new Date().toISOString()});
   App.cancelClientHistoryEntry();App.persist();App.openClientHistory(clientId);App.toast("Historial guardado");
 };
 
-
-/* ===== FASE 20.24 — CONTROLES DIRECTOS DE CLIENTE ===== */
-document.addEventListener("DOMContentLoaded",()=>{
-  App.byId("clientHistoryEntryPhotos")?.addEventListener("change",App.previewClientHistoryPhotos);
-});
+document.addEventListener("DOMContentLoaded",()=>{App.byId("clientHistoryEntryPhotos")?.addEventListener("change",App.previewClientHistoryPhotos)});
