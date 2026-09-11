@@ -12,8 +12,16 @@ SaaS.ROLE_PAGES={
 };
 
 SaaS.normalizeRole=function(role){
-  role=String(role||"").toLowerCase();
-  const map={"dueño":"owner","administrador":"admin","gerente":"manager","cajero":"cashier","barbero":"barber","empleado":"barber","recepción":"reception","recepcion":"reception","superadmin":"superadmin","super_admin":"superadmin"};
+  role=String(role||"").trim().toLowerCase();
+  const map={
+    "dueño":"owner","dueno":"owner","owner":"owner",
+    "administrador":"admin","admin":"admin",
+    "gerente":"manager","manager":"manager",
+    "cajero":"cashier","cashier":"cashier",
+    "barbero":"barber","profesional":"barber","empleado":"barber","barber":"barber",
+    "recepción":"reception","recepcion":"reception","recepcionista":"reception","reception":"reception",
+    "superadmin":"superadmin","super_admin":"superadmin"
+  };
   return map[role]||role||"guest";
 };
 
@@ -102,8 +110,9 @@ SaaS.applyRoleUI=function(){
   document.querySelectorAll(".bottom-nav button[data-page]").forEach(btn=>{
     const page=btn.dataset.page;
     let show=SaaS.pageAllowed(page);
-    if(role==="superadmin")show=show && btn.classList.contains("nav-saas");
-    else if(["owner","admin","manager","staff"].includes(role))show=show && btn.classList.contains("nav-business");
+    // SuperAdmin only sees platform navigation. Business roles are governed by
+    // ROLE_PAGES, regardless of legacy nav-business/nav-saas CSS classification.
+    if(role==="superadmin")show=show&&btn.classList.contains("nav-saas");
     btn.style.display=show?"flex":"none";
   });
   const label=document.getElementById("sambrixRoleLabel");
