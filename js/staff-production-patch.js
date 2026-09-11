@@ -1,4 +1,4 @@
-/* SAMBRIX · Personal: seguridad y persistencia de producción */
+/* SAMBRIX · Personal: seguridad, permisos y persistencia de producción */
 (function(){
   const A=window.App;
   if(!A)return;
@@ -9,6 +9,8 @@
   };
   const cleanPin=v=>String(v||"").replace(/\D/g,"").slice(0,6);
   const validPin=v=>/^\d{6}$/.test(String(v||""));
+  const can=page=>!window.SaaS||window.SaaS.session?.role==="superadmin"||window.SaaS.pageAllowed?.(page);
+  const deny=()=>A.toast("Tu rol no tiene permiso para realizar esta acción");
 
   function configurePinInputs(){
     const employee=A.byId?.("employeePin"),attendance=A.byId?.("attendancePin");
@@ -37,6 +39,7 @@
   };
 
   A.saveEmployee=function(){
+    if(!can("personal"))return deny();
     const id=A.val("employeeEditId");
     const pin=cleanPin(A.val("employeePin"));
     if(pin&&!validPin(pin))return A.toast("El PIN debe tener exactamente 6 dígitos");
@@ -50,6 +53,7 @@
     if(!data.name)return A.toast("Escribe el nombre");
 
     const finish=photo=>{
+      if(!can("personal"))return deny();
       if(id){
         const e=A.db.employees.find(x=>x.id===id);if(!e)return;
         Object.assign(e,data);if(photo)e.photo=photo;
@@ -85,6 +89,7 @@
   }
 
   A.clockIn=function(){
+    if(!can("asistencia"))return deny();
     const e=getAttendanceEmployee();if(!e)return;
     if(!verifyAttendancePin(e))return;
     if(A.db.attendance.some(a=>a.employeeId===e.id&&a.date===A.today()&&!a.out))return A.toast("Ya existe una entrada abierta");
@@ -97,6 +102,7 @@
   };
 
   A.clockOut=function(){
+    if(!can("asistencia"))return deny();
     const e=getAttendanceEmployee();if(!e)return;
     if(!verifyAttendancePin(e))return;
     const a=[...(A.db.attendance||[])].reverse().find(x=>x.employeeId===e.id&&x.date===A.today()&&!x.out);
@@ -108,12 +114,14 @@
   };
 
   A.updateSchedule=function(id,i,key,val){
+    if(!can("horariosPersonal"))return deny();
     const e=A.db.employees.find(x=>x.id===id);if(!e)return;
     e.schedule=e.schedule||A.defaultSchedule();e.schedule[i][key]=val;persist();
   };
 
   const oldSaveAbsence=A.saveAbsence;
   A.saveAbsence=function(){
+    if(!can("ausenciasPersonal"))return deny();
     const before=(A.db.absences||[]).length;
     oldSaveAbsence?.();
     if((A.db.absences||[]).length!==before)persist();
