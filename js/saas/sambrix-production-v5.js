@@ -4,6 +4,13 @@
   if(!A)return;
   const finalizing=new Set();
 
+  function canFinalize(){
+    if(!window.SaaS||typeof S.pageAllowed!=="function")return true;
+    if(S.pageAllowed("citas"))return true;
+    A.toast("No tienes permiso para finalizar citas");
+    return false;
+  }
+
   A.nextReceiptNumber=function(){
     const max=(A.db.sales||[]).reduce((m,s)=>{
       const n=parseInt(String(s.number||'').replace(/\D/g,''),10);
@@ -13,6 +20,7 @@
   };
 
   A.commitAppointmentFinalization=function(id,{method='Efectivo',amount=null}={}){
+    if(!canFinalize())return false;
     if(finalizing.has(id))return false;
     const a=(A.db.appointments||[]).find(x=>x.id===id);if(!a)return false;
     if(a.status==='Cancelada'){A.toast('Una cita cancelada no puede finalizarse');return false}
@@ -33,17 +41,44 @@
       const total=Number(amount==null?(a.price??s?.price??0):amount);
       if(!Number.isFinite(total)||total<0){A.toast('Monto inválido');return false}
 
-      const existingSale=(A.db.sales||[]).find(x=>x.appointmentId===a.id);
-      const existingCash=(A.db.cash||[]).find(x=>x.appointmentId===a.id&&x.type==='Ingreso');
-      const firstFinalize=!a.finalizedAccountingAt;
+      const linkedSales=(A.db.sales||[]).filter(x=>x.appointmentId===a.id);
+      const linkedCash=(A.db.cash||[]).filter(x=>x.appointmentId===a.id&&x.type==='Ingreso');
+      if(linkedSales.length>1||linkedCash.length>1){
+        A.toast('Se detectaron registros financieros duplicados. Revisa esta cita antes de continuar.');
+        console.error('[SAMBRIX] Duplicidad financiera detectada',{appointmentId:a.id,sales:linkedSales.length,cash:linkedCash.length});
+        return false;
+      }
 
-      a.businessId=businessId||appointmentBusinessId;
+      const existingSale=linkedSales[0]||null;
+      const existingCash=linkedCash[0]||null;
+      const targetBusinessId=businessId||appointmentBusinessId;
+
+      if(existingSale?.businessId&&targetBusinessId&&existingSale.businessId!==targetBusinessId){
+        A.toast('Se detectó un recibo vinculado a otro negocio');
+        console.error('[SAMBRIX] Recibo cruzado bloqueado',{appointmentId:a.id,saleId:existingSale.id,expected:targetBusinessId,found:existingSale.businessId});
+        return false;
+      }
+      if(existingCash?.businessId&&targetBusinessId&&existingCash.businessId!==targetBusinessId){
+        A.toast('Se detectó un movimiento de caja vinculado a otro negocio');
+        console.error('[SAMBRIX] Caja cruzada bloqueada',{appointmentId:a.id,cashId:existingCash.id,expected:targetBusinessId,found:existingCash.businessId});
+        return false;
+      }
+      if(existingCash?.saleId&&existingSale?.id&&existingCash.saleId!==existingSale.id){
+        A.toast('La cita tiene vínculos financieros inconsistentes. Revisa caja y recibos.');
+        console.error('[SAMBRIX] Vínculo venta/caja inconsistente',{appointmentId:a.id,saleId:existingSale.id,cashSaleId:existingCash.saleId});
+        return false;
+      }
+
+      const firstFinalize=!a.finalizedAccountingAt;
+      const now=new Date().toISOString();
+
+      a.businessId=targetBusinessId;
       a.branchId=branchId;
       a.status='Finalizada';
       a.price=total;
       a.paymentMethod=method;
-      a.finalizedAt=a.finalizedAt||new Date().toISOString();
-      a.finalizedAccountingAt=a.finalizedAccountingAt||new Date().toISOString();
+      a.finalizedAt=a.finalizedAt||now;
+      a.finalizedAccountingAt=a.finalizedAccountingAt||now;
 
       if(c&&firstFinalize){
         c.lastVisit=a.date;
@@ -60,14 +95,10 @@
           serviceId:a.serviceId,appointmentId:a.id,publicRequestId:a.publicRequestId||'',
           businessId:a.businessId,branchId,currency:A.db.business.currency,paymentMethod:method,total,
           items:[{type:'Servicio',serviceId:a.serviceId,name:s?.name||'Servicio',qty:1,unit:total,total}],
-          createdAt:new Date().toISOString()
+          createdAt:now
         };
         A.db.sales=A.db.sales||[];A.db.sales.push(sale);
       }else{
-        if(sale.businessId&&a.businessId&&sale.businessId!==a.businessId){
-          A.toast('Se detectó un recibo vinculado a otro negocio');
-          throw new Error('Bloqueado recibo cruzado entre negocios');
-        }
         sale.paymentMethod=method;sale.total=total;sale.businessId=a.businessId;sale.branchId=branchId;
         sale.clientId=sale.clientId||a.clientId;sale.barberId=sale.barberId||a.barberId;sale.serviceId=sale.serviceId||a.serviceId;
         sale.appointmentId=a.id;
@@ -78,13 +109,9 @@
         A.db.cash=A.db.cash||[];A.db.cash.push({
           id:A.uid(),type:'Ingreso',concept:`${s?.name||'Servicio'} - ${A.clientName(a.clientId)}`,
           amount:total,method,date:a.date,appointmentId:a.id,saleId:sale.id,
-          clientId:a.clientId,businessId:a.businessId,branchId,currency:A.db.business.currency,createdAt:new Date().toISOString()
+          clientId:a.clientId,businessId:a.businessId,branchId,currency:A.db.business.currency,createdAt:now
         });
       }else{
-        if(existingCash.businessId&&a.businessId&&existingCash.businessId!==a.businessId){
-          A.toast('Se detectó un movimiento de caja vinculado a otro negocio');
-          throw new Error('Bloqueado movimiento de caja cruzado entre negocios');
-        }
         existingCash.amount=total;existingCash.method=method;existingCash.saleId=sale.id;
         existingCash.businessId=a.businessId;existingCash.branchId=branchId;
       }
@@ -93,18 +120,23 @@
       A.persist();
 
       if(a.publicRequestId&&businessId){
-        window.NexoPublicCloud?.updateBookingRequest?.(businessId,a.publicRequestId,{status:'Finalizada',resolvedAt:new Date().toISOString()}).catch(console.error);
+        window.NexoPublicCloud?.updateBookingRequest?.(businessId,a.publicRequestId,{status:'Finalizada',resolvedAt:now}).catch(console.error);
       }
       if(c?.firebaseUid&&businessId){
         window.NexoPublicCloud?.updateClientAccount?.(businessId,c.firebaseUid,{points:Number(c.points||0),visits:Number(c.visits||0),lastVisit:c.lastVisit||''}).catch(console.error);
       }
       return sale;
+    }catch(error){
+      console.error('[SAMBRIX] Error al finalizar cita',error);
+      A.toast('No se pudo completar el cierre financiero');
+      return false;
     }finally{
       finalizing.delete(id);
     }
   };
 
   A.finishAppointment=function(id){
+    if(!canFinalize())return;
     const a=(A.db.appointments||[]).find(x=>x.id===id);if(!a)return;
     if(a.status==='Finalizada')return A.toast('Esta cita ya fue finalizada');
     if(a.status==='Cancelada')return A.toast('Una cita cancelada no puede finalizarse');
