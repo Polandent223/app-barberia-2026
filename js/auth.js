@@ -103,4 +103,5 @@ document.addEventListener("DOMContentLoaded",()=>{
   ensurePasswordResetButton()?.addEventListener("click",App.requestPasswordReset);
   loadProductionPatch("js/staff-production-patch.js","staff","el refuerzo de personal");
   loadProductionPatch("js/saas/session-production-guard.js","session","el refuerzo de sesión");
+  loadProductionPatch("js/saas/production-action-guards.js","actions","las guardas finales de acciones");
 });
