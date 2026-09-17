@@ -5,8 +5,9 @@
     if(!S)return true;
     const schedule=typeof S.canWriteDomain==="function"?S.canWriteDomain("schedule"):S.pageAllowed?.("citas");
     const finance=typeof S.canWriteDomain==="function"?S.canWriteDomain("finance"):S.pageAllowed?.("caja");
-    if(schedule&&finance)return true;
-    A.toast("Tu rol no tiene permiso para finalizar y cobrar citas");return false;
+    if(!schedule||!finance){A.toast("Tu rol no tiene permiso para finalizar y cobrar citas");return false}
+    if(window.FirebaseBridge?.connected&&window.SaaSCloudProduction?.isTenantReady?.()===false){A.toast("Espera a que SAMBRIX termine de sincronizar el negocio");return false}
+    return true;
   }
   A.nextReceiptNumber=function(){const max=(A.db.sales||[]).reduce((m,s)=>{const n=parseInt(String(s.number||'').replace(/\D/g,''),10);return Number.isFinite(n)?Math.max(m,n):m},0);return String(max+1).padStart(6,'0')};
   A.commitAppointmentFinalization=function(id,{method='Efectivo',amount=null}={}){
@@ -22,7 +23,7 @@
       if(c&&firstFinalize){c.lastVisit=a.date;c.points=Number(c.points||0)+Number(A.db.business.pointsPerService||10);c.visits=Number(c.visits||0)+1}
       let sale=existingSale;if(!sale){sale={id:A.uid(),number:A.nextReceiptNumber(),date:a.date,time:a.time,clientId:a.clientId,clientName:A.clientName(a.clientId),barberId:a.barberId,barberName:A.barberName(a.barberId),serviceId:a.serviceId,appointmentId:a.id,publicRequestId:a.publicRequestId||'',businessId:a.businessId,branchId,currency:A.db.business.currency,paymentMethod:method,total,items:[{type:'Servicio',serviceId:a.serviceId,name:s?.name||'Servicio',qty:1,unit:total,total}],createdAt:now};A.db.sales=A.db.sales||[];A.db.sales.push(sale)}else{sale.paymentMethod=method;sale.total=total;sale.businessId=a.businessId;sale.branchId=branchId;sale.clientId=sale.clientId||a.clientId;sale.barberId=sale.barberId||a.barberId;sale.serviceId=sale.serviceId||a.serviceId;sale.appointmentId=a.id;if(sale.items?.[0]){sale.items[0].unit=total;sale.items[0].total=total;sale.items[0].type=sale.items[0].type||'Servicio'}}
       if(!existingCash){A.db.cash=A.db.cash||[];A.db.cash.push({id:A.uid(),type:'Ingreso',concept:`${s?.name||'Servicio'} - ${A.clientName(a.clientId)}`,amount:total,method,date:a.date,appointmentId:a.id,saleId:sale.id,clientId:a.clientId,businessId:a.businessId,branchId,currency:A.db.business.currency,createdAt:now})}else{existingCash.amount=total;existingCash.method=method;existingCash.saleId=sale.id;existingCash.businessId=a.businessId;existingCash.branchId=branchId}
-      A.logAction?.('Cita finalizada','Citas',`${A.clientName(a.clientId)} · ${a.date} ${a.time} · ${method} · ${A.money(total)}`);const persisted=A.persist();if(persisted===false){A.toast('Espera a que termine la sincronización antes de finalizar la cita');return false}
+      A.logAction?.('Cita finalizada','Citas',`${A.clientName(a.clientId)} · ${a.date} ${a.time} · ${method} · ${A.money(total)}`);const persisted=A.persist();if(persisted===false){A.toast('No se pudo guardar el cierre financiero');return false}
       if(a.publicRequestId&&businessId)window.NexoPublicCloud?.updateBookingRequest?.(businessId,a.publicRequestId,{status:'Finalizada',resolvedAt:now}).catch(console.error);if(c?.firebaseUid&&businessId)window.NexoPublicCloud?.updateClientAccount?.(businessId,c.firebaseUid,{points:Number(c.points||0),visits:Number(c.visits||0),lastVisit:c.lastVisit||''}).catch(console.error);return sale;
     }catch(error){console.error('[SAMBRIX] Error al finalizar cita',error);A.toast('No se pudo completar el cierre financiero');return false}finally{finalizing.delete(id)}
   };
