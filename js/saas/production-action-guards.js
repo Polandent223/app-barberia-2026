@@ -2,9 +2,18 @@
 (function(){
   const A=window.App,S=window.SaaS;if(!A||A.__productionActionGuards)return;
   const deny=msg=>{A.toast?.(msg||'No tienes permiso para realizar esta acción');return false};
-  const pageAllowed=page=>{if(!S)return true;const role=S.normalizeRole?.(S.session?.role)||S.session?.role||'guest';return role!=='guest'&&S.pageAllowed?.(page)!==false};
-  const domainAllowed=domain=>{if(!S)return true;const role=S.normalizeRole?.(S.session?.role)||S.session?.role||'guest';if(role==='guest')return false;return typeof S.canWriteDomain==='function'?S.canWriteDomain(domain):true};
-  const cloudReady=()=>{if(!window.FirebaseBridge?.connected)return true;return window.SaaSCloudProduction?.isTenantReady?.()!==false};
+  const role=()=>S?.normalizeRole?.(S.session?.role)||S?.session?.role||'guest';
+  const pageAllowed=page=>{if(!S)return true;return role()!=='guest'&&S.pageAllowed?.(page)!==false};
+  const domainAllowed=domain=>{if(!S)return true;if(role()==='guest')return false;return typeof S.canWriteDomain==='function'?S.canWriteDomain(domain):true};
+  const cloudReady=()=>{
+    if(!window.FirebaseBridge?.connected)return true;
+    if(role()==='superadmin')return true;
+    const id=String(S?.getContext?.()?.businessId||S?.session?.businessId||'').trim();
+    const ready=window.SaaSCloudProduction?.isTenantReady;
+    // Con Firebase conectado las acciones de negocio fallan cerradas hasta conocer y cargar el tenant.
+    if(!id||typeof ready!=='function')return false;
+    return ready(id)===true;
+  };
   function wrap(name,{page,domain,before}={}){const base=A[name];if(typeof base!=='function')return;A[name]=function(){if(page&&!pageAllowed(page))return deny();if(domain&&!domainAllowed(domain))return deny();if(!cloudReady())return deny('Espera a que SAMBRIX termine de sincronizar el negocio');const ok=before?.apply(this,arguments);if(ok===false)return false;return base.apply(this,arguments)}}
 
   wrap('editAppointment',{page:'citas',domain:'schedule',before:function(id){const a=(A.db?.appointments||[]).find(x=>x.id===id);if(a?.status==='Finalizada')return deny('Una cita finalizada queda bloqueada para proteger el cobro y el recibo')}});
