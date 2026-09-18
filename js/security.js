@@ -1,6 +1,6 @@
 (function(){
   const approvedDeletes=new Set();
-  const ENTITY_PAGE={client:"clientes",barber:"barberos",product:"inventario",service:"servicios",appointment:"citas",sale:"recibos",user:"configuracion"};
+  const ENTITY_PAGE={client:"clientes",barber:"barberos",product:"inventario",service:"servicios",appointment:"citas",sale:"recibos",user:"configuracion"};\n  const ENTITY_DOMAIN={client:"crm",barber:"config",product:"inventory",service:"config",appointment:"schedule",sale:"finance",user:"config"};
 
   function saasRole(){return String(window.SaaS?.session?.role||"").toLowerCase()}
   function deletionAdmin(){
