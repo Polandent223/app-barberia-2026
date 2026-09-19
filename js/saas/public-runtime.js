@@ -26,11 +26,19 @@
     A.db.business.name=p.name;
     A.db.business.open=p.businessHours?.open||"09:00";
     A.db.business.close=p.businessHours?.close||"19:00";
-    A.db.business.clientApp={...(A.db.business.clientApp||{}),...(p.branding||{})};
-    A.db.services=p.services||[];
-    A.db.barbers=p.barbers||[];
-    A.db.products=(p.products||[]).map(x=>({...x,stock:x.available?1:0}));
-    A.db.appointments=(p.busy||[]).map(x=>({...x,id:"busy-"+Math.random().toString(36).slice(2),clientId:"public-busy"}));
+    const applyPublicState=next=>{
+      if(!next||!["Activo","Prueba"].includes(next.status))return false;
+      A.db.business.name=next.name||A.db.business.name;
+      A.db.business.open=next.businessHours?.open||"09:00";
+      A.db.business.close=next.businessHours?.close||"19:00";
+      A.db.business.clientApp={...(A.db.business.clientApp||{}),...(next.branding||{})};
+      A.db.services=next.services||[];
+      A.db.barbers=next.barbers||[];
+      A.db.products=(next.products||[]).map(x=>({...x,stock:x.available?1:0}));
+      A.db.appointments=(next.busy||[]).map((x,i)=>({...x,id:"busy-"+i+"-"+String(x.barberId||"")+"-"+String(x.date||"")+"-"+String(x.time||""),clientId:"public-busy"}));
+      return true;
+    };
+    applyPublicState(p);
 
     A.submitClientReservation=async function(){
       const s=A.db.services.find(x=>x.id===A.clientSelection.serviceId),date=A.val("clientBookDate"),time=A.clientSelection.time,name=A.val("clientBookName"),phone=A.val("clientBookPhone");
@@ -52,6 +60,14 @@
     };
 
     A.openClientApp();
+    window.NexoPublicCloud.watchPublicBusiness?.(businessId,next=>{
+      if(!next||!["Activo","Prueba"].includes(next.status)){
+        document.body.innerHTML='<main style="max-width:600px;margin:80px auto;font-family:Arial;padding:20px;text-align:center"><h2>Reservas temporalmente no disponibles</h2><p>Contacta directamente con el negocio.</p></main>';
+        return;
+      }
+      applyPublicState(next);
+      A.renderClientBooking?.();
+    });
     const foot=document.getElementById("nexoPoweredBy");if(foot)foot.classList.toggle("white-label-hidden",p.whiteLabel?.showPoweredBy===false);
   }catch(e){
     console.error("[Public Client]",e);
