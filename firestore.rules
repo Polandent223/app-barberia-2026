@@ -180,7 +180,20 @@ service cloud.firestore {
           request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 &&
           request.resource.data.date is string && request.resource.data.date.size() == 10 &&
           request.resource.data.time is string && request.resource.data.time.size() == 5 &&
-          request.resource.data.status in ['Pendiente','CambioPendiente'];
+          slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
+          request.resource.data.status in ['Pendiente','CambioPendiente'] &&
+          (
+            (request.resource.data.status == 'Pendiente' &&
+             !('changeRequestId' in request.resource.data) &&
+             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)) &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.slotId == slotId &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientUid == request.auth.uid) ||
+            (request.resource.data.status == 'CambioPendiente' &&
+             request.resource.data.changeRequestId is string &&
+             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)) &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.newSlotId == slotId &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.clientUid == request.auth.uid)
+          );
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
         allow update, delete: if canManageSchedule(businessId);
       }
@@ -199,7 +212,12 @@ service cloud.firestore {
           request.resource.data.date is string && request.resource.data.date.size() == 10 &&
           request.resource.data.time is string && request.resource.data.time.size() >= 4 && request.resource.data.time.size() <= 5 &&
           request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
-          request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 && request.resource.data.status == 'Pendiente';
+          request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 &&
+          request.resource.data.slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
+          existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)) &&
+          getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.bookingRequestId == requestId &&
+          getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.clientUid == request.auth.uid &&
+          request.resource.data.status == 'Pendiente';
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
         allow update, delete: if canManageSchedule(businessId);
       }
