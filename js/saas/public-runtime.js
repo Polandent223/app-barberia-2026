@@ -26,6 +26,7 @@
     A.db.business.name=p.name;
     A.db.business.open=p.businessHours?.open||"09:00";
     A.db.business.close=p.businessHours?.close||"19:00";
+    let availabilityLoaded=false;
     const applyPublicState=next=>{
       if(!next||!["Activo","Prueba"].includes(next.status))return false;
       A.db.business.name=next.name||A.db.business.name;
@@ -33,9 +34,11 @@
       A.db.business.close=next.businessHours?.close||"19:00";
       A.db.business.clientApp={...(A.db.business.clientApp||{}),...(next.branding||{})};
       A.db.services=next.services||[];
-      A.db.barbers=next.barbers||[];
+      if(!availabilityLoaded){
+        A.db.barbers=next.barbers||[];
+        A.db.appointments=(next.busy||[]).map((x,i)=>({...x,id:"busy-"+i+"-"+String(x.barberId||"")+"-"+String(x.date||"")+"-"+String(x.time||""),clientId:"public-busy"}));
+      }
       A.db.products=(next.products||[]).map(x=>({...x,stock:x.available?1:0}));
-      A.db.appointments=(next.busy||[]).map((x,i)=>({...x,id:"busy-"+i+"-"+String(x.barberId||"")+"-"+String(x.date||"")+"-"+String(x.time||""),clientId:"public-busy"}));
       return true;
     };
     applyPublicState(p);
@@ -52,6 +55,7 @@
       availabilityUnsub=window.NexoPublicCloud.watchPublicAvailability(businessId,next=>{
         if(!next)return;
         applyAvailability(next);
+        availabilityLoaded=true;
         A.renderClientBooking?.();
       });
     }
