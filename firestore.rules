@@ -121,7 +121,7 @@ service cloud.firestore {
 
     match /public_businesses/{businessId} {
       allow read: if true;
-      allow write: if isSuperAdmin() || canManageBusiness(businessId);
+      allow create, update, delete: if isSuperAdmin() || canManageBusiness(businessId);
 
       match /client_accounts/{uid} {
         allow create: if signedIn() && businessActive(businessId) && request.auth.uid == uid &&
