@@ -5,7 +5,7 @@
    if(window.__sambrixAgendaSchedulingLoaded)return;
    window.__sambrixAgendaSchedulingLoaded=true;
    const s=document.createElement('script');
-   s.src='js/agenda-scheduling.js?v=1.0.11';
+   s.src='js/agenda-scheduling.js?v=1.0.12';
    s.onerror=()=>{window.__sambrixAgendaSchedulingLoaded=false;console.error('[SAMBRIX] No se pudo cargar agenda-scheduling.js')};
    document.head.appendChild(s);
  };
