@@ -92,7 +92,7 @@ SaaS.rejectPublicBooking=async function(id){
   try{
     const businessId=SaaS.getContext().businessId;
     await window.NexoPublicCloud?.updateBookingRequest?.(businessId,id,{status:"Rechazada",reason:reason||"",resolvedAt:new Date().toISOString()});
-    if(req.slotId)await window.NexoPublicCloud?.releaseBookingSlot?.(businessId,req.slotId);
+    if(req.slotId)await window.NexoPublicCloud?.releaseBookingSlot?.(businessId,req.slotId);else await window.NexoPublicCloud?.releaseBookingSlotFor?.(businessId,req.barberId,req.date,req.time);
     SaaS.audit?.("BUSINESS","Reserva pública rechazada",{requestId:id,reason:reason||""},SaaS.getContext().businessId);
     window.App?.toast?.("Solicitud rechazada");
   }catch(e){window.App?.toast?.(e.message||"No se pudo rechazar")}
@@ -170,7 +170,7 @@ SaaS.approveBookingChange=async function(id){
         const available=typeof A.slotAvailable==="function"?A.slotAvailable(appt.barberId,r.newDate,r.newTime,duration,appt.id):!A.appointmentConflict?.({...appt,date:r.newDate,time:r.newTime},appt.id);
         if(!available)return A.toast("El nuevo horario está ocupado o fuera de la disponibilidad del profesional");
         await NexoPublicCloud.updateBookingRequest(businessId,booking.id,{date:r.newDate,time:r.newTime,status:"Aprobada",resolvedAt:new Date().toISOString()});
-        if(booking.slotId)await NexoPublicCloud.releaseBookingSlot?.(businessId,booking.slotId);
+        if(booking.slotId)await NexoPublicCloud.releaseBookingSlot?.(businessId,booking.slotId);else await NexoPublicCloud.releaseBookingSlotFor?.(businessId,appt.barberId,booking.date,booking.time);else await NexoPublicCloud.releaseBookingSlotFor?.(businessId,appt.barberId,r.oldDate||booking.date,r.oldTime||booking.time);
       }
       appt.date=r.newDate;appt.time=r.newTime;appt.status="Confirmada";
     }else{
