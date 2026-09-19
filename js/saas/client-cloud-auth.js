@@ -85,7 +85,7 @@ async function createBooking(data){
   if(!businessId||!u||!c)throw new Error("Debes iniciar sesión para reservar");
   const serviceId=String(data.serviceId||""),barberId=String(data.barberId||""),date=String(data.date||""),time=String(data.time||"");
   if(!serviceId||!barberId||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||!/^[0-9]{2}:[0-9]{2}$/.test(time))throw new Error("Horario inválido");
-  const slotId=(barberId+"_"+date+"_"+time).replace(/[^a-zA-Z0-9_-]/g,"_");
+  const slotId=barberId+"_"+date+"_"+time;
   const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
   const requestRef=doc(collection(db,"public_businesses",businessId,"booking_requests"));
   await runTransaction(db,async tx=>{
@@ -109,7 +109,7 @@ async function requestBookingChange(bookingRequestId,type,newDate="",newTime="")
     await setDoc(changeRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),newDate:"",newTime:"",status:"Pendiente",createdAt:serverTimestamp()});
     return changeRef;
   }
-  const slotId=(String(booking.barberId||"")+"_"+newDate+"_"+newTime).replace(/[^a-zA-Z0-9_-]/g,"_");
+  const slotId=String(booking.barberId||"")+"_"+newDate+"_"+newTime;
   const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
   await runTransaction(db,async tx=>{
     const slot=await tx.get(slotRef);
