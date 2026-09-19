@@ -42,7 +42,30 @@ export async function publishCurrentBusiness(){
   const b=SaaS.currentBusiness();if(!b)throw new Error("No hay negocio activo");
   const snap=publicSnapshot();
   await setDoc(doc(firestore,"public_businesses",b.id),{...snap,serverUpdatedAt:serverTimestamp()},{merge:true});
+  await publishCurrentAvailability();
   return snap;
+}
+
+export function availabilitySnapshot(){
+  const A=window.App,b=SaaS.currentBusiness();if(!A?.db||!b)return null;
+  return {
+    businessId:b.id,
+    businessHours:{open:A.db.business?.open||"09:00",close:A.db.business?.close||"19:00"},
+    barbers:(A.db.barbers||[]).map(x=>({id:x.id,name:x.name,schedule:x.schedule?JSON.parse(JSON.stringify(x.schedule)):null})),
+    busy:(A.db.appointments||[]).filter(a=>!["Cancelada","Rechazada"].includes(a.status)).map(a=>({id:a.id||"",barberId:a.barberId,date:a.date,time:a.time,serviceId:a.serviceId,status:a.status,duration:Number(a.duration||0)})),
+    updatedAt:Date.now()
+  };
+}
+
+export async function publishCurrentAvailability(){
+  const snap=availabilitySnapshot();if(!snap)return false;
+  await setDoc(doc(firestore,"public_businesses",snap.businessId,"public_state","availability"),{...snap,serverUpdatedAt:serverTimestamp()},{merge:true});
+  return snap;
+}
+
+export function watchPublicAvailability(businessId,callback){
+  if(!businessId||typeof callback!=="function")return ()=>{};
+  return onSnapshot(doc(firestore,"public_businesses",businessId,"public_state","availability"),s=>callback(s.exists()?s.data():null),e=>console.error("[SAMBRIX public availability]",e));
 }
 
 export async function loadPublicBusiness(id){
@@ -105,4 +128,4 @@ export async function updateClientAccount(businessId,uid,data){
   if(Object.keys(safe).length)await updateDoc(doc(firestore,"public_businesses",businessId,"client_accounts",uid),safe);
 }
 
-window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,bookingSlotId,releaseBookingSlot,releaseBookingSlotFor,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
+window.NexoPublicCloud={publishCurrentBusiness,availabilitySnapshot,publishCurrentAvailability,watchPublicAvailability,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,bookingSlotId,releaseBookingSlot,releaseBookingSlotFor,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
