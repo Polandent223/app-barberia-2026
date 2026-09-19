@@ -50,6 +50,11 @@ export async function loadPublicBusiness(id){
   return s.exists()?s.data():null;
 }
 
+export function watchPublicBusiness(id,callback){
+  if(!id||typeof callback!=="function")return ()=>{};
+  return onSnapshot(doc(firestore,"public_businesses",id),s=>callback(s.exists()?s.data():null),e=>console.error("[SAMBRIX public business]",e));
+}
+
 export async function createPublicBooking(businessId,data){
   return await addDoc(collection(firestore,"public_businesses",businessId,"booking_requests"),{
     ...data,status:"Pendiente",createdAt:serverTimestamp()
@@ -85,4 +90,4 @@ export async function updateClientAccount(businessId,uid,data){
   if(Object.keys(safe).length)await updateDoc(doc(firestore,"public_businesses",businessId,"client_accounts",uid),safe);
 }
 
-window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,createPublicBooking,updateBookingRequest,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
+window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
