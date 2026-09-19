@@ -37,6 +37,8 @@ App.login = async function(){
       return;
     }catch(error){
       console.error("[SAMBRIX superadmin login]",error);
+      const msg=String(error?.message||"");
+      if(msg.includes("Publica las reglas Firestore"))return App.toast(msg);
       return App.toast("Correo o contraseña incorrectos");
     }finally{
       if(btn){btn.disabled=false;btn.textContent="Entrar";}
