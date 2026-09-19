@@ -56,7 +56,12 @@ service cloud.firestore {
     }
 
     match /platform/{documentId} {
-      allow read, write: if isSuperAdmin();
+      // Bootstrap: an authenticated user must be able to read only the platform
+      // config document so the client can compare request.auth.uid with ownerUid.
+      // All other platform documents remain SuperAdmin-only.
+      allow read: if documentId == 'config' && signedIn();
+      allow read: if documentId != 'config' && isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /platform_users/{uid} {
