@@ -86,7 +86,7 @@
  const prevRender=A.renderClientApp;A.renderClientApp=function(){const r=prevRender?.();A.ensureClientAccounts();A.ensureClientAuthUI();return r;};
  const prevGo=A.clientGo;A.clientGo=function(page){if(!A.clientLoggedIn()){A.renderClientAuthUI('login');return A.toast('Ingresa o crea tu cuenta para continuar')}const r=prevGo?.(page);A.syncClientAccountFields();if(page==='clientAppointments')A.lookupClientAppointments();if(page==='clientProfile')A.lookupClientProfile();if(page==='clientHistory')A.lookupClientHistory?.();return r;};
 
- // La reserva la define appointment-approval.js para mantener confirmación administrativa obligatoria.
+ // La creación de reservas la controla appointment-approval.js para exigir confirmación del negocio.
 
  // Las vistas privadas usan siempre el clientId de la sesión, no una búsqueda libre por teléfono.
  A.lookupClientAppointments=function(){
