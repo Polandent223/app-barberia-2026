@@ -169,8 +169,7 @@ SaaS.approveBookingChange=async function(id){
         const duration=Number(A.db.services?.find(s=>s.id===appt.serviceId)?.duration||appt.duration||40);
         const available=typeof A.slotAvailable==="function"?A.slotAvailable(appt.barberId,r.newDate,r.newTime,duration,appt.id):!A.appointmentConflict?.({...appt,date:r.newDate,time:r.newTime},appt.id);
         if(!available)return A.toast("El nuevo horario está ocupado o fuera de la disponibilidad del profesional");
-        await NexoPublicCloud.updateBookingRequest(businessId,booking.id,{date:r.newDate,time:r.newTime,status:"Aprobada",resolvedAt:new Date().toISOString()});
-        if(booking.slotId)await NexoPublicCloud.releaseBookingSlot?.(businessId,booking.slotId);else await NexoPublicCloud.releaseBookingSlotFor?.(businessId,appt.barberId,r.oldDate||booking.date,r.oldTime||booking.time);
+        await NexoPublicCloud.updateBookingRequest(businessId,booking.id,{date:r.newDate,time:r.newTime,status:"Aprobada",slotId:r.newSlotId||booking.slotId||"",resolvedAt:new Date().toISOString()});
       }
       appt.date=r.newDate;appt.time=r.newTime;appt.status="Confirmada";
     }else{
@@ -181,6 +180,10 @@ SaaS.approveBookingChange=async function(id){
     const persisted=A.persist?.();
     if(persisted===false)throw new Error("Espera a que SAMBRIX termine de sincronizar el negocio");
     await NexoPublicCloud.updateBookingChangeRequest(businessId,id,{status:"Aprobada",resolvedAt:new Date().toISOString()});
+    if(r.type==="reschedule"){
+      if(booking.slotId&&booking.slotId!==r.newSlotId)await NexoPublicCloud.releaseBookingSlot?.(businessId,booking.slotId);
+      else if(!booking.slotId)await NexoPublicCloud.releaseBookingSlotFor?.(businessId,appt.barberId,r.oldDate||booking.date,r.oldTime||booking.time);
+    }
     A.toast("Solicitud aprobada");
   }catch(e){
     A.toast(e?.message||"No se pudo completar la solicitud");
