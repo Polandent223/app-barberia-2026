@@ -61,10 +61,14 @@ SaaS.publicBookingConflict=function(req){
   const A=window.App;
   const service=A?.db?.services?.find(s=>s.id===req.serviceId);
   const duration=Number(service?.duration||40);
+  if(typeof A?.slotAvailable==="function"){
+    try{return !A.slotAvailable(req.barberId,req.date,req.time,duration,(A.db.appointments||[]).find(x=>x.publicRequestId===req.id)?.id)}catch{}
+  }
   if(typeof A?.isBarberAvailable==="function"){
     try{return !A.isBarberAvailable(req.barberId,req.date,req.time,duration)}catch{}
   }
-  return (A?.db?.appointments||[]).some(a=>a.publicRequestId!==req.id&&a.barberId===req.barberId&&a.date===req.date&&a.time===req.time&&a.status!=="Cancelada");
+  const start=typeof A?.parseTime==="function"?A.parseTime(req.time):null,end=start==null?null:start+duration;
+  return (A?.db?.appointments||[]).some(a=>{if(a.publicRequestId===req.id||a.barberId!==req.barberId||a.date!==req.date||["Cancelada","Rechazada"].includes(a.status))return false;if(start==null)return a.time===req.time;const sv=A.db.services?.find(s=>s.id===a.serviceId),as=A.parseTime(a.time),ae=as+Number(sv?.duration||40);return start<ae&&end>as;});
 };
 
 SaaS.approvePublicBooking=async function(id){
@@ -160,8 +164,9 @@ SaaS.approveBookingChange=async function(id){
     if(r.type==="reschedule"){
       const alreadyApplied=booking.date===r.newDate&&booking.time===r.newTime&&booking.status==="Aprobada";
       if(!alreadyApplied){
-        const candidate={...appt,date:r.newDate,time:r.newTime};
-        if(A.appointmentConflict?.(candidate,appt.id))return A.toast("El nuevo horario está ocupado");
+        const duration=Number(A.db.services?.find(s=>s.id===appt.serviceId)?.duration||appt.duration||40);
+        const available=typeof A.slotAvailable==="function"?A.slotAvailable(appt.barberId,r.newDate,r.newTime,duration,appt.id):!A.appointmentConflict?.({...appt,date:r.newDate,time:r.newTime},appt.id);
+        if(!available)return A.toast("El nuevo horario está ocupado o fuera de la disponibilidad del profesional");
         await NexoPublicCloud.updateBookingRequest(businessId,booking.id,{date:r.newDate,time:r.newTime,status:"Aprobada",resolvedAt:new Date().toISOString()});
       }
       appt.date=r.newDate;appt.time=r.newTime;appt.status="Confirmada";
