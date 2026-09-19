@@ -66,9 +66,19 @@ export async function updateBookingRequest(businessId,requestId,data){
   await updateDoc(doc(firestore,"public_businesses",businessId,"booking_requests",requestId),data);
 }
 
+export function bookingSlotId(barberId,date,time){
+  return (String(barberId||"")+"_"+String(date||"")+"_"+String(time||"")).replace(/[^a-zA-Z0-9_-]/g,"_");
+}
+
 export async function releaseBookingSlot(businessId,slotId){
   if(!businessId||!slotId)return;
   await deleteDoc(doc(firestore,"public_businesses",businessId,"booking_slots",slotId));
+}
+
+export async function releaseBookingSlotFor(businessId,barberId,date,time){
+  const slotId=bookingSlotId(barberId,date,time);
+  if(!businessId||!barberId||!date||!time)return;
+  await releaseBookingSlot(businessId,slotId);
 }
 
 export function watchPublicBookingRequests(businessId,callback){
@@ -95,4 +105,4 @@ export async function updateClientAccount(businessId,uid,data){
   if(Object.keys(safe).length)await updateDoc(doc(firestore,"public_businesses",businessId,"client_accounts",uid),safe);
 }
 
-window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,releaseBookingSlot,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
+window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,bookingSlotId,releaseBookingSlot,releaseBookingSlotFor,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
