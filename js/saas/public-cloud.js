@@ -31,9 +31,9 @@ function publicSnapshot(){
     },
     businessHours:{open:A.db.business?.open||"09:00",close:A.db.business?.close||"19:00"},
     services:(A.db.services||[]).map(s=>({id:s.id,name:s.name,price:Number(s.price||0),duration:Number(s.duration||40),description:s.description||""})),
-    barbers:(A.db.barbers||[]).map(x=>({id:x.id,name:x.name})),
+    barbers:(A.db.barbers||[]).map(x=>({id:x.id,name:x.name,schedule:x.schedule?JSON.parse(JSON.stringify(x.schedule)):null})),
     products:(A.db.products||[]).filter(p=>p.stock>0&&p.price>0).map(p=>({id:p.id,name:p.name,price:Number(p.price),available:Number(p.stock)>0,category:p.category||""})),
-    busy:(A.db.appointments||[]).filter(a=>a.status!=="Cancelada").map(a=>({barberId:a.barberId,date:a.date,time:a.time,serviceId:a.serviceId,status:a.status})),
+    busy:(A.db.appointments||[]).filter(a=>!["Cancelada","Rechazada"].includes(a.status)).map(a=>({barberId:a.barberId,date:a.date,time:a.time,serviceId:a.serviceId,status:a.status})),
     updatedAt:Date.now()
   };
 }
