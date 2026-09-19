@@ -90,7 +90,7 @@ export async function updateBookingRequest(businessId,requestId,data){
 }
 
 export function bookingSlotId(barberId,date,time){
-  return (String(barberId||"")+"_"+String(date||"")+"_"+String(time||"")).replace(/[^a-zA-Z0-9_-]/g,"_");
+  return String(barberId||"")+"_"+String(date||"")+"_"+String(time||"");
 }
 
 export async function releaseBookingSlot(businessId,slotId){
