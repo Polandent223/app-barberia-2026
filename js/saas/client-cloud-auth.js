@@ -2,7 +2,7 @@
 import {firebaseConfig} from "../firebase/firebase-config.js";
 import {initializeApp,getApps} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {getFirestore,doc,getDoc,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {getFirestore,doc,getDoc,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,runTransaction} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 const appName="sambrix-client-auth";
 const clientApp=getApps().find(a=>a.name===appName)||initializeApp(firebaseConfig,appName);
@@ -83,11 +83,18 @@ async function logout(){stopBookings();profile=null;await signOut(auth);rerender
 async function createBooking(data){
   const businessId=bid(),u=auth.currentUser,c=currentClient();
   if(!businessId||!u||!c)throw new Error("Debes iniciar sesión para reservar");
-  return addDoc(collection(db,"public_businesses",businessId,"booking_requests"),{
-    name:c.name,phone:c.phone,clientUid:u.uid,clientId:c.id,
-    serviceId:String(data.serviceId||""),barberId:String(data.barberId||""),date:String(data.date||""),time:String(data.time||""),
-    note:String(data.note||"").slice(0,500),branchId:String(data.branchId||""),status:"Pendiente",createdAt:serverTimestamp()
+  const serviceId=String(data.serviceId||""),barberId=String(data.barberId||""),date=String(data.date||""),time=String(data.time||"");
+  if(!serviceId||!barberId||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||!/^[0-9]{2}:[0-9]{2}$/.test(time))throw new Error("Horario inválido");
+  const slotId=(barberId+"_"+date+"_"+time).replace(/[^a-zA-Z0-9_-]/g,"_");
+  const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
+  const requestRef=doc(collection(db,"public_businesses",businessId,"booking_requests"));
+  await runTransaction(db,async tx=>{
+    const slot=await tx.get(slotRef);
+    if(slot.exists())throw new Error("Ese horario acaba de ser solicitado. Elige otro.");
+    tx.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId:requestRef.id,barberId,date,time,status:"Pendiente",createdAt:serverTimestamp()});
+    tx.set(requestRef,{name:c.name,phone:c.phone,clientUid:u.uid,clientId:c.id,serviceId,barberId,date,time,note:String(data.note||"").slice(0,500),branchId:String(data.branchId||""),status:"Pendiente",slotId,createdAt:serverTimestamp()});
   });
+  return requestRef;
 }
 async function requestBookingChange(bookingRequestId,type,newDate="",newTime=""){
   const businessId=bid(),u=auth.currentUser,c=currentClient();
