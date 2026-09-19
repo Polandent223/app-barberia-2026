@@ -39,6 +39,22 @@
       return true;
     };
     applyPublicState(p);
+    const applyAvailability=next=>{
+      if(!next)return false;
+      A.db.business.open=next.businessHours?.open||A.db.business.open||"09:00";
+      A.db.business.close=next.businessHours?.close||A.db.business.close||"19:00";
+      if(Array.isArray(next.barbers))A.db.barbers=next.barbers;
+      if(Array.isArray(next.busy))A.db.appointments=next.busy.map((x,i)=>({...x,id:x.id||("busy-live-"+i+"-"+String(x.barberId||"")+"-"+String(x.date||"")+"-"+String(x.time||"")),clientId:"public-busy"}));
+      return true;
+    };
+    let availabilityUnsub=null;
+    if(window.NexoPublicCloud.watchPublicAvailability){
+      availabilityUnsub=window.NexoPublicCloud.watchPublicAvailability(businessId,next=>{
+        if(!next)return;
+        applyAvailability(next);
+        A.renderClientBooking?.();
+      });
+    }
 
     A.submitClientReservation=async function(){
       const s=A.db.services.find(x=>x.id===A.clientSelection.serviceId),date=A.val("clientBookDate"),time=A.clientSelection.time,name=A.val("clientBookName"),phone=A.val("clientBookPhone");
@@ -62,6 +78,7 @@
     A.openClientApp();
     window.NexoPublicCloud.watchPublicBusiness?.(businessId,next=>{
       if(!next||!["Activo","Prueba"].includes(next.status)){
+        try{availabilityUnsub?.()}catch{}
         document.body.innerHTML='<main style="max-width:600px;margin:80px auto;font-family:Arial;padding:20px;text-align:center"><h2>Reservas temporalmente no disponibles</h2><p>Contacta directamente con el negocio.</p></main>';
         return;
       }
