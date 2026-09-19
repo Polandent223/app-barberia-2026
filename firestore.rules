@@ -41,6 +41,11 @@ service cloud.firestore {
       return isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
     }
 
+    function canManageSchedule(businessId) {
+      return isSuperAdmin() || (isBusinessMember(businessId) &&
+        role(businessId) in ['owner','admin','manager','reception','barber']);
+    }
+
     function validBusinessRole(value) {
       return value in ['owner','admin','manager','reception','cashier','barber'];
     }
@@ -155,8 +160,8 @@ service cloud.firestore {
           request.resource.data.oldTime == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.time &&
           ((request.resource.data.type == 'cancel' && request.resource.data.newDate == '' && request.resource.data.newTime == '' && !('newSlotId' in request.resource.data)) ||
            (request.resource.data.type == 'reschedule' && request.resource.data.newSlotId is string && request.resource.data.newSlotId.size() > 0 && request.resource.data.newDate is string && request.resource.data.newDate.size() == 10 && request.resource.data.newTime is string && request.resource.data.newTime.size() >= 4 && request.resource.data.newTime.size() <= 5));
-        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update, delete: if canManageSchedule(businessId);
       }
 
 
@@ -170,8 +175,8 @@ service cloud.firestore {
           request.resource.data.date is string && request.resource.data.date.size() == 10 &&
           request.resource.data.time is string && request.resource.data.time.size() == 5 &&
           request.resource.data.status in ['Pendiente','CambioPendiente'];
-        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update, delete: if canManageSchedule(businessId);
       }
 
       match /booking_requests/{requestId} {
@@ -189,8 +194,8 @@ service cloud.firestore {
           request.resource.data.time is string && request.resource.data.time.size() >= 4 && request.resource.data.time.size() <= 5 &&
           request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
           request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 && request.resource.data.status == 'Pendiente';
-        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update, delete: if canManageSchedule(businessId);
       }
     }
 
