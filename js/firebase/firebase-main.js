@@ -29,7 +29,14 @@ const Bridge={
   autoReady:false,
   lastSync:null,
   scheduleImagePush,
-  loginWithEmailPassword:firebaseLogin,
+  async loginWithEmailPassword(email,password){
+    const user=await firebaseLogin(email,password);
+    // Do not wait for onAuthStateChanged: session resolution may run immediately.
+    this.user=user;
+    this.connected=!!user;
+    if(user){status("online","Conectado");controls();}
+    return user;
+  },
   logoutUser:firebaseLogout,
   sendPasswordReset:firebaseSendPasswordReset,
   setError(e){
