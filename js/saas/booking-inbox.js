@@ -191,7 +191,7 @@ SaaS.approveBookingChange=async function(id){
 SaaS.rejectBookingChange=async function(id){
   if(!SaaS.canManageBookingInbox())return window.App?.toast?.("No tienes permiso para gestionar solicitudes");
   const r=SaaS.bookingChangeInbox.find(x=>x.id===id);if(!r||r.status!=="Pendiente")return;
-  try{await NexoPublicCloud.updateBookingChangeRequest(SaaS.getContext().businessId,id,{status:"Rechazada",resolvedAt:new Date().toISOString()});window.App?.toast?.("Solicitud rechazada")}catch(e){window.App?.toast?.(e.message||"No se pudo rechazar")}
+  try{const businessId=SaaS.getContext().businessId;await NexoPublicCloud.updateBookingChangeRequest(businessId,id,{status:"Rechazada",resolvedAt:new Date().toISOString()});if(r.newSlotId)await NexoPublicCloud.releaseBookingSlot?.(businessId,r.newSlotId);window.App?.toast?.("Solicitud rechazada")}catch(e){window.App?.toast?.(e.message||"No se pudo rechazar")}
 };
 
 SaaS.watchBookingChanges=function(){
