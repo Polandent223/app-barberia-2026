@@ -165,7 +165,16 @@ service cloud.firestore {
           request.resource.data.oldDate == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.date &&
           request.resource.data.oldTime == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.time &&
           ((request.resource.data.type == 'cancel' && request.resource.data.newDate == '' && request.resource.data.newTime == '' && !('newSlotId' in request.resource.data)) ||
-           (request.resource.data.type == 'reschedule' && request.resource.data.newSlotId is string && request.resource.data.newSlotId.size() > 0 && request.resource.data.newDate is string && request.resource.data.newDate.size() == 10 && request.resource.data.newTime is string && request.resource.data.newTime.size() >= 4 && request.resource.data.newTime.size() <= 5));
+           (request.resource.data.type == 'reschedule' &&
+            request.resource.data.newSlotId is string &&
+            request.resource.data.newDate is string && request.resource.data.newDate.size() == 10 &&
+            request.resource.data.newTime is string && request.resource.data.newTime.size() == 5 &&
+            request.resource.data.newSlotId == (get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.barberId + '_' + request.resource.data.newDate + '_' + request.resource.data.newTime) &&
+            existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)) &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.changeRequestId == changeId &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.bookingRequestId == request.resource.data.bookingRequestId &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.clientUid == request.auth.uid &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.status == 'CambioPendiente'));
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
         allow update, delete: if canManageSchedule(businessId);
       }
