@@ -25,8 +25,8 @@ App.login = async function(){
     const btn=App.byId("loginBtn");
     if(btn){btn.disabled=true;btn.textContent="Entrando...";}
     try{
-      await FirebaseBridge.loginWithEmailPassword(email,password);
-      await new Promise(r=>setTimeout(r,0));
+      const authenticatedUser=await FirebaseBridge.loginWithEmailPassword(email,password);
+      if(!authenticatedUser?.uid)throw new Error("Firebase no devolvió una sesión válida");
       const session=await SaaS.resolveFirebaseSession?.();
       if(session?.role!=="superadmin"){
         await FirebaseBridge.logoutUser?.();
