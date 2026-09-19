@@ -104,10 +104,20 @@ async function requestBookingChange(bookingRequestId,type,newDate="",newTime="")
   if(booking.status!=="Aprobada")throw new Error("Solo puedes modificar una cita confirmada");
   if(changes.some(x=>x.bookingRequestId===bookingRequestId&&x.status==="Pendiente"))throw new Error("Ya existe una solicitud pendiente para esta cita");
   if(type==="reschedule"&&(!/^\d{4}-\d{2}-\d{2}$/.test(newDate)||!/^\d{2}:\d{2}$/.test(newTime)))throw new Error("Fecha u hora inválida");
-  return addDoc(collection(db,"public_businesses",businessId,"booking_change_requests"),{
-    clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),
-    newDate:type==="reschedule"?newDate:"",newTime:type==="reschedule"?newTime:"",status:"Pendiente",createdAt:serverTimestamp()
+  const changeRef=doc(collection(db,"public_businesses",businessId,"booking_change_requests"));
+  if(type!=="reschedule"){
+    await setDoc(changeRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),newDate:"",newTime:"",status:"Pendiente",createdAt:serverTimestamp()});
+    return changeRef;
+  }
+  const slotId=(String(booking.barberId||"")+"_"+newDate+"_"+newTime).replace(/[^a-zA-Z0-9_-]/g,"_");
+  const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
+  await runTransaction(db,async tx=>{
+    const slot=await tx.get(slotRef);
+    if(slot.exists())throw new Error("Ese nuevo horario acaba de ser solicitado. Elige otro.");
+    tx.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,changeRequestId:changeRef.id,barberId:String(booking.barberId||""),date:newDate,time:newTime,status:"CambioPendiente",createdAt:serverTimestamp()});
+    tx.set(changeRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),newDate,newTime,newSlotId:slotId,status:"Pendiente",createdAt:serverTimestamp()});
   });
+  return changeRef;
 }
 
 window.SambrixClientCloud={auth,db,register,login,logout,currentUser:()=>auth.currentUser,currentProfile:()=>profile,currentClient,bookings:()=>bookings.slice(),changes:()=>changes.slice(),createBooking,requestBookingChange,isReady:()=>ready};
