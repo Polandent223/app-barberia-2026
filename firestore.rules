@@ -133,6 +133,12 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isSuperAdmin() || canManageBusiness(businessId);
 
+      match /public_state/{stateName} {
+        allow read: if stateName == 'availability';
+        allow create, update: if stateName == 'availability' && canManageSchedule(businessId);
+        allow delete: if stateName == 'availability' && canManageBusiness(businessId);
+      }
+
       match /client_accounts/{uid} {
         allow create: if signedIn() && businessActive(businessId) && request.auth.uid == uid &&
           request.resource.data.keys().hasOnly(['clientId','name','phone','phoneNormalized','status','createdAt','points','visits']) &&
