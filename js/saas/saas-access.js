@@ -13,7 +13,10 @@ async function loadPlatformConfig(){
     platformConfig=s.exists()?s.data():null;
   }catch(error){
     platformConfig=null;
-    if(String(error?.code||"")!=="permission-denied")console.warn("[SAMBRIX platform config]",error);
+    console.warn("[SAMBRIX platform config]",error);
+    throw new Error(String(error?.code||"")==="permission-denied"
+      ?"Firebase todavía no permite validar el SuperAdmin. Publica las reglas Firestore actualizadas."
+      :(error?.message||"No se pudo cargar la configuración de SAMBRIX."));
   }
   return platformConfig;
 }
