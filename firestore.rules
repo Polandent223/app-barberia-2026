@@ -154,9 +154,24 @@ service cloud.firestore {
         allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
       }
 
+
+      match /booking_slots/{slotId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','barberId','date','time','status','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
+          request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 &&
+          request.resource.data.date is string && request.resource.data.date.size() == 10 &&
+          request.resource.data.time is string && request.resource.data.time.size() == 5 &&
+          request.resource.data.status == 'Pendiente';
+        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+      }
+
       match /booking_requests/{requestId} {
         allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
-          request.resource.data.keys().hasOnly(['name','phone','clientUid','clientId','serviceId','barberId','date','time','note','branchId','status','createdAt']) &&
+          request.resource.data.keys().hasOnly(['name','phone','clientUid','clientId','serviceId','barberId','date','time','note','branchId','status','slotId','createdAt']) &&
           request.resource.data.clientUid == request.auth.uid &&
           request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
           request.resource.data.name == get(clientAccountPath(businessId, request.auth.uid)).data.name &&
