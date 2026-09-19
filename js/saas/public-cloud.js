@@ -1,5 +1,5 @@
 
-import {firestore,doc,getDoc,setDoc,collection,addDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
+import {firestore,doc,getDoc,setDoc,deleteDoc,collection,addDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
 import {updateDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 function publicSnapshot(){
@@ -66,6 +66,11 @@ export async function updateBookingRequest(businessId,requestId,data){
   await updateDoc(doc(firestore,"public_businesses",businessId,"booking_requests",requestId),data);
 }
 
+export async function releaseBookingSlot(businessId,slotId){
+  if(!businessId||!slotId)return;
+  await deleteDoc(doc(firestore,"public_businesses",businessId,"booking_slots",slotId));
+}
+
 export function watchPublicBookingRequests(businessId,callback){
   return onSnapshot(collection(firestore,"public_businesses",businessId,"booking_requests"),snap=>{
     callback(snap.docs.map(d=>({id:d.id,...d.data()})));
@@ -90,4 +95,4 @@ export async function updateClientAccount(businessId,uid,data){
   if(Object.keys(safe).length)await updateDoc(doc(firestore,"public_businesses",businessId,"client_accounts",uid),safe);
 }
 
-window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
+window.NexoPublicCloud={publishCurrentBusiness,loadPublicBusiness,watchPublicBusiness,createPublicBooking,updateBookingRequest,releaseBookingSlot,watchPublicBookingRequests,watchBookingChangeRequests,updateBookingChangeRequest,updateClientAccount};
