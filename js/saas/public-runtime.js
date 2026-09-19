@@ -11,8 +11,9 @@
     document.getElementById("adminApp")?.classList.add("hidden");
 
     let tries=0;
-    while(!window.NexoPublicCloud&&tries++<40)await new Promise(r=>setTimeout(r,100));
+    while((!window.NexoPublicCloud||!window.SambrixClientCloud)&&tries++<60)await new Promise(r=>setTimeout(r,100));
     if(!window.NexoPublicCloud)throw new Error("Servicio público no disponible");
+    if(!window.SambrixClientCloud)throw new Error("Servicio de cuenta del cliente no disponible");
 
     const p=await NexoPublicCloud.loadPublicBusiness(businessId);
     if(!p||!["Activo","Prueba"].includes(p.status)){
@@ -31,7 +32,6 @@
     A.db.products=(p.products||[]).map(x=>({...x,stock:x.available?1:0}));
     A.db.appointments=(p.busy||[]).map(x=>({...x,id:"busy-"+Math.random().toString(36).slice(2),clientId:"public-busy"}));
 
-    const oldSubmit=A.submitClientReservation;
     A.submitClientReservation=async function(){
       const s=A.db.services.find(x=>x.id===A.clientSelection.serviceId),date=A.val("clientBookDate"),time=A.clientSelection.time,name=A.val("clientBookName"),phone=A.val("clientBookPhone");
       if(!s||!date||!time||!name||!phone)return A.toast("Completa servicio, horario y tus datos");
@@ -42,6 +42,7 @@
         barberId=list[0].id;
       }
       try{
+        if(!window.SambrixClientCloud?.isReady?.())throw new Error("La cuenta del cliente todavía está cargando");
         if(!window.SambrixClientCloud?.currentUser?.())throw new Error("Debes iniciar sesión para reservar");
         await window.SambrixClientCloud.createBooking({serviceId:s.id,barberId,date,time,note:A.val("clientBookNote")||"",branchId:p.branch?.id||""});
         A.toast("Solicitud de reserva enviada");
