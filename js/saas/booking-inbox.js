@@ -3,7 +3,7 @@ SaaS.bookingInboxUnsub=null;
 
 SaaS.serviceName=function(id){return window.App?.db?.services?.find(s=>s.id===id)?.name||id||"Servicio"};
 SaaS.barberName=function(id){return window.App?.db?.barbers?.find(b=>b.id===id)?.name||id||"Profesional"};
-SaaS.canManageBookingInbox=function(){return !!window.SaaS?.pageAllowed?.("bookingInbox")};
+SaaS.canManageBookingInbox=function(){return !!window.SaaS?.pageAllowed?.("bookingInbox")&&(typeof SaaS.canWriteDomain!=="function"||SaaS.canWriteDomain("schedule"));};
 
 SaaS.renderBookingInbox=function(){
   const box=document.getElementById("bookingInboxList");if(!box)return;
@@ -52,7 +52,8 @@ SaaS.createAppointmentFromRequest=function(req){
     source:"SAMBRIX Client",publicRequestId:req.id,createdAt:new Date().toISOString()
   };
   A.db.appointments=A.db.appointments||[];A.db.appointments.push(appt);
-  A.persist?.();
+  const persisted=A.persist?.();
+  if(persisted===false){A.db.appointments=A.db.appointments.filter(x=>x!==appt);return null}
   return appt;
 };
 
@@ -168,7 +169,8 @@ SaaS.approveBookingChange=async function(id){
       if(booking.status!=="Cancelada")await NexoPublicCloud.updateBookingRequest(businessId,booking.id,{status:"Cancelada",resolvedAt:new Date().toISOString()});
       appt.status="Cancelada";
     }
-    A.persist?.();
+    const persisted=A.persist?.();
+    if(persisted===false)throw new Error("Espera a que SAMBRIX termine de sincronizar el negocio");
     await NexoPublicCloud.updateBookingChangeRequest(businessId,id,{status:"Aprobada",resolvedAt:new Date().toISOString()});
     A.toast("Solicitud aprobada");
   }catch(e){
