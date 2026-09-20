@@ -44,7 +44,7 @@ App.deleteBarber = function(id){App.requestDelete("barber",id);return;
   }});
 };
 App.renderBarbers = function(){
-  App.byId("barberList").innerHTML=App.db.barbers.map(b=>{const photo=b.photo||App.db.business.clientApp?.barberPhotos?.[b.id]||"";return `<article class="card professional-card">${photo?`<img class="catalog-card-photo professional-photo" src="${photo}" alt="${b.name}">`:""}<h3>${b.name}</h3><div class="muted">${b.phone||"Sin teléfono"}</div><div class="big">${b.commission}%</div><div class="muted">Comisión</div><div class="manage-actions"><button class="btn edit" onclick="App.editBarber('${b.id}')">Editar</button><button class="btn danger" onclick="App.deleteBarber('${b.id}')">${App.deleteButtonLabel()}</button></div></article>`}).join("");
+  App.byId("barberList").innerHTML=App.db.barbers.map(b=>{const photo=b.photo||App.db.business.clientApp?.barberPhotos?.[b.id]||"";return `<article class="card professional-card" data-barber-id="${b.id}">${photo?`<img class="catalog-card-photo professional-photo" src="${photo}" alt="${b.name}">`:""}<h3>${b.name}</h3><div class="muted">${b.phone||"Sin teléfono"}</div><div class="big">${b.commission}%</div><div class="muted">Comisión</div><div class="manage-actions"><button class="btn edit" onclick="App.editBarber('${b.id}')">Editar</button><button class="btn danger" onclick="App.deleteBarber('${b.id}')">${App.deleteButtonLabel()}</button></div></article>`}).join("");
 };
 
 /* ===== FASE 20.22 — FOTO PROFESIONAL ===== */
