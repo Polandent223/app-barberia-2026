@@ -92,5 +92,9 @@
     const foot=document.getElementById("nexoPoweredBy");if(foot)foot.classList.toggle("white-label-hidden",p.whiteLabel?.showPoweredBy===false);
   }catch(e){
     console.error("[Public Client]",e);
+    const message=String(e?.message||"").includes("iniciar sesión")
+      ?"Inicia sesión nuevamente para continuar."
+      :"No pudimos cargar las reservas en este momento. Intenta recargar la página.";
+    document.body.innerHTML=`<main style="max-width:600px;margin:80px auto;font-family:Arial;padding:20px;text-align:center"><h2>No se pudo abrir SAMBRIX</h2><p>${message}</p><button type="button" onclick="location.reload()" style="margin-top:12px;padding:12px 18px;border:0;border-radius:10px;cursor:pointer">Reintentar</button></main>`;
   }
 })();
