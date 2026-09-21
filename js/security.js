@@ -137,7 +137,9 @@
       App.db.sales=App.db.sales.filter(x=>x.id!==id);
       App.db.cash=App.db.cash.filter(c=>c.saleId!==id);
     }
-    App.persist();
+    const persisted=App.persist();
+    if(persisted===false)return false;
+    return true;
   };
 
   App.approveRequest=function(id){
@@ -150,7 +152,8 @@
     }
     App.confirmAction("Aprobar eliminación",`Eliminar definitivamente: ${r.entityLabel}`,()=>{
       approvedDeletes.add(`${r.type}:${r.entityId}`);
-      App.executeDelete(r.type,r.entityId);
+      const deleted=App.executeDelete(r.type,r.entityId);
+      if(deleted!==true)return App.toast("No se pudo completar la eliminación");
       const stillExists=(App.db.approvalRequests||[]).includes(r);
       if(!stillExists)return;
       r.status="Aprobada";r.reviewedBy=reviewerName();r.reviewedAt=new Date().toISOString();
