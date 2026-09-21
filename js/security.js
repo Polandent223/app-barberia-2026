@@ -159,16 +159,24 @@
       if(deleted!==true)return App.toast("No se pudo completar la eliminación");
       const stillExists=(App.db.approvalRequests||[]).includes(r);
       if(!stillExists)return;
+      const reviewSnapshot={status:r.status,reviewedBy:r.reviewedBy,reviewedAt:r.reviewedAt},auditBefore=(App.db.auditLog||[]).length;
       r.status="Aprobada";r.reviewedBy=reviewerName();r.reviewedAt=new Date().toISOString();
-      App.logAction("Eliminación aprobada","Seguridad",r.entityLabel);App.persist();App.toast("Solicitud aprobada");
+      App.logAction?.("Eliminación aprobada","Seguridad",r.entityLabel);
+      const persisted=App.persist();
+      if(persisted===false){Object.assign(r,reviewSnapshot);if(App.db.auditLog)App.db.auditLog.splice(auditBefore);return App.toast("La eliminación se realizó, pero no se pudo guardar la aprobación")}
+      App.toast("Solicitud aprobada");
     });
   };
 
   App.rejectRequest=function(id){
     if(!deletionAdmin())return App.toast("Solo el dueño o administrador puede revisar eliminaciones");
     const r=(App.db.approvalRequests||[]).find(x=>x.id===id);if(!r||r.status!=="Pendiente")return;
+    const reviewSnapshot={status:r.status,reviewedBy:r.reviewedBy,reviewedAt:r.reviewedAt},auditBefore=(App.db.auditLog||[]).length;
     r.status="Rechazada";r.reviewedBy=reviewerName();r.reviewedAt=new Date().toISOString();
-    App.logAction("Eliminación rechazada","Seguridad",r.entityLabel);App.persist();App.toast("Solicitud rechazada");
+    App.logAction?.("Eliminación rechazada","Seguridad",r.entityLabel);
+    const persisted=App.persist();
+    if(persisted===false){Object.assign(r,reviewSnapshot);if(App.db.auditLog)App.db.auditLog.splice(auditBefore);return App.toast("No se pudo guardar el rechazo")}
+    App.toast("Solicitud rechazada");
   };
 
   App.renderApprovals=function(){
