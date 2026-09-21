@@ -90,13 +90,16 @@
     if(duplicate)return App.toast("Ya existe una solicitud pendiente");
     const u=requestUser();
     App.db.approvalRequests=App.db.approvalRequests||[];
-    App.db.approvalRequests.push({
+    const request={
       id:App.uid(),action:"Eliminar",type,entityId:id,entityLabel:App.entityLabel(type,id),
       requestedById:u.id,requestedBy:u.name,requestedRole:u.role,
       requestedAt:new Date().toISOString(),status:"Pendiente",reviewedBy:"",reviewedAt:""
-    });
-    App.logAction("Solicitud de eliminación","Seguridad",`${type}: ${App.entityLabel(type,id)}`);
-    App.persist();
+    };
+    App.db.approvalRequests.push(request);
+    const auditBefore=(App.db.auditLog||[]).length;
+    App.logAction?.("Solicitud de eliminación","Seguridad",`${type}: ${App.entityLabel(type,id)}`);
+    const persisted=App.persist();
+    if(persisted===false){App.db.approvalRequests=App.db.approvalRequests.filter(r=>r.id!==request.id);if(App.db.auditLog)App.db.auditLog.splice(auditBefore);return App.toast("No se pudo enviar la solicitud")}
     App.toast("Solicitud enviada al administrador");
   };
 
