@@ -112,6 +112,9 @@
     const blocked=App.financialDeleteBlockReason(type,id);
     if(blocked)return App.toast(blocked);
 
+    const collections=["clients","appointments","barbers","products","stockMoves","services","users","sales","cash"];
+    const snapshot={};collections.forEach(name=>snapshot[name]=[...(App.db[name]||[])]);
+    const rollback=()=>{collections.forEach(name=>App.db[name]=snapshot[name]);};
     if(type==="client"){
       App.db.clients=App.db.clients.filter(x=>x.id!==id);
       App.db.appointments=App.db.appointments.filter(a=>a.clientId!==id);
@@ -138,7 +141,7 @@
       App.db.cash=App.db.cash.filter(c=>c.saleId!==id);
     }
     const persisted=App.persist();
-    if(persisted===false)return false;
+    if(persisted===false){rollback();App.renderAll?.();return false}
     return true;
   };
 
