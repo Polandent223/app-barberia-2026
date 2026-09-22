@@ -1,4 +1,4 @@
-import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp,writeBatch} from "../firebase/firebase-core.js";
+import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp,writeBatch} from "../firebase/firebase-core.js?v=1.0.18";
 
 const PLATFORM="platform";
 const BUSINESSES="businesses";
