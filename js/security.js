@@ -151,8 +151,11 @@
     const r=(App.db.approvalRequests||[]).find(x=>x.id===id);if(!r||r.status!=="Pendiente")return;
     const blocked=App.financialDeleteBlockReason(r.type,r.entityId);
     if(blocked){
+      const reviewSnapshot={status:r.status,reviewedBy:r.reviewedBy,reviewedAt:r.reviewedAt};
       r.status="Rechazada";r.reviewedBy=reviewerName();r.reviewedAt=new Date().toISOString();
-      App.persist();return App.toast(blocked);
+      const persisted=App.persist();
+      if(persisted===false){Object.assign(r,reviewSnapshot);App.renderAll?.();return App.toast("No se pudo guardar el rechazo automático")}
+      App.toast(blocked);return;
     }
     App.confirmAction("Aprobar eliminación",`Eliminar definitivamente: ${r.entityLabel}`,()=>{
       approvedDeletes.add(`${r.type}:${r.entityId}`);
