@@ -76,7 +76,10 @@ export async function downloadTenant(businessId){
   // La sesión puede cambiar mientras Firestore responde. En ese caso descartamos completamente la descarga.
   if(!sessionCanReadTenant(businessId,startedUid))return false;
   if(!snaps.some(s=>s.exists()))return false;
-  let state=SaaS.loadTenantState(businessId);
+  // Firebase es la fuente autoritativa al hidratar un tenant. No mezclar aquí
+  // datos operativos antiguos de localStorage, porque podrían pertenecer a una
+  // sesión previa o reintroducir registros ya eliminados en la nube.
+  let state={meta:{businessId}};
   for(const s of snaps){if(!s.exists()||!s.data()?.payload)continue;const docBusinessId=String(s.data()?.businessId||businessId);if(docBusinessId!==businessId){console.error("[SAMBRIX] Documento de tenant con identidad inválida bloqueado",{expected:businessId,found:docBusinessId});continue}state={...state,...s.data().payload}}
   if(!sessionCanReadTenant(businessId,startedUid))return false;
   state=normalizeTenantState(businessId,state);SaaS.saveTenantState(businessId,state);
