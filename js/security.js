@@ -103,7 +103,7 @@
     App.toast("Solicitud enviada al administrador");
   };
 
-  App.executeDelete=function(type,id){
+  App.executeDelete=function(type,id,options={}){
     const key=`${type}:${id}`;
     const authorized=deletionAdmin()||approvedDeletes.has(key);
     approvedDeletes.delete(key);
@@ -140,6 +140,7 @@
       App.db.sales=App.db.sales.filter(x=>x.id!==id);
       App.db.cash=App.db.cash.filter(c=>c.saleId!==id);
     }
+    if(options.persist===false)return {rollback};
     const persisted=App.persist();
     if(persisted===false){rollback();App.renderAll?.();return false}
     return true;
@@ -155,15 +156,15 @@
     }
     App.confirmAction("Aprobar eliminación",`Eliminar definitivamente: ${r.entityLabel}`,()=>{
       approvedDeletes.add(`${r.type}:${r.entityId}`);
-      const deleted=App.executeDelete(r.type,r.entityId);
-      if(deleted!==true)return App.toast("No se pudo completar la eliminación");
+      const deletion=App.executeDelete(r.type,r.entityId,{persist:false});
+      if(!deletion?.rollback)return App.toast("No se pudo completar la eliminación");
       const stillExists=(App.db.approvalRequests||[]).includes(r);
-      if(!stillExists)return;
+      if(!stillExists){deletion.rollback();return App.toast("No se pudo completar la aprobación")}
       const reviewSnapshot={status:r.status,reviewedBy:r.reviewedBy,reviewedAt:r.reviewedAt},auditBefore=(App.db.auditLog||[]).length;
       r.status="Aprobada";r.reviewedBy=reviewerName();r.reviewedAt=new Date().toISOString();
       App.logAction?.("Eliminación aprobada","Seguridad",r.entityLabel);
       const persisted=App.persist();
-      if(persisted===false){Object.assign(r,reviewSnapshot);if(App.db.auditLog)App.db.auditLog.splice(auditBefore);return App.toast("La eliminación se realizó, pero no se pudo guardar la aprobación")}
+      if(persisted===false){deletion.rollback();Object.assign(r,reviewSnapshot);if(App.db.auditLog)App.db.auditLog.splice(auditBefore);App.renderAll?.();return App.toast("No se pudo guardar la eliminación")}
       App.toast("Solicitud aprobada");
     });
   };
