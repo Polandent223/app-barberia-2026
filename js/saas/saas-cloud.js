@@ -1,4 +1,4 @@
-import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
+import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp,writeBatch} from "../firebase/firebase-core.js";
 
 const PLATFORM="platform";
 const BUSINESSES="businesses";
@@ -61,7 +61,7 @@ function writablePartsForRole(role){role=String(role||"").toLowerCase();if(["sup
 
 async function writeTenantParts(businessId,state,allowed=null){
   assertTenantIdentity(businessId,state);state=normalizeTenantState(businessId,state);const parts=split(state),entries=Object.entries(parts).filter(([name])=>allowed===null||allowed.has(name));if(!entries.length)return false;
-  await Promise.all(entries.map(([name,payload])=>setDoc(doc(firestore,BUSINESSES,businessId,"state",name),{businessId,payload,updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true})));return true;
+  const batch=writeBatch(firestore);entries.forEach(([name,payload])=>batch.set(doc(firestore,BUSINESSES,businessId,"state",name),{businessId,payload,updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true}));await batch.commit();return true;
 }
 export async function uploadTenantState(businessId,state){await writeTenantParts(businessId,state,null);SaaS.saveTenantState?.(businessId,normalizeTenantState(businessId,state));return true}
 export async function ensureTenantState(businessId){if(!businessId)return false;const cfg=await getDoc(doc(firestore,BUSINESSES,businessId,"state","config"));if(cfg.exists())return false;const business=businessById(businessId),fallback=SaaS.blankBusinessState?.(business)||{meta:{businessId},business:{name:business?.name||"Negocio"}};let state=SaaS.loadTenantState?.(businessId)||fallback;state=normalizeTenantState(businessId,state);await uploadTenantState(businessId,state);return true}
