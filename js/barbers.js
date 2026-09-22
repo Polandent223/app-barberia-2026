@@ -18,10 +18,11 @@ App.saveBarber = function(){
     const previousPhotoMap=App.db.business.clientApp.barberPhotos[b.id];
     if(employee){employee.name=b.name;employee.phone=b.phone;employee.serviceCommission=b.commission;if(b.photo)employee.photo=b.photo}
 
+    const persisted=App.persist();if(persisted===false){if(existing){Object.assign(existing,previousBarber);if(previousEmployee&&employee)Object.assign(employee,previousEmployee)}else{App.db.barbers=App.db.barbers.filter(x=>x!==b)}if(previousPhotoMap===undefined)delete App.db.business.clientApp.barberPhotos[b.id];else App.db.business.clientApp.barberPhotos[b.id]=previousPhotoMap;App.renderBarbers?.();return App.toast("No se pudo guardar el profesional")}
     ["barberEditId","barberName","barberPhone"].forEach(x=>{const e=App.byId(x);if(e)e.value=""});
     const file=App.byId("barberPhoto");if(file)file.value="";
     const preview=App.byId("barberPhotoPreview");if(preview){preview.src="";preview.classList.add("hidden")}
-    App.hide("barberForm");const persisted=App.persist();if(persisted===false){if(existing){Object.assign(existing,previousBarber);if(previousEmployee&&employee)Object.assign(employee,previousEmployee)}else{App.db.barbers=App.db.barbers.filter(x=>x!==b)}if(previousPhotoMap===undefined)delete App.db.business.clientApp.barberPhotos[b.id];else App.db.business.clientApp.barberPhotos[b.id]=previousPhotoMap;return App.toast("No se pudo guardar el profesional")}App.toast(existing?"Profesional actualizado":"Profesional guardado");
+    App.hide("barberForm");App.toast(existing?"Profesional actualizado":"Profesional guardado");
   };
   const file=App.byId("barberPhoto")?.files?.[0];
   if(file)App.compressImageLocal(file,520,.78).then(finish).catch(()=>{App.toast("No se pudo procesar la foto");finish("")});
