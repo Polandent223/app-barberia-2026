@@ -82,7 +82,8 @@
     if(deletionAdmin()){
       App.confirmAction("Eliminar definitivamente",`¿Deseas eliminar ${App.entityLabel(type,id)}?`,()=>{
         approvedDeletes.add(`${type}:${id}`);
-        App.executeDelete(type,id);
+        const deleted=App.executeDelete(type,id);
+        if(deleted!==true)App.toast("No se pudo completar la eliminación");
       });
       return;
     }
