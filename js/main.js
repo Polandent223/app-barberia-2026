@@ -8,9 +8,6 @@ App.renderAll=function(){
 
 document.addEventListener("DOMContentLoaded",()=>{
   App.load();App.ensurePermissionsData();App.ensureStaff();
-  App.byId("loginBtn").addEventListener("click",App.login);
-  App.byId("loginUser").addEventListener("keydown",e=>{if(e.key==="Enter")App.login()});
-  App.byId("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")App.login()});
   App.byId("logoutBtn").addEventListener("click",App.logout);
   App.byId("confirmCancel").addEventListener("click",App.closeConfirm);
   App.byId("confirmAccept").addEventListener("click",App.acceptConfirm);
