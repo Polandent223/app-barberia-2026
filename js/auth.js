@@ -37,9 +37,16 @@ App.login = async function(){
       return;
     }catch(error){
       console.error("[SAMBRIX superadmin login]",error);
+      const code=String(error?.code||"");
       const msg=String(error?.message||"");
       if(msg.includes("Publica las reglas Firestore"))return App.toast(msg);
-      return App.toast("Correo o contraseña incorrectos");
+      if(["auth/invalid-credential","auth/wrong-password","auth/user-not-found"].includes(code))return App.toast("Correo o contraseña incorrectos");
+      if(code==="auth/invalid-email")return App.toast("El correo no es válido");
+      if(code==="auth/network-request-failed")return App.toast("No se pudo conectar con Firebase. Revisa Internet e inténtalo de nuevo");
+      if(code==="auth/too-many-requests")return App.toast("Firebase bloqueó temporalmente nuevos intentos. Espera unos minutos");
+      if(code==="auth/user-disabled")return App.toast("Esta cuenta está desactivada en Firebase");
+      if(code==="permission-denied"||code==="firestore/permission-denied")return App.toast("La contraseña fue aceptada, pero Firestore rechazó el acceso");
+      return App.toast("No se pudo iniciar sesión: "+(code||msg||"error desconocido"));
     }finally{
       if(btn){btn.disabled=false;btn.textContent="Entrar";}
     }
