@@ -25,7 +25,7 @@ App.saveBarber = function(){
     App.hide("barberForm");App.toast(existing?"Profesional actualizado":"Profesional guardado");
   };
   const file=App.byId("barberPhoto")?.files?.[0];
-  if(file)App.compressImageLocal(file,520,.78).then(finish).catch(()=>{App.toast("No se pudo procesar la foto");finish("")});
+  if(file)App.compressImageLocal(file,360,.64).then(photo=>{if(!photo)throw new Error("Foto vacía");finish(photo)}).catch(e=>{console.error("[SAMBRIX foto profesional]",e);App.toast("No se pudo procesar la foto. Prueba otra imagen.");});
   else finish("");
 };
 App.editBarber = function(id){
