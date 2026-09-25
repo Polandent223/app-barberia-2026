@@ -63,6 +63,25 @@ App.login = async function(){
   localStorage.setItem(App.SESSION_KEY,u.id);App.hide("loginView");App.show("adminApp");App.renderAll();
 };
 
+
+// Login bootstrap independiente: el acceso no debe depender de que main.js termine de cargar.
+function bindSambrixLogin(){
+  const btn=App.byId("loginBtn");
+  if(btn&&!btn.dataset.sambrixLoginBound){
+    btn.dataset.sambrixLoginBound="1";
+    btn.addEventListener("click",e=>{e.preventDefault();App.login();});
+  }
+  ["loginUser","loginPin"].forEach(id=>{
+    const el=App.byId(id);
+    if(el&&!el.dataset.sambrixLoginBound){
+      el.dataset.sambrixLoginBound="1";
+      el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();App.login();}});
+    }
+  });
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bindSambrixLogin);
+else bindSambrixLogin();
+
 App.logout = function(){
   localStorage.removeItem(App.SESSION_KEY);
   if(window.SaaS?.signOutToPortal){SaaS.signOutToPortal();return;}
