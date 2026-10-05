@@ -277,6 +277,7 @@ document.getElementById("maintenanceQuickToggleBtn")?.addEventListener("click",S
 /* ===== FASE 20.5 ALTA COMPLETA ===== */
 document.getElementById("obCountry")?.addEventListener("change",SaaS.renderOnboardingTimezones);
 /* FASE 20.6 — reconciliación comercial */
+if(!SaaS.db)SaaS.load?.();
 SaaS.ensureSubscriptionRecords?.();
 SaaS.renderSubscriptions?.();
 

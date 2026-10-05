@@ -102,7 +102,7 @@ SaaS.defaultRenewalDate=function(business){
 SaaS.ensureRenewalDates=function(){
   let changed=false;
 
-  (SaaS.db.businesses||[]).forEach(b=>{
+  (SaaS.db?.businesses||[]).forEach(b=>{
     const plan=SaaS.getPlan?.(b.planId);
     const active=["activo","active","prueba","trial"].includes(String(b.status||"Activo").toLowerCase());
 
@@ -142,6 +142,7 @@ SaaS.subscriptionStatusFromBusiness=function(business){
 };
 
 SaaS.ensureSubscriptionRecords=function(){
+  if(!SaaS.db)return;
   SaaS.db.subscriptions=Array.isArray(SaaS.db.subscriptions)?SaaS.db.subscriptions:[];
   SaaS.ensureRenewalDates?.();
 
@@ -197,12 +198,12 @@ SaaS.ensureSubscriptionRecords=function(){
   });
 
   SaaS.save?.();
-  return SaaS.db.subscriptions;
+  return SaaS.db?.subscriptions||[];
 };
 
 SaaS.subscriptionForBusiness=function(businessId){
   SaaS.ensureSubscriptionRecords();
-  return SaaS.db.subscriptions.find(s=>s.businessId===businessId)||null;
+  return (SaaS.db?.subscriptions||[]).find(s=>s.businessId===businessId)||null;
 };
 
 SaaS.subscriptionDisplayStatus=function(sub,business){
@@ -220,8 +221,8 @@ SaaS.renderSubscriptions=function(){
   const box=document.getElementById("subscriptionList");
   if(!box)return;
 
-  const subs=SaaS.ensureSubscriptionRecords();
-  const businesses=SaaS.db.businesses||[];
+  const subs=SaaS.ensureSubscriptionRecords()||[];
+  const businesses=SaaS.db?.businesses||[];
 
   const rows=businesses.map(b=>{
     const sub=subs.find(s=>s.businessId===b.id);

@@ -30,6 +30,8 @@ App.fileToDataUrl=function(file,callback){
 
 App.loadClientCustomization=function(){
   if(!App.byId("clientBrandName"))return;
+  if(!App.db)return;
+  App.db.business=App.db.business||{};
   const c=App.db.business.clientApp=App.db.business.clientApp||{};
 
   App.byId("clientBrandName").value=c.brandName||App.db.business.name||"";
@@ -128,7 +130,7 @@ App.saveClientCustomization=function(){
 };
 
 App.applyClientCustomization=function(){
-  const c=App.db.business.clientApp;if(!c)return;
+  const c=App.db?.business?.clientApp;if(!c)return;
   const app=App.byId("clientApp");if(!app)return;
 
   const business=window.SaaS?.currentBusiness?.();

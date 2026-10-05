@@ -1,6 +1,6 @@
 
-import {firestore,doc,getDoc,setDoc,deleteDoc,collection,addDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
-import {updateDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
+import {updateDoc,deleteDoc,collection,addDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 function publicSnapshot(){
   const A=window.App,b=SaaS.currentBusiness(),br=SaaS.currentBranch();

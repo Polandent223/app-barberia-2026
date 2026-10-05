@@ -40,13 +40,7 @@ App.editBarber = function(id){
   if(preview){preview.src=photo;preview.classList.toggle("hidden",!photo)}
   App.byId("barberForm")?.scrollIntoView?.({behavior:"smooth",block:"start"});
 };
-App.deleteBarber = function(id){App.requestDelete("barber",id);return;
-  const b=App.db.barbers.find(x=>x.id===id);if(!b)return;
-  App.openConfirmModal({title:`Eliminar ${App.businessVocabulary?.().staffOne||"profesional"}`,message:`Se eliminará <strong>${b.name}</strong> y sus citas asociadas.`,onConfirm:()=>{
-    App.db.barbers=App.db.barbers.filter(x=>x.id!==id);App.db.appointments=App.db.appointments.filter(a=>a.barberId!==id);
-    App.closeModal();App.persist();App.toast(`${(App.businessVocabulary?.().staffOne||"profesional").replace(/^./,c=>c.toUpperCase())} eliminado`);
-  }});
-};
+App.deleteBarber = function(id){App.requestDelete("barber",id);};
 App.renderBarbers = function(){
   App.byId("barberList").innerHTML=App.db.barbers.map(b=>{const photo=b.photo||App.db.business.clientApp?.barberPhotos?.[b.id]||"";return `<article class="card professional-card" data-barber-id="${b.id}">${photo?`<img class="catalog-card-photo professional-photo" src="${photo}" alt="${b.name}">`:""}<h3>${b.name}</h3><div class="muted">${b.phone||"Sin teléfono"}</div><div class="big">${b.commission}%</div><div class="muted">Comisión</div><div class="manage-actions"><button class="btn edit" onclick="App.editBarber('${b.id}')">Editar</button><button class="btn danger" onclick="App.deleteBarber('${b.id}')">${App.deleteButtonLabel()}</button></div></article>`}).join("");
 };

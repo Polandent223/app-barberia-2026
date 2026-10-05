@@ -66,3 +66,6 @@ App.go = function(page){
 App.ensurePermissionsData=function(){
   App.db.approvalRequests=App.db.approvalRequests||[];App.db.auditLog=App.db.auditLog||[];App.db.clientRequests=App.db.clientRequests||[];App.db.clientActivity=App.db.clientActivity||[];App.db.shopOrders=App.db.shopOrders||[];App.db.employees=App.db.employees||[];App.db.attendance=App.db.attendance||[];App.db.absences=App.db.absences||[];App.db.business.whatsapp=App.db.business.whatsapp||"";App.db.business.address=App.db.business.address||"";App.db.business.pointsPerService=Number(App.db.business.pointsPerService||10);App.db.business.clientApp=App.db.business.clientApp||{brandName:"Los Hermanos Camejo",heroTitle:"Tu estilo. Tu momento.",heroSubtitle:"Elige servicio, barbero y horario disponible.",theme:"light",primary:"#c89a4b",secondary:"#111111",logo:"",background:"",whatsapp:"",instagram:"",tiktok:"",facebook:"",promotions:[],barberPhotos:{}};
 };
+
+// Boot: datos listos al parsear, antes de cualquier logica de alto nivel
+App.load();

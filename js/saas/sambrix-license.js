@@ -24,7 +24,7 @@ SaaS.licenseFor=function(b){
  return {plan,tier,limits,state,blocked,usage:{branches,staff,users}};
 };
 SaaS.featureAllowed=function(feature,businessId){
- const b=SaaS.db.businesses.find(x=>x.id===(businessId||SaaS.getContext()?.businessId));if(!b)return false;
+ const b=(SaaS.db?.businesses||[]).find(x=>x.id===(businessId||SaaS.getContext()?.businessId));if(!b)return false;
 
  // SuperAdmin is never restricted by a tenant's commercial plan.
  if(String(SaaS.session?.role||"").toLowerCase()==="superadmin")return true;
@@ -43,7 +43,7 @@ SaaS.featureAllowed=function(feature,businessId){
  return l.limits[feature]!==false;
 };
 SaaS.withinLimit=function(kind,businessId,increment=0){
- const b=SaaS.db.businesses.find(x=>x.id===(businessId||SaaS.getContext()?.businessId));if(!b)return false;
+ const b=(SaaS.db?.businesses||[]).find(x=>x.id===(businessId||SaaS.getContext()?.businessId));if(!b)return false;
  const l=SaaS.licenseFor(b);if(l.blocked)return false;
  return Number(l.usage[kind]||0)+increment<=Number(l.limits[kind]??999);
 };

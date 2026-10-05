@@ -34,9 +34,9 @@ SaaS.ensureCurrentBusiness=function(){
 };
 SaaS.getContext=function(){try{return JSON.parse(localStorage.getItem(SaaS.CONTEXT_KEY))||{}}catch{return {}}};
 SaaS.setContext=ctx=>localStorage.setItem(SaaS.CONTEXT_KEY,JSON.stringify(ctx));
-SaaS.currentBusiness=function(){const c=SaaS.getContext();return SaaS.db.businesses.find(b=>b.id===c.businessId)||SaaS.db.businesses[0]};
+SaaS.currentBusiness=function(){const c=SaaS.getContext();const businesses=SaaS.db?.businesses||[];return businesses.find(b=>b.id===c.businessId)||businesses[0]};
 SaaS.currentBranch=function(){const b=SaaS.currentBusiness(),c=SaaS.getContext();return b?.branches?.find(x=>x.id===c.branchId)||b?.branches?.[0]};
-SaaS.getPlan=id=>SaaS.db.plans.find(p=>p.id===id);
+SaaS.getPlan=id=>(SaaS.db?.plans||[]).find(p=>p.id===id);
 SaaS.isSuperAdmin=()=>SaaS.session?.role==="superadmin" || !!window.SaaSAuthAdmin?.isSuperAdmin?.();
 SaaS.subscriptionActive=b=>["Activo","Prueba"].includes((b||SaaS.currentBusiness())?.status);
 SaaS.applyTenantContext=function(){const A=window.App;if(!A?.db)return;const b=SaaS.currentBusiness(),br=SaaS.currentBranch();A.db.meta=A.db.meta||{};A.db.meta.businessId=b?.id||"";A.db.meta.branchId=br?.id||"";A.db.meta.businessType=b?.type||"";localStorage.setItem(A.KEY,JSON.stringify(A.db))};
@@ -63,3 +63,6 @@ SaaS.exitSupport=function(){
   const target=prev.businessId||SaaS.db.businesses[0]?.id;
   SaaS.switchTenant(target,{branchId:prev.branchId,support:false});
 };
+
+// Boot: datos listos al parsear, antes de cualquier logica de alto nivel
+try{SaaS.load()}catch(e){console.warn('SaaS.load',e)}
