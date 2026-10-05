@@ -31,7 +31,7 @@ if (!puppeteer) {
   process.exit(2);
 }
 
-const browser = await puppeteer.default.launch({ headless: "new" });
+const browser = await puppeteer.default.launch({ headless: "new", args: ["--no-sandbox", "--disable-setuid-sandbox"] });
 const page = await browser.newPage();
 const errors = [];
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
