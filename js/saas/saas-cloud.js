@@ -29,6 +29,10 @@ function normalizeTenantState(businessId,state){
     next.business.clientApp=next.business.clientApp||{};
     next.business.clientApp.brandName=business.brand?.name||business.name||next.business.clientApp.brandName||"Negocio";
   }
+  const branchId=next.meta.branchId||"";
+  ["users","barbers","services","clients","appointments","cash","sales","products","stockMoves","shopOrders","employees","attendance","absences","approvalRequests","clientRequests","auditLog","clientActivity"].forEach(k=>{
+    if(Array.isArray(next[k]))next[k].forEach(x=>{if(x&&typeof x==="object"){if(!x.businessId)x.businessId=businessId;if(x.branchId===undefined)x.branchId=branchId;}});
+  });
   return next;
 }
 
@@ -61,7 +65,7 @@ function writablePartsForRole(role){role=String(role||"").toLowerCase();if(["sup
 
 async function writeTenantParts(businessId,state,allowed=null){
   assertTenantIdentity(businessId,state);state=normalizeTenantState(businessId,state);const parts=split(state),entries=Object.entries(parts).filter(([name])=>allowed===null||allowed.has(name));if(!entries.length)return false;
-  const batch=writeBatch(firestore);entries.forEach(([name,payload])=>batch.set(doc(firestore,BUSINESSES,businessId,"state",name),{businessId,payload,updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true}));await batch.commit();return true;
+  const batch=writeBatch(firestore);entries.forEach(([name,payload])=>batch.set(doc(firestore,BUSINESSES,businessId,"state",name),{businessId,payload:JSON.parse(JSON.stringify(payload)),updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true}));await batch.commit();return true;
 }
 export async function uploadTenantState(businessId,state){await writeTenantParts(businessId,state,null);SaaS.saveTenantState?.(businessId,normalizeTenantState(businessId,state));return true}
 export async function ensureTenantState(businessId){if(!businessId)return false;const cfg=await getDoc(doc(firestore,BUSINESSES,businessId,"state","config"));if(cfg.exists())return false;const business=businessById(businessId),fallback=SaaS.blankBusinessState?.(business)||{meta:{businessId},business:{name:business?.name||"Negocio"}};let state=SaaS.loadTenantState?.(businessId)||fallback;state=normalizeTenantState(businessId,state);await uploadTenantState(businessId,state);return true}

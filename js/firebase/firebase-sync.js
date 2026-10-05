@@ -10,7 +10,7 @@ async function readPart(name){
   return s.exists()?(s.data().payload||{}):{};
 }
 async function writePart(name,payload){
-  await setDoc(doc(firestore,COL,name),{payload,updatedAt:serverTimestamp(),updatedBy:window.FirebaseBridge?.user?.email||""},{merge:true});
+  await setDoc(doc(firestore,COL,name),{payload:JSON.parse(JSON.stringify(payload)),updatedAt:serverTimestamp(),updatedBy:window.FirebaseBridge?.user?.email||""},{merge:true});
 }
 export async function uploadAll(){
   const state=splitCloudState(window.App.db);
