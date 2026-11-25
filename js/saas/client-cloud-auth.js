@@ -2,7 +2,9 @@
 import {firebaseConfig} from "../firebase/firebase-config.js";
 import {initializeApp,getApps} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {getFirestore,doc,getDoc,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {getFirestore,doc,getDoc,getDocFromServer,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+
+import {available,dayValid,minute} from "./client-booking-core.js?v=2.0.7";
 
 const appName="sambrix-client-auth";
 const clientApp=getApps().find(a=>a.name===appName)||initializeApp(firebaseConfig,appName);
@@ -15,19 +17,21 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const bid=()=>String(new URLSearchParams(location.search).get("business")||window.App?.db?.meta?.businessId||"").trim();
 const safeBusiness=v=>String(v||"").toLowerCase().replace(/[^a-z0-9_-]/g,"").slice(0,80);
 const authEmail=(businessId,phone)=>`${safeBusiness(businessId)}.${normPhone(phone)}@clients.sambrix.app`;
-let profile=null,bookings=[],changes=[],bookingUnsub=null,changeUnsub=null,ready=false;
+let profile=null,profileBusiness="",profileUid="",bookings=[],changes=[],bookingUnsub=null,changeUnsub=null,ready=false,profileGeneration=0;
+const notify=()=>document.dispatchEvent(new Event("sambrix-client-cloud-change"));
 
 function profileRef(businessId,uid){return doc(db,"public_businesses",businessId,"client_accounts",uid)}
 function currentClient(){
-  if(!profile||!auth.currentUser)return null;
+  if(!profile||!auth.currentUser||profileBusiness!==bid()||profileUid!==auth.currentUser.uid||profile.status!=="Activo")return null;
   return {id:profile.clientId||auth.currentUser.uid,name:profile.name||auth.currentUser.displayName||"Cliente",phone:profile.phone||"",points:Number(profile.points||0),visits:Number(profile.visits||0),lastVisit:profile.lastVisit||""};
 }
 async function loadProfile(){
   const businessId=bid(),u=auth.currentUser;
-  profile=null;
+  const gen=++profileGeneration;profile=null;profileBusiness="";profileUid="";
   if(!businessId||!u)return null;
-  const s=await getDoc(profileRef(businessId,u.uid));
-  if(s.exists())profile={id:u.uid,...s.data()};
+  const s=await getDocFromServer(profileRef(businessId,u.uid));
+  if(gen!==profileGeneration||bid()!==businessId||auth.currentUser?.uid!==u.uid)return null;
+  if(s.exists()){profile={id:u.uid,...s.data()};profileBusiness=businessId;profileUid=u.uid;}
   return profile;
 }
 function stopBookings(){if(bookingUnsub){try{bookingUnsub()}catch{}bookingUnsub=null}if(changeUnsub){try{changeUnsub()}catch{}changeUnsub=null}bookings=[];changes=[]}
@@ -37,16 +41,18 @@ function watchBookings(){
   const q=query(collection(db,"public_businesses",businessId,"booking_requests"),where("clientUid","==",u.uid));
   bookingUnsub=onSnapshot(q,s=>{
     bookings=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||String(b.time||"").localeCompare(String(a.time||"")));
-    window.App?.lookupClientAppointments?.();
+    if(bid()!==businessId||auth.currentUser?.uid!==u.uid){stopBookings();return;}
+    window.App?.lookupClientAppointments?.();notify();
   },e=>{console.error("[SAMBRIX Client bookings]",e);window.App?.toast?.("No se pudieron actualizar tus citas")});
   const cq=query(collection(db,"public_businesses",businessId,"booking_change_requests"),where("clientUid","==",u.uid));
   changeUnsub=onSnapshot(cq,s=>{
     changes=s.docs.map(d=>({id:d.id,...d.data()}));
-    window.App?.lookupClientAppointments?.();
+    if(bid()!==businessId||auth.currentUser?.uid!==u.uid){stopBookings();return;}
+    window.App?.lookupClientAppointments?.();notify();
   },e=>console.error("[SAMBRIX Client changes]",e));
 }
 function rerender(){
-  const A=window.App;if(!A)return;
+  notify();const A=window.App;if(!A)return;
   A.ensureClientAuthUI?.();
   if(currentClient()){
     A.renderClientAuthUI?.();
@@ -59,7 +65,7 @@ function rerender(){
 async function register(name,phone,pin){
   const businessId=bid(),p=normPhone(phone);
   if(!businessId)throw new Error("Negocio no identificado");
-  if(!name?.trim()||p.length<7)throw new Error("Escribe nombre y WhatsApp válido");
+  if(name?.trim().length<2||name.trim().length>120||p.length<7||p.length>20||String(phone||"").trim().length>30)throw new Error("Escribe nombre y WhatsApp válido");
   if(!/^\d{8}$/.test(pin))throw new Error("Por seguridad, el PIN nuevo debe tener 8 números");
   const c=await createUserWithEmailAndPassword(auth,authEmail(businessId,p),pin);
   const clientId=`client_${c.user.uid}`;
@@ -86,15 +92,30 @@ async function login(phone,pin){
   await signInWithEmailAndPassword(auth,authEmail(businessId,p),pin);
   const pdoc=await loadProfile();
   if(!pdoc){await signOut(auth);throw new Error("La cuenta no está vinculada a este negocio")}
-  if(pdoc.status==="Bloqueado"){await signOut(auth);throw new Error("Esta cuenta está bloqueada. Contacta al negocio")}
+  if(pdoc.status!=="Activo"){await signOut(auth);throw new Error("Esta cuenta está bloqueada. Contacta al negocio")}
   watchBookings();rerender();return pdoc;
 }
-async function logout(){stopBookings();profile=null;await signOut(auth);rerender()}
+async function logout(){profileGeneration++;stopBookings();profile=null;profileBusiness="";profileUid="";await signOut(auth);rerender()}
+async function verifiedAvailability(businessId){
+  const [business,availability]=await Promise.all([
+    getDocFromServer(doc(db,"public_businesses",businessId)),
+    getDocFromServer(doc(db,"public_businesses",businessId,"public_state","availability"))
+  ]);
+  if(!business.exists()||!["Activo","Prueba"].includes(business.data().status))throw Error("El negocio no está recibiendo reservas.");
+  if(!availability.exists())throw Error("La agenda todavía no está publicada. Contacta al negocio.");
+  const p=business.data(),a=availability.data();
+  if(a.businessId!==businessId)throw Error("No se pudo verificar la agenda.");
+  return {...p,businessHours:a.businessHours,barbers:a.barbers||[],busy:a.busy||[]};
+}
 async function createBooking(data){
   const businessId=bid(),u=auth.currentUser,c=currentClient();
   if(!businessId||!u||!c)throw new Error("Debes iniciar sesión para reservar");
   const serviceId=String(data.serviceId||""),barberId=String(data.barberId||""),date=String(data.date||""),time=String(data.time||"");
   if(!serviceId||!barberId||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||!/^[0-9]{2}:[0-9]{2}$/.test(time))throw new Error("Horario inválido");
+  const live=await verifiedAvailability(businessId);
+  if(!available(live,serviceId,barberId,date,time))throw Error("Ese horario ya no está disponible. Selecciona otro.");
+  if(auth.currentUser?.uid!==u.uid||bid()!==businessId||!currentClient())throw Error("La sesión cambió.");
+  if(String(data.branchId||"")!==String(live.branch?.id||""))throw Error("La sucursal cambió. Actualiza.");
   const slotId=barberId+"_"+date+"_"+time;
   const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
   const requestRef=doc(collection(db,"public_businesses",businessId,"booking_requests"));
@@ -103,7 +124,7 @@ async function createBooking(data){
   const batch=writeBatch(db);
     batch.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId:requestRef.id,barberId,date,time,status:"Pendiente",createdAt:serverTimestamp()});
     batch.set(requestRef,{name:c.name,phone:c.phone,clientUid:u.uid,clientId:c.id,serviceId,barberId,date,time,note:String(data.note||"").slice(0,500),branchId:String(data.branchId||""),status:"Pendiente",slotId,createdAt:serverTimestamp()});
-  await batch.commit();
+  try{await batch.commit();}catch(e){if(e.code==="permission-denied")throw Error("No se pudo reservar: el horario pudo ocuparse o el negocio no acepta reservas. Actualiza la agenda.");throw e;}
   return requestRef;
 }
 async function requestBookingChange(bookingRequestId,type,newDate="",newTime=""){
@@ -119,6 +140,9 @@ async function requestBookingChange(bookingRequestId,type,newDate="",newTime="")
     await setDoc(changeRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),newDate:"",newTime:"",status:"Pendiente",createdAt:serverTimestamp()});
     return changeRef;
   }
+  const live=await verifiedAvailability(businessId);
+  if(!available(live,booking.serviceId,booking.barberId,newDate,newTime))throw Error("El nuevo horario no está disponible.");
+  if(auth.currentUser?.uid!==u.uid||bid()!==businessId||!currentClient())throw Error("La sesión cambió.");
   const slotId=String(booking.barberId||"")+"_"+newDate+"_"+newTime;
   const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
   // A client cannot read an empty or another client's private slot.
@@ -130,12 +154,12 @@ async function requestBookingChange(bookingRequestId,type,newDate="",newTime="")
   return changeRef;
 }
 
-window.SambrixClientCloud={auth,db,register,login,logout,currentUser:()=>auth.currentUser,currentProfile:()=>profile,currentClient,bookings:()=>bookings.slice(),changes:()=>changes.slice(),createBooking,requestBookingChange,isReady:()=>ready};
+window.SambrixClientCloud={auth,db,register,login,logout,verifiedAvailability,currentUser:()=>auth.currentUser,currentProfile:()=>profile,currentClient,bookings:()=>bookings.slice(),changes:()=>changes.slice(),createBooking,requestBookingChange,isReady:()=>ready};
 
 onAuthStateChanged(auth,async u=>{
   ready=true;
-  if(u){try{await loadProfile();if(profile?.status!=="Bloqueado")watchBookings();else await signOut(auth)}catch(e){console.error("[SAMBRIX Client auth]",e)}}
-  else{profile=null;stopBookings()}
+  if(u){try{await loadProfile();if(profile?.status==="Activo")watchBookings();else if(profile)await signOut(auth)}catch(e){console.error("[SAMBRIX Client auth]",e)}}
+  else{profileGeneration++;profile=null;profileBusiness="";profileUid="";stopBookings()}
   rerender();
 });
 
