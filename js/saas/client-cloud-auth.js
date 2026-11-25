@@ -1,8 +1,8 @@
 /* SAMBRIX 1.0 — Cloud client accounts (cross-device) */
 import {firebaseConfig} from "../firebase/firebase-config.js";
 import {initializeApp,getApps} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {getFirestore,doc,getDoc,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,runTransaction} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import {getFirestore,doc,getDoc,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 const appName="sambrix-client-auth";
 const clientApp=getApps().find(a=>a.name===appName)||initializeApp(firebaseConfig,appName);
@@ -62,11 +62,21 @@ async function register(name,phone,pin){
   if(!name?.trim()||p.length<7)throw new Error("Escribe nombre y WhatsApp válido");
   if(!/^\d{8}$/.test(pin))throw new Error("Por seguridad, el PIN nuevo debe tener 8 números");
   const c=await createUserWithEmailAndPassword(auth,authEmail(businessId,p),pin);
-  await updateProfile(c.user,{displayName:name.trim()});
   const clientId=`client_${c.user.uid}`;
-  await setDoc(profileRef(businessId,c.user.uid),{
-    clientId,name:name.trim(),phone:String(phone||"").trim(),phoneNormalized:p,status:"Activo",createdAt:serverTimestamp(),points:0,visits:0
-  });
+  try {
+    await updateProfile(c.user,{displayName:name.trim()});
+    await setDoc(profileRef(businessId,c.user.uid),{
+      clientId,name:name.trim(),phone:String(phone||"").trim(),phoneNormalized:p,status:"Activo",createdAt:serverTimestamp(),points:0,visits:0
+    });
+  } catch(error) {
+    // Do not leave an Auth account without its required business profile.
+    // On an ambiguous network failure, only delete after confirming absence.
+    try {
+      const existing=await getDoc(profileRef(businessId,c.user.uid));
+      if(!existing.exists() && !existing.metadata.fromCache) await deleteUser(c.user);
+    } catch(cleanupError) { console.warn("[SAMBRIX client registration cleanup]",cleanupError); }
+    throw error;
+  }
   await loadProfile();watchBookings();rerender();return profile;
 }
 async function login(phone,pin){
@@ -88,12 +98,12 @@ async function createBooking(data){
   const slotId=barberId+"_"+date+"_"+time;
   const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
   const requestRef=doc(collection(db,"public_businesses",businessId,"booking_requests"));
-  await runTransaction(db,async tx=>{
-    const slot=await tx.get(slotRef);
-    if(slot.exists())throw new Error("Ese horario acaba de ser solicitado. Elige otro.");
-    tx.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId:requestRef.id,barberId,date,time,status:"Pendiente",createdAt:serverTimestamp()});
-    tx.set(requestRef,{name:c.name,phone:c.phone,clientUid:u.uid,clientId:c.id,serviceId,barberId,date,time,note:String(data.note||"").slice(0,500),branchId:String(data.branchId||""),status:"Pendiente",slotId,createdAt:serverTimestamp()});
-  });
+  // A client cannot read an empty or another client's private slot.
+  // The rules grant create only; an existing slot rejects this entire batch.
+  const batch=writeBatch(db);
+    batch.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId:requestRef.id,barberId,date,time,status:"Pendiente",createdAt:serverTimestamp()});
+    batch.set(requestRef,{name:c.name,phone:c.phone,clientUid:u.uid,clientId:c.id,serviceId,barberId,date,time,note:String(data.note||"").slice(0,500),branchId:String(data.branchId||""),status:"Pendiente",slotId,createdAt:serverTimestamp()});
+  await batch.commit();
   return requestRef;
 }
 async function requestBookingChange(bookingRequestId,type,newDate="",newTime=""){
@@ -111,12 +121,12 @@ async function requestBookingChange(bookingRequestId,type,newDate="",newTime="")
   }
   const slotId=String(booking.barberId||"")+"_"+newDate+"_"+newTime;
   const slotRef=doc(db,"public_businesses",businessId,"booking_slots",slotId);
-  await runTransaction(db,async tx=>{
-    const slot=await tx.get(slotRef);
-    if(slot.exists())throw new Error("Ese nuevo horario acaba de ser solicitado. Elige otro.");
-    tx.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,changeRequestId:changeRef.id,barberId:String(booking.barberId||""),date:newDate,time:newTime,status:"CambioPendiente",createdAt:serverTimestamp()});
-    tx.set(changeRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),newDate,newTime,newSlotId:slotId,status:"Pendiente",createdAt:serverTimestamp()});
-  });
+  // A client cannot read an empty or another client's private slot.
+  // The rules grant create only; an existing slot rejects this entire batch.
+  const batch=writeBatch(db);
+    batch.set(slotRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,changeRequestId:changeRef.id,barberId:String(booking.barberId||""),date:newDate,time:newTime,status:"CambioPendiente",createdAt:serverTimestamp()});
+    batch.set(changeRef,{clientUid:u.uid,clientId:c.id,bookingRequestId,type,oldDate:String(booking.date||""),oldTime:String(booking.time||""),newDate,newTime,newSlotId:slotId,status:"Pendiente",createdAt:serverTimestamp()});
+  await batch.commit();
   return changeRef;
 }
 
