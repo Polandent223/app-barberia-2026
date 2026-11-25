@@ -33,3 +33,7 @@
 #backupCenter:has(#cloudBackupRoot)>:not(#cloudBackupRoot){display:none!important}
 #cloudBackupRoot{max-width:100%;min-width:0;display:grid;gap:12px}
 #cloudBackupRoot>input,#cloudBackupRoot>select{width:100%;max-width:560px;box-sizing:border-box}
+
+#billingOperationsCenter:has(#commercialRoot)>:not(#commercialRoot),#saasPlans:has(#commercialPlanRoot)>:not(#commercialPlanRoot){display:none!important}
+#commercialRoot,#commercialPlanRoot{display:grid;gap:12px;min-width:0;max-width:100%}
+#commercialRoot>input,#commercialRoot>select{width:100%;max-width:560px;box-sizing:border-box}
