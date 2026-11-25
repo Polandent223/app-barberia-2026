@@ -3,7 +3,7 @@ import {firebaseConfig} from "../firebase/firebase-config.js";
 import {firebaseApp,firestore,doc,getDoc,setDoc,serverTimestamp} from "../firebase/firebase-core.js";
 import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {getAuth,createUserWithEmailAndPassword,signOut,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {collection,getDocs,deleteDoc,updateDoc,getDocFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {collection,getDocs,deleteDoc,updateDoc,getDocFromServer,runTransaction} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 let platformConfig=null,currentProfile=null;
 
@@ -65,15 +65,20 @@ async function createBusinessMember({businessId,name,email,password,role}){
     });
     memberCreated=true;
 
+    // Creating another user must never reset the commercial state of an existing company.
+    const businessRef=doc(firestore,"businesses",businessId);
     const business=SaaS.db.businesses?.find(b=>b.id===businessId);
-    if(business){
-      await setDoc(doc(firestore,"businesses",businessId),{
+    await runTransaction(firestore,async tx=>{
+      const existing=await tx.get(businessRef);
+      if(existing.exists())return;
+      if(!isSuperAdmin()||!business)throw Error("Primero verifica la empresa en Firebase.");
+      tx.set(businessRef,{
         id:businessId,name:business.name||"Negocio",type:business.type||"",status:business.status||"Activo",
         owner:business.owner||name||email,ownerEmail:business.ownerEmail||email,
         branches:business.branches||[],brand:business.brand||{},planId:business.planId||business.plan||"",
-        updatedAt:serverTimestamp()
-      },{merge:true});
-    }
+        nextPayment:business.nextPayment||"",updatedAt:serverTimestamp()
+      });
+    });
 
     await setDoc(doc(firestore,"platform_users",u.uid),{
       uid:u.uid,email,name:name||email,role:"business_user",businessId,active:true,createdAt:serverTimestamp()
