@@ -26,3 +26,6 @@
 .cloud-field input,.cloud-field textarea,.cloud-field select{width:100%;box-sizing:border-box}
 .cloud-detail{min-width:0}
 @media(max-width:720px){.cloud-support-layout{grid-template-columns:minmax(0,1fr)}.cloud-support-dialog{padding:12px}}
+
+.cloud-access-control{border:1px solid #c9dce7;border-radius:12px;padding:14px;margin:12px 0;display:grid;gap:8px;background:#f5f9fc;color:#142d40}
+.cloud-access-control .btn{justify-self:start}
