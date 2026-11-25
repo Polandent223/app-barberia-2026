@@ -47,6 +47,11 @@ service cloud.firestore {
         role(businessId) in ['owner','admin','manager','reception','barber']);
     }
 
+    function canResolveBooking(businessId) {
+      return isSuperAdmin() || (isBusinessMember(businessId) &&
+        role(businessId) in ['owner','admin','manager','reception']);
+    }
+
     function validBusinessRole(value) {
       return value in ['owner','admin','manager','reception','cashier','barber'];
     }
@@ -304,6 +309,7 @@ service cloud.firestore {
           existsAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)) &&
           getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.auditId == eventId &&
           getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.syncRevision == request.resource.data.revision &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.updatedByUid == request.auth.uid &&
           getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.updatedAt == request.time;
         allow update, delete: if false;
       }
@@ -359,7 +365,11 @@ service cloud.firestore {
             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.clientUid == request.auth.uid &&
             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.status == 'CambioPendiente'));
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if canManageSchedule(businessId);
+        allow update: if canResolveBooking(businessId) &&
+          resource.data.status == 'Pendiente' &&
+          request.resource.data.status in ['Aprobada','Rechazada'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reason','resolvedAt']);
+        allow delete: if false;
       }
 
 
@@ -388,7 +398,11 @@ service cloud.firestore {
              getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.clientUid == request.auth.uid)
           );
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if canManageSchedule(businessId);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+          request.resource.data.status == 'Aprobada' &&
+          resource.data.status in ['Pendiente','CambioPendiente'];
+        allow delete: if canResolveBooking(businessId);
       }
 
       match /booking_requests/{requestId} {
@@ -413,7 +427,11 @@ service cloud.firestore {
           getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.clientUid == request.auth.uid &&
           request.resource.data.status == 'Pendiente';
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if canManageSchedule(businessId);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','appointmentId','reason','resolvedAt','date','time','slotId']) &&
+          ((resource.data.status == 'Pendiente' && request.resource.data.status in ['Aprobada','Rechazada']) ||
+           (resource.data.status == 'Aprobada' && request.resource.data.status in ['Aprobada','Cancelada','Finalizada']));
+        allow delete: if false;
       }
     }
 
