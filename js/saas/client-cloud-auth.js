@@ -4,7 +4,7 @@ import {initializeApp,getApps} from "https://www.gstatic.com/firebasejs/12.16.0/
 import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import {getFirestore,doc,getDoc,getDocFromServer,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
-import {available,dayValid,minute} from "./client-booking-core.js?v=2.0.7";
+import {available,dayValid,minute} from "./client-booking-core.js?v=2.0.8";
 
 const appName="sambrix-client-auth";
 const clientApp=getApps().find(a=>a.name===appName)||initializeApp(firebaseConfig,appName);
