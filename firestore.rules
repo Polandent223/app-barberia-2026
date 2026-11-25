@@ -18,6 +18,7 @@ service cloud.firestore {
 
     function businessActive(businessId) {
       return exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+        get(/databases/$(database)/documents/businesses/$(businessId)).data.get('accessSuspended', false) != true &&
         !(get(/databases/$(database)/documents/businesses/$(businessId)).data.status in ['Suspendido','suspendido','Suspended','suspended','Inactivo','inactivo','Inactive','inactive','Bloqueado','bloqueado','Blocked','blocked']);
     }
 
@@ -94,7 +95,7 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['businessId','action','reason','caseId','actorUid','createdAt']) &&
         request.resource.data.businessId is string &&
         exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)) &&
-        request.resource.data.action in ['CONSULT','CASE_UPDATE','RESET_REQUEST'] &&
+        request.resource.data.action in ['CONSULT','CASE_UPDATE','RESET_REQUEST','ACCESS_SUSPEND','ACCESS_RESTORE'] &&
         request.resource.data.reason is string && request.resource.data.reason.size() >= 3 && request.resource.data.reason.size() <= 500 &&
         request.resource.data.caseId is string && request.resource.data.caseId.size() <= 120 &&
         request.resource.data.actorUid == request.auth.uid &&
