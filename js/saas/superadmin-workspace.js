@@ -44,6 +44,7 @@
     const g=groups.find(x=>x.id===current);
     workspace.replaceChildren();
     workspace.append(element("h2","",g?g.title:"Panel de administración"),element("p","",g?g.description:"Selecciona el área que quieres administrar."));
+    if(g?.id==="analytics") workspace.append(element("p","","Los ingresos mensuales actuales son indicadores calculados; el historial real aún requiere registros verificables."));
     if(g?.id==="companies") workspace.append(element("p","","Gestiona propietarios y empleados con el botón Usuarios de cada empresa."));
     search=element("input","workspace-search"); search.type="search";search.placeholder=g?"Buscar herramienta...":"Buscar área...";search.setAttribute("aria-label",search.placeholder);
     grid=element("div","workspace-grid"); workspace.append(search,grid);
@@ -85,6 +86,9 @@
       for(const id of ["globalBusinessSearch","createBusinessBtn"]){const el=byId(id);if(el)tools.append(el);}
       businessPanel.prepend(tools);
     }
+    // The old chart synthesizes historical revenue from today's MRR. Do not present it as actual history.
+    const legacyTrend=byId("mrrChart")?.closest(".panel");
+    if(legacyTrend){legacyTrend.classList.add("workspace-unverified-mrr");}
     workspace=element("div");workspace.id="sambrixWorkspace";directory.append(workspace);
     bar=element("nav");bar.id="sambrixModuleBar";bar.setAttribute("aria-label","Navegación SuperAdmin");
     const home=element("button","","Inicio");home.type="button";home.dataset.returnHome="";home.addEventListener("click",()=>select("home"));
