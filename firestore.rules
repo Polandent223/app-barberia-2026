@@ -94,7 +94,12 @@ service cloud.firestore {
     match /businesses/{businessId} {
       allow read: if isSuperAdmin() || isBusinessMember(businessId);
       allow create: if isSuperAdmin();
-      allow update: if isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
+      // Subscription and suspension are controlled by the platform, not tenants.
+      allow update: if isSuperAdmin() || (isBusinessMember(businessId) &&
+        role(businessId) in ['owner','admin'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','type','branches','brand','updatedAt'
+        ]));
       allow delete: if isSuperAdmin();
 
       match /members/{uid} {
