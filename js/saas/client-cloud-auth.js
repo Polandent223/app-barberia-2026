@@ -27,12 +27,13 @@ function currentClient(){
 }
 async function loadProfile(){
   const businessId=bid(),u=auth.currentUser;
-  const gen=++profileGeneration;profile=null;profileBusiness="";profileUid="";
+  const gen=++profileGeneration;if(profileBusiness!==businessId||profileUid!==u?.uid){profile=null;profileBusiness="";profileUid="";}
   if(!businessId||!u)return null;
   const s=await getDocFromServer(profileRef(businessId,u.uid));
-  if(gen!==profileGeneration||bid()!==businessId||auth.currentUser?.uid!==u.uid)return null;
-  if(s.exists()){profile={id:u.uid,...s.data()};profileBusiness=businessId;profileUid=u.uid;}
-  return profile;
+  if(bid()!==businessId||auth.currentUser?.uid!==u.uid)return null;
+  const value=s.exists()?{id:u.uid,...s.data()}:null;
+  if(gen===profileGeneration){profile=value;profileBusiness=value?businessId:"";profileUid=value?u.uid:"";}
+  return value;
 }
 function stopBookings(){if(bookingUnsub){try{bookingUnsub()}catch{}bookingUnsub=null}if(changeUnsub){try{changeUnsub()}catch{}changeUnsub=null}bookings=[];changes=[]}
 function watchBookings(){
