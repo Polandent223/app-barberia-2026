@@ -125,6 +125,7 @@ async function openCompany(id,caseId=""){
     }),"primary");
     access.append(accessLabel,node("p","cloud-message","Control independiente de cobros y renovaciones. No elimina usuarios ni historiales."),field("Motivo del cambio",accessReason),changeAccess);
     details.append(access);
+    details.append(button("Respaldos de esta empresa",()=>{if(!still(id,owner,gen))return;companyDialog.d.close();window.SambrixBackup?.open(id); }));
     const checks=node("div","cloud-values");details.append(node("h3","","Diagnóstico de lectura"),checks);
     for(let i=1;i<result.length;i++){const r=result[i];addValue(checks,paths[i][0],r.status==="rejected"?"No verificable":r.value.exists()?"Documento accesible":"Sin documento");}
     addValue(checks,"Usuarios",other[0].status==="fulfilled"?other[0].value.size+" registrados":"No verificable");
