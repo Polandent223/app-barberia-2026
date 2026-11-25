@@ -25,7 +25,9 @@
     // Support is independent of the commercial feature matrix. For every operational
     // page use the existing plan policy, rather than inventing new entitlements.
     if(id==="notificationsHub")return true;
-    return S()?.featureAllowed?.(id,biz())===true;
+    const current=biz();
+    if(!current||String(current.id)!==String(S()?.session?.businessId))return false;
+    return S()?.featureAllowed?.(id,current)===true;
   }
   function visibleGroups(){return GROUPS.map(g=>({...g,pages:g.pages.filter(p=>permitted(p[0]))})).filter(g=>g.pages.length||g.id==="support");}
   function e(tag,text="",cls=""){const x=document.createElement(tag);if(text)x.textContent=text;if(cls)x.className=cls;return x;}
