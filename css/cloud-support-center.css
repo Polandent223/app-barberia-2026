@@ -29,3 +29,7 @@
 
 .cloud-access-control{border:1px solid #c9dce7;border-radius:12px;padding:14px;margin:12px 0;display:grid;gap:8px;background:#f5f9fc;color:#142d40}
 .cloud-access-control .btn{justify-self:start}
+
+#backupCenter:has(#cloudBackupRoot)>:not(#cloudBackupRoot){display:none!important}
+#cloudBackupRoot{max-width:100%;min-width:0;display:grid;gap:12px}
+#cloudBackupRoot>input,#cloudBackupRoot>select{width:100%;max-width:560px;box-sizing:border-box}
