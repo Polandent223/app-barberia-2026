@@ -78,7 +78,7 @@ function editCase(t){
 }
 async function openCompany(id,caseId=""){
   if(!admin()||!id)return;
-  selected=id;const gen=++detailLoad,owner=uid();if(companyDialog.d.open)companyDialog.d.close();
+  selected=id;const gen=++detailLoad,owner=uid();
   const body=companyDialog.body;body.replaceChildren();
   const b=company(id);body.append(node("h3","",b?.name||id),node("p","","Consulta de asistencia: no cambia de empresa ni modifica sus operaciones."));
   const reason=node("input");reason.maxLength=500;reason.placeholder="Ej. Revisar problema de acceso";
@@ -105,17 +105,17 @@ async function openCompany(id,caseId=""){
     message(details,"Este diagnóstico comprueba lectura desde el servidor; no certifica escrituras, respaldos ni sincronización en otros equipos.");
     if(other[0].status==="fulfilled"){
       details.append(node("h3","","Accesos de la empresa"));
-      for(const m of other[0].value.docs){const v=m.data();const row=node("div","cloud-company-row"),copy=node("div");copy.append(node("strong","",v.name||v.email||m.id),node("small","",(v.role||"Sin rol")+" · "+(v.active===false?"Suspendido":"Activo")));row.append(copy);if(v.email){const reset=button("Enviar recuperación",()=>busy(reset,async()=>{if(!still(id,owner,gen)||!confirm("¿Enviar correo de recuperación a "+v.email+"?"))return;await window.FirebaseBridge.sendPasswordReset(v.email);toast("Solicitud de recuperación enviada.");}));row.append(reset);}details.append(row);}
+      for(const m of other[0].value.docs){const v=m.data();const row=node("div","cloud-company-row"),copy=node("div");copy.append(node("strong","",v.name||v.email||m.id),node("small","",(v.role||"Sin rol")+" · "+(v.active===false?"Suspendido":"Activo")));row.append(copy);if(v.email){const reset=button("Enviar recuperación",()=>busy(reset,async()=>{if(!still(id,owner,gen)||!confirm("¿Enviar correo de recuperación a "+v.email+"?"))return;await addDoc(collection(firestore,"support_access_events"),eventData(id,"RESET_REQUEST","Solicitud de recuperación para el usuario "+m.id,caseId));await window.FirebaseBridge.sendPasswordReset(v.email);toast("Solicitud de recuperación enviada.");}));row.append(reset);}details.append(row);}
     }
     if(other[1].status==="fulfilled"){details.append(node("h3","","Historial de solicitudes"));for(const t of other[1].value.slice(0,20))details.append(ticketCard(t));if(!other[1].value.length)message(details,"Sin solicitudes registradas.");}
     if(other[2].status==="fulfilled"){details.append(node("h3","","Historial de asistencia"));const events=other[2].value.docs.map(x=>x.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));for(const e of events.slice(0,15))message(details,(e.action==="CONSULT"?"Consulta":"Actualización")+" · "+e.reason+" · "+safeDate(e.createdAt));}
     const phone=String(data.whatsapp||data.phone||data.branches?.[0]?.whatsapp||"").replace(/\D/g,"");
     if(phone.length>=8&&phone.length<=15){const a=node("a","btn secondary","Contactar por WhatsApp");a.href="https://wa.me/"+phone;a.target="_blank";a.rel="noopener noreferrer";details.append(a);}
-  }),"primary");body.insertBefore(read,details);companyDialog.d.showModal();
+  }),"primary");body.insertBefore(read,details);if(!companyDialog.d.open)companyDialog.d.showModal();
 }
 async function openStaff(){
   const id=businessId(),owner=uid();if(!id||!owner||admin()){toast("Inicia sesión en tu empresa.");return;}
-  if(staffDialog.d.open)staffDialog.d.close();const body=staffDialog.body;body.replaceChildren();
+  const body=staffDialog.body;body.replaceChildren();
   const subject=node("input");subject.maxLength=120;
   const description=node("textarea");description.maxLength=2000;description.rows=4;
   const priority=select(["Normal","Alta","Urgente"],"Normal");
@@ -123,9 +123,9 @@ async function openStaff(){
   const history=node("div","cloud-detail");
   const reload=async()=>{history.replaceChildren();message(history,"Consultando solicitudes…");try{const rows=await listCases(id);if(uid()!==owner||businessId()!==id||!staffDialog.d.open)return;history.replaceChildren();history.append(node("h3","","Solicitudes de tu empresa"));for(const t of rows)history.append(ticketCard(t));if(!rows.length)message(history,"Todavía no hay solicitudes.");}catch(e){if(uid()!==owner||businessId()!==id)return;history.replaceChildren();message(history,"No se pudieron consultar las solicitudes.","error");}};
   const send=button("Enviar a SAMBRIX",()=>busy(send,async()=>{if(uid()!==owner||businessId()!==id||admin())return;const s=subject.value.trim(),d=description.value.trim();if(s.length<3||d.length<10){toast("Completa el asunto y la descripción.");return;}await addDoc(collection(firestore,"support_cases"),{businessId:id,subject:s,description:d,priority:priority.value,status:"Abierto",createdBy:owner,createdAt:serverTimestamp()});if(uid()!==owner||businessId()!==id)return;subject.value="";description.value="";toast("Solicitud recibida en Firebase.");await reload();}),"primary");
-  body.append(send,button("Actualizar solicitudes",reload),history);staffDialog.d.showModal();await reload();
+  body.append(send,button("Actualizar solicitudes",reload),history);if(!staffDialog.d.open)staffDialog.d.showModal();await reload();
 }
-function goSupport(){if(!admin())return;window.App?.go?.("supportCenter");refreshAdmin();}
+function goSupport(){if(!admin())return;window.App?.go?.("supportCenter");}
 function boot(){
   if(root||!$("supportCenter")||!window.SaaS)return;
   staffDialog=dialog("Soporte SAMBRIX");companyDialog=dialog("Ficha de empresa");
