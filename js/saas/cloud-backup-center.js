@@ -74,12 +74,21 @@ async function review(backup){
   details.append(n("p","Las diferencias requieren revisión. No se ofrece restauración automática de módulos relacionados, para evitar perder cambios posteriores.","cloud-message"));
   alertText("Comparación completada.");
 }
+function askPassword(){
+  return new Promise(resolve=>{
+    const d=n("dialog","","cloud-support-dialog"),form=n("form");
+    const title=n("h2","Proteger archivo"),note=n("p","Usa una contraseña exclusiva de al menos 12 caracteres. Guárdala de forma segura; SAMBRIX no puede recuperarla.");
+    const p=n("input"),q=n("input");for(const input of [p,q]){input.type="password";input.autocomplete="new-password";input.minLength=12;input.required=true;}
+    p.placeholder="Contraseña del archivo";q.placeholder="Repetir contraseña";p.setAttribute("aria-label","Contraseña del archivo");q.setAttribute("aria-label","Repetir contraseña");
+    const error=n("p","","cloud-message error"),actions=n("div","","cloud-actions"),cancel=btn("Cancelar",()=>d.close()),ok=btn("Cifrar archivo",()=>{},"primary");ok.type="submit";
+    let result=null;form.addEventListener("submit",e=>{e.preventDefault();if(p.value.length<12||p.value!==q.value){error.textContent="Usa al menos 12 caracteres y verifica que coincidan.";return;}result=p.value;d.close();});
+    actions.append(cancel,ok);form.append(title,note,p,q,error,actions);d.append(form);document.body.append(d);d.addEventListener("close",()=>{p.value="";q.value="";d.remove();resolve(result);},{once:true});d.showModal();
+  });
+}
 async function exportBackup(backup){
   const id=selected,actor=uid(),g=generation,why=requireReason();
   if(!window.crypto?.subtle)throw Error("El cifrado requiere una conexión HTTPS segura.");
-  const password=prompt("Crea una contraseña exclusiva para este archivo (mínimo 12 caracteres). Guárdala en un lugar seguro; SAMBRIX no puede recuperarla.");
-  if(!password)return;if(password.length<12)throw Error("La contraseña debe tener al menos 12 caracteres.");
-  if(prompt("Repite la contraseña del archivo")!==password)throw Error("Las contraseñas no coinciden.");
+  const password=await askPassword();if(!password||!same(actor,id,g))return;
   const data=await loadBackup(id,backup);if(!same(actor,id,g))return;
   const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
   const keyMaterial=await crypto.subtle.importKey("raw",encoder.encode(password),"PBKDF2",false,["deriveKey"]);
