@@ -62,7 +62,9 @@ service cloud.firestore {
 
     // Cloud support: tenants can read only their company's tickets.
     match /support_cases/{caseId} {
-      allow read: if isSuperAdmin() || isBusinessMember(resource.data.businessId);
+      allow read: if isSuperAdmin() ||
+        (isBusinessMember(resource.data.businessId) &&
+          (role(resource.data.businessId) in ['owner','admin','manager'] || resource.data.createdBy == request.auth.uid));
       allow create: if signedIn() &&
         request.resource.data.keys().hasAll(['businessId','subject','description','priority','status','createdBy','createdAt']) &&
         request.resource.data.keys().hasOnly(['businessId','subject','description','priority','status','createdBy','createdAt']) &&
