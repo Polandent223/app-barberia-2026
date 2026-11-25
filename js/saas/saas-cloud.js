@@ -1,4 +1,4 @@
-import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp,writeBatch} from "../firebase/firebase-core.js?v=1.0.18";
+import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js?v=1.0.18";
 
 import {runTransaction,getDocFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {cloneJSON,changedParts,assertUnchanged} from "./sync-conflict.js?v=2.0.3";
@@ -20,6 +20,7 @@ function keepDraft(key,job,error){
   }
 }
 export function tenantSyncBlocked(id){const key=tenantKey(id);return !!pending.get(key)?.failed||storedDraft(key);}
+export function tenantSyncDraftSaved(id){return storedDraft(tenantKey(id));}
 export function tenantSyncBusy(id){return !!pending.get(tenantKey(id))?.count;}
 
 
@@ -82,10 +83,6 @@ export async function downloadBusinessCatalog(){
 function split(state){return {config:{business:state.business||{},users:state.users||[],barbers:state.barbers||[],services:state.services||[],meta:state.meta||{}},crm:{clients:state.clients||[],approvalRequests:state.approvalRequests||[],clientRequests:state.clientRequests||[]},schedule:{appointments:state.appointments||[]},finance:{cash:state.cash||[],sales:state.sales||[]},inventory:{products:state.products||[],stockMoves:state.stockMoves||[],shopOrders:state.shopOrders||[]},staff:{employees:state.employees||[]},attendance:{attendance:state.attendance||[],absences:state.absences||[]},history:{auditLog:state.auditLog||[],clientActivity:state.clientActivity||[]}}}
 function writablePartsForRole(role){role=String(role||"").toLowerCase();if(["superadmin","owner","admin","manager"].includes(role))return null;if(role==="reception")return new Set(["crm","schedule","finance"]);if(role==="cashier")return new Set(["crm","finance","inventory"]);if(role==="barber")return new Set(["schedule","attendance"]);return new Set()}
 
-async function writeTenantParts(businessId,state,allowed=null){
-  assertTenantIdentity(businessId,state);state=normalizeTenantState(businessId,state);const parts=split(state),entries=Object.entries(parts).filter(([name])=>allowed===null||allowed.has(name));if(!entries.length)return false;
-  const batch=writeBatch(firestore);entries.forEach(([name,payload])=>batch.set(doc(firestore,BUSINESSES,businessId,"state",name),{businessId,payload:JSON.parse(JSON.stringify(payload)),updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true}));await batch.commit();return true;
-}
 export async function uploadTenantState(businessId,state){
   assertTenantIdentity(businessId,state);
   const next=normalizeTenantState(businessId,cloneJSON(state)),parts=split(next);
@@ -94,7 +91,7 @@ export async function uploadTenantState(businessId,state){
   await runTransaction(firestore,async tx=>{
     const all=await Promise.all([...refs,legacy].map(ref=>tx.get(ref)));
     if(all.some(s=>s.exists()))throw new Error("La empresa ya tiene datos. No se realizará una inicialización destructiva.");
-    entries.forEach(([name,payload],i)=>tx.set(refs[i],{businessId,payload:cloneJSON(payload),updatedAt:serverTimestamp(),updatedBy:authEmail()}));
+    entries.forEach(([name,payload],i)=>tx.set(refs[i],{businessId,payload:cloneJSON(payload),updatedAt:serverTimestamp(),updatedBy:authEmail(),updatedByUid:authUid(),syncRevision:1}));
   });
   SaaS.saveTenantState?.(businessId,next);return true;
 }
@@ -125,7 +122,7 @@ export function uploadCurrentTenant(){
       const actual={};
       snaps.forEach((s,i)=>{if(s.exists()){if(String(s.data().businessId||id)!==id)throw new Error("Documento con empresa incorrecta.");actual[entries[i].name]=s.data().payload;}});
       assertUnchanged(entries,actual);
-      entries.forEach((e,i)=>tx.set(refs[i],{businessId:id,payload:e.after,updatedAt:serverTimestamp(),updatedBy:email},{mergeFields:["businessId","payload","updatedAt","updatedBy"]}));
+      entries.forEach((e,i)=>tx.set(refs[i],{businessId:id,payload:e.after,updatedAt:serverTimestamp(),updatedBy:email,updatedByUid:uid,syncRevision:Number(snaps[i].data()?.syncRevision||0)+1},{mergeFields:["businessId","payload","updatedAt","updatedBy","updatedByUid","syncRevision"]}));
     });
     return true;
   }).catch(error=>{keepDraft(key,job,error);throw error;}).finally(()=>{
