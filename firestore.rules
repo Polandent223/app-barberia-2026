@@ -259,8 +259,8 @@ service cloud.firestore {
             (stateName != 'inventory' || preservesRecords('stockMoves'));
         }
         function hasWriteAudit() {
-          let auditId = request.resource.data.get('auditId', '');
-          let auditPath = /databases/$(database)/documents/businesses/$(businessId)/state_write_events/$(auditId);
+          let auditId = request.resource.data.get('auditId', 'none');
+          let auditPath = /databases/$(database)/documents/businesses/$(businessId)/state_events/$(auditId);
           return !protectedDomain() || (
             auditId is string && auditId.size() > 0 && auditId.size() <= 120 &&
             !exists(auditPath) && existsAfter(auditPath) &&
@@ -291,7 +291,7 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      match /state_write_events/{eventId} {
+      match /state_events/{eventId} {
         allow read: if canManageBusiness(businessId);
         allow create: if (isBusinessMember(businessId) || isSuperAdmin()) &&
           request.resource.data.keys().hasAll(['businessId','domain','revision','actorUid','createdAt']) &&
