@@ -23,6 +23,7 @@ function keepDraft(key,job,error){
 }
 export function tenantSyncBlocked(id){const key=tenantKey(id);return !!pending.get(key)?.failed||storedDraft(key);}
 export function tenantSyncDraftSaved(id){return storedDraft(tenantKey(id));}
+export function waitForTenantCommit(id){if(tenantSyncBlocked(id))return Promise.reject(Error('Cambios pendientes de revisión.'));return pending.get(tenantKey(id))?.tail||Promise.resolve(true);}
 export function tenantSyncBusy(id){return !!pending.get(tenantKey(id))?.count;}
 export async function awaitTenantWrites(id){
   const key=tenantKey(id);
@@ -124,7 +125,7 @@ export async function uploadTenantState(businessId,state){
     entries.forEach(([name,payload],i)=>{
       const value={businessId,payload:cloneJSON(payload),updatedAt:serverTimestamp(),updatedBy:authEmail(),updatedByUid:authUid(),syncRevision:1};
       if(protectedLists[name]){
-        const event=doc(collection(firestore,BUSINESSES,businessId,"state_write_events"));
+        const event=doc(collection(firestore,BUSINESSES,businessId,"state_events"));
         value.auditId=event.id;
         tx.set(event,{businessId,domain:name,revision:1,actorUid:authUid(),createdAt:serverTimestamp()});
       }
@@ -153,7 +154,7 @@ export function uploadCurrentTenant(){
       entry.logicalAfter=entry.after;
       if(protectedLists[entry.name]){
         entry.after=protectHistory(entry.name,entry.before,entry.after,id);
-        entry.eventRef=doc(collection(firestore,BUSINESSES,id,"state_write_events"));
+        entry.eventRef=doc(collection(firestore,BUSINESSES,id,"state_events"));
       }
     }
   }catch(error){keepDraft(key,job,error);return Promise.reject(error);}
