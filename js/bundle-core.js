@@ -393,6 +393,7 @@ App.printReceipt=function(id){
       if(finalized(a)||(App.db.sales||[]).some(s=>s.appointmentId===id)||(App.db.cash||[]).some(c=>c.appointmentId===id))
         return "Esta cita ya tiene cierre financiero. No se puede eliminar porque romperÃ­a la caja y el historial.";
     }
+    if(type==="sale")return "Los recibos registrados son históricos. Solicita una corrección a soporte.";
     if(type==="sale"){
       const s=(App.db.sales||[]).find(x=>x.id===id);
       const a=s?.appointmentId?(App.db.appointments||[]).find(x=>x.id===s.appointmentId):null;
@@ -468,7 +469,7 @@ App.printReceipt=function(id){
     }
     if(type==="product"){
       App.db.products=App.db.products.filter(x=>x.id!==id);
-      App.db.stockMoves=App.db.stockMoves.filter(x=>x.productId!==id);
+      // Preserve the movement ledger even when a product is removed.
     }
     if(type==="service"){
       App.db.services=App.db.services.filter(x=>x.id!==id);
@@ -752,7 +753,7 @@ App.editAppointment = function(id){
     onSave:()=>{
       if(!App.requireAppointmentAccess())return;
       const barberId=App.readModal("barberId"),date=App.readModal("date"),time=App.readModal("time");
-      const clash=App.db.appointments.some(x=>x.id!==a.id&&x.barberId===barberId&&x.date===date&&x.time===time&&x.status!=="Cancelada");
+      const clash=App.appointmentConflict({...a,barberId,date,time,serviceId:App.readModal("serviceId")},a.id);
       if(clash)return App.toast(`Ese ${App.businessVocabulary?.().staffOne||"profesional"} ya tiene una cita a esa hora`);
       a.clientId=App.readModal("clientId");a.barberId=barberId;a.serviceId=App.readModal("serviceId");
       a.date=date;a.time=time;a.status=App.readModal("status");
@@ -841,6 +842,8 @@ App.saveProduct = function(){
   if(!App.val("productName"))return App.toast("Escribe el producto");
   const id=App.val("productEditId");
   const existing=id?App.db.products.find(x=>x.id===id):null;
+  if(existing&&Number(App.val("productStock"))!==Number(existing.stock))return App.toast("Registra una entrada o salida para cambiar las existencias.");
+  if([App.val("productStock"),App.val("productMin"),App.val("productCost"),App.val("productPrice")].some(v=>!Number.isFinite(Number(v))||Number(v)<0))return App.toast("Los valores de inventario deben ser válidos y no negativos.");
   const data={
     name:App.val("productName"),category:App.val("productCategory"),stock:Number(App.val("productStock")||0),
     min:Number(App.val("productMin")||0),cost:Number(App.val("productCost")||0),price:Number(App.val("productPrice")||0)
@@ -876,7 +879,8 @@ App.stockMove = function(id,type){
     saveText:`Registrar ${type.toLowerCase()}`,
     onSave:()=>{
       if(!App.requireInventoryAccess())return;
-      const q=Number(App.readModal("qty")||0);if(q<=0)return App.toast("Cantidad invÃ¡lida");
+      const q=Number(App.readModal("qty")||0);if(!Number.isFinite(q)||q<=0)return App.toast("Cantidad invÃ¡lida");
+      if(!String(App.readModal("reason")||"").trim())return App.toast("Escribe el motivo del movimiento.");
       if(type==="Salida"&&q>p.stock)return App.toast("Stock insuficiente");
       p.stock+=type==="Entrada"?q:-q;
       App.db.stockMoves.push({id:App.uid(),productId:id,type,qty:q,reason:App.readModal("reason"),date:App.today()});
@@ -905,7 +909,7 @@ App.byId("productPhoto")?.addEventListener("change",e=>{
 /* ---- js/cash.js ---- */
 App.saveCash = function(){
   if(window.SaaS&&!window.SaaS.pageAllowed?.("caja"))return App.toast("Tu rol no tiene permiso para registrar movimientos de caja");
-  const amount=Number(App.val("cashAmount"));if(!App.val("cashConcept")||!amount)return App.toast("Completa concepto y monto");
+  const amount=Number(App.val("cashAmount"));if(!App.val("cashConcept").trim()||!Number.isFinite(amount)||amount<=0)return App.toast("Completa concepto y monto");
   App.db.cash.push({id:App.uid(),type:App.val("cashType"),concept:App.val("cashConcept"),amount,method:App.val("cashMethod"),date:App.val("cashDate")||App.today(),currency:App.db.business.currency,businessId:window.SaaS?.getContext?.()?.businessId||App.db?.meta?.businessId||"",branchId:window.SaaS?.getContext?.()?.branchId||App.db?.meta?.branchId||"",createdAt:new Date().toISOString()});
   App.hide("cashForm");App.byId("cashConcept").value="";App.byId("cashAmount").value="";App.persist();
 };
