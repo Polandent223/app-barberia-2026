@@ -5,7 +5,7 @@
     {id:"companies",icon:"01",title:"Empresas y usuarios",description:"Alta, sucursales, propietarios y accesos",pages:[["branches","Sucursales"],["saasCRM","Directorio comercial"],["activationCenter","Activar empresas"],["saasOnboarding","Alta y configuración"],["onboardingCenter","Seguimiento de altas"],["licenseCenter","Licencias"]]},
     {id:"plans",icon:"02",title:"Planes y suscripciones",description:"Mensualidades, renovaciones y beneficios",pages:[["saasPlans","Planes y mensualidades"],["saasAddons","Servicios adicionales"]]},
     {id:"finance",icon:"03",title:"Finanzas",description:"Cobros, facturas y estados de cuenta",pages:[["billingOperationsCenter","Cobros, suscripciones y comprobantes"]]},
-    {id:"support",icon:"04",title:"Soporte y avisos",description:"Atención a negocios y comunicaciones",pages:[["saasSupport","Entrar como soporte"],["operationsCenter","Casos de soporte"],["supportCenter","Tickets"],["saasAlerts","Alertas"],["notificationsHub","Notificaciones"],["serviceStatusCenter","Estado del servicio"],["helpCenter","Centro de ayuda"],["trainingHandoffCenter","Entrega y capacitación"]]},
+    {id:"support",icon:"04",title:"Soporte y avisos",description:"Atención a negocios y comunicaciones",pages:[["supportCenter","Tickets y soporte empresarial"],["saasAlerts","Alertas"],["notificationsHub","Notificaciones"],["serviceStatusCenter","Estado del servicio"],["helpCenter","Centro de ayuda"],["trainingHandoffCenter","Entrega y capacitación"]]},
     {id:"analytics",icon:"05",title:"Estadísticas",description:"Indicadores y evolución comercial",pages:[["saasMetricsCenter","Métricas SaaS"],["saasAnalytics","Analítica global"]]},
     {id:"security",icon:"06",title:"Seguridad y auditoría",description:"Permisos, accesos y protección de datos",pages:[["saasSecurity","Seguridad"],["authSecurityCenter","Autenticación"],["firebaseRulesCenter","Reglas Firebase"],["privacyCenter","Privacidad"],["secretsSecurityCenter","Credenciales"],["saasAudit","Auditoría"],["validationSecurityCenter","Validación"]]},
     {id:"backup",icon:"07",title:"Respaldos",description:"Copias, restauración y continuidad",pages:[["backupCenter","Copias de seguridad"],["migrationCenter","Migración de datos"],["recoveryCenter","Recuperación"],["continuityCenter","Continuidad"]]},
@@ -31,8 +31,8 @@
   function select(view, navigate=true) {
     if(!isAdmin()) return;
     current=view; byId("superadmin").dataset.moduleView=view;
-    draw();
     if(navigate && !byId("superadmin").classList.contains("active")) window.App?.go?.("superadmin");
+    draw();
     window.scrollTo({top:0,behavior:"auto"});
   }
   function openPage(id) {
@@ -57,7 +57,7 @@
     if(!bar)return;
     const page=document.querySelector("#adminApp .page.active")?.id||"";
     const activeGroup=groups.find(g=>g.pages.some(p=>p[0]===page));
-    if(page && page!=="superadmin" && activeGroup)current=activeGroup.id;
+    if(page!==lastPage && page && page!=="superadmin" && activeGroup)current=activeGroup.id;
     if(page!==lastPage){lastPage=page; if(page==="superadmin"&&byId("superadmin").dataset.moduleView!==current){byId("superadmin").dataset.moduleView=current;draw();}}
     const group=groups.find(g=>g.id===current);
     bar.querySelector("strong").textContent=page==="superadmin"?(group?.title||"SAMBRIX · Inicio"):(activeGroup?.title||"SAMBRIX · Módulo");
@@ -67,7 +67,7 @@
   function boot(){
     const root=byId("superadmin"), directory=byId("superadminModuleDirectory"), main=document.querySelector("#adminApp main");
     if(!root||!directory||!main||!window.SaaS||byId("sambrixWorkspace"))return;
-    const mapped=new Set([...groups.flatMap(g=>g.pages.map(p=>p[0])),"saasSubscriptions","billingCenter","renewalAlertsCenter","discountsCenter","invoicesCenter","accountStatementsCenter"]);
+    const mapped=new Set([...groups.flatMap(g=>g.pages.map(p=>p[0])),"saasSupport","operationsCenter","saasSubscriptions","billingCenter","renewalAlertsCenter","discountsCenter","invoicesCenter","accountStatementsCenter"]);
     // Keep all previous technical tools reachable, without cluttering the dashboard.
     const advanced=groups.find(g=>g.id==="technical");
     for(const btn of directory.querySelectorAll("[data-page-jump]")){
