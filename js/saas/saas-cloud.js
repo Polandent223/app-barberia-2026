@@ -1,7 +1,9 @@
 import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js?v=1.0.18";
 
-import {runTransaction,getDocFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {runTransaction,getDocFromServer,collection} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {cloneJSON,changedParts,assertUnchanged} from "./sync-conflict.js?v=2.0.3";
+
+import {protectHistory,protectedLists} from "./protected-history.js?v=2.0.9";
 
 const PLATFORM="platform";
 const BUSINESSES="businesses";
@@ -60,6 +62,9 @@ function assertTenantIdentity(businessId,state){
   if(!businessId||!state)throw new Error("Faltan datos del negocio para sincronizar.");
   const embedded=String(state?.meta?.businessId||"");
   if(embedded&&embedded!==String(businessId))throw new Error(`Bloqueada sincronización cruzada: ${embedded} -> ${businessId}`);
+  for(const name of ["users","barbers","services","clients","appointments","cash","sales","products","stockMoves","shopOrders","employees","attendance","absences","approvalRequests","clientRequests","auditLog","clientActivity"]){
+    if(Array.isArray(state[name])&&state[name].some(row=>row?.businessId&&String(row.businessId)!==String(businessId)))throw Error("Registro con identidad de otra empresa: "+name);
+  }
   const sessionBusiness=String(SaaS.session?.businessId||"");
   const role=String(SaaS.session?.role||"").toLowerCase();
   if(role!=="superadmin"&&sessionBusiness&&sessionBusiness!==String(businessId))throw new Error("La sesión actual no pertenece al negocio solicitado.");
@@ -127,7 +132,17 @@ export function uploadCurrentTenant(){
   if(!entries.length)return Promise.resolve(false);
   let job=pending.get(key);
   if(!job){job={uid,businessId:id,count:0,tail:Promise.resolve(),failed:false,latest:{}};pending.set(key,job);}
-  for(const entry of entries){job.latest[entry.name]=entry.after;base.raw[entry.name]=entry.after;base.logical[entry.name]=entry.after;}
+  for(const entry of entries)job.latest[entry.name]=entry.after;
+  try{
+    for(const entry of entries){
+      entry.logicalAfter=entry.after;
+      if(protectedLists[entry.name]){
+        entry.after=protectHistory(entry.name,entry.before,entry.after,id);
+        entry.eventRef=doc(collection(firestore,BUSINESSES,id,"state_events"));
+      }
+    }
+  }catch(error){keepDraft(key,job,error);return Promise.reject(error);}
+  for(const entry of entries){base.raw[entry.name]=entry.after;base.logical[entry.name]=entry.logicalAfter;}
   job.count++;
   const valid=()=>sessionCanReadTenant(id,uid)&&SaaS.getContext?.()?.businessId===id;
   const work=job.tail.then(async()=>{
@@ -140,7 +155,15 @@ export function uploadCurrentTenant(){
       const actual={};
       snaps.forEach((s,i)=>{if(s.exists()){if(String(s.data().businessId||id)!==id)throw new Error("Documento con empresa incorrecta.");actual[entries[i].name]=s.data().payload;}});
       assertUnchanged(entries,actual);
-      entries.forEach((e,i)=>tx.set(refs[i],{businessId:id,payload:e.after,updatedAt:serverTimestamp(),updatedBy:email,updatedByUid:uid,syncRevision:Number(snaps[i].data()?.syncRevision||0)+1},{mergeFields:["businessId","payload","updatedAt","updatedBy","updatedByUid","syncRevision"]}));
+      entries.forEach((e,i)=>{
+        const revision=Number(snaps[i].data()?.syncRevision||0)+1;
+        const value={businessId:id,payload:e.after,updatedAt:serverTimestamp(),updatedBy:email,updatedByUid:uid,syncRevision:revision};
+        if(e.eventRef){
+          value.auditId=e.eventRef.id;
+          tx.set(e.eventRef,{businessId:id,domain:e.name,revision,actorUid:uid,createdAt:serverTimestamp()});
+        }
+        tx.set(refs[i],value,{mergeFields:Object.keys(value)});
+      });
     });
     return true;
   }).catch(error=>{keepDraft(key,job,error);throw error;}).finally(()=>{
