@@ -3,13 +3,13 @@ import {firebaseConfig} from "../firebase/firebase-config.js";
 import {firebaseApp,firestore,doc,getDoc,setDoc,serverTimestamp} from "../firebase/firebase-core.js";
 import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {getAuth,createUserWithEmailAndPassword,signOut,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {collection,getDocs,deleteDoc,updateDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {collection,getDocs,deleteDoc,updateDoc,getDocFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 let platformConfig=null,currentProfile=null;
 
 async function loadPlatformConfig(){
   try{
-    const s=await getDoc(doc(firestore,"platform","config"));
+    const s=await getDocFromServer(doc(firestore,"platform","config"));
     platformConfig=s.exists()?s.data():null;
   }catch(error){
     platformConfig=null;
@@ -24,7 +24,7 @@ async function loadPlatformConfig(){
 async function loadCurrentProfile(){
   const u=window.FirebaseBridge?.user;
   if(!u){currentProfile=null;return null}
-  const s=await getDoc(doc(firestore,"platform_users",u.uid));
+  const s=await getDocFromServer(doc(firestore,"platform_users",u.uid));
   currentProfile=s.exists()?s.data():null;
   return currentProfile;
 }
@@ -126,10 +126,11 @@ async function resolveMyBusiness(){
   if(!currentProfile||currentProfile.active===false)return null;
   const businessId=String(currentProfile?.businessId||"");
   if(!businessId)return null;
-  const member=await getDoc(doc(firestore,"businesses",businessId,"members",u.uid));
+  const member=await getDocFromServer(doc(firestore,"businesses",businessId,"members",u.uid));
   if(!member.exists()||member.data()?.active===false)return null;
-  const businessSnap=await getDoc(doc(firestore,"businesses",businessId));
+  const businessSnap=await getDocFromServer(doc(firestore,"businesses",businessId));
   const business=businessSnap.exists()?{id:businessId,...businessSnap.data()}:{id:businessId,name:"Mi negocio",branches:[]};
+  if(business.accessSuspended===true)return null;
   const status=String(business.status||"Activo").toLowerCase();
   if(["suspendido","suspended","inactivo","inactive","bloqueado","blocked"].includes(status))return null;
   return {business,membership:{businessId,...member.data()}};
