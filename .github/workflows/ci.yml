@@ -10,6 +10,7 @@ jobs:
       - run: npm ci || npm install
       - run: npm run check:syntax
       - run: npm run lint
+      - run: npm run regression
       - name: Smoke test
         run: |
           npm i -D puppeteer
