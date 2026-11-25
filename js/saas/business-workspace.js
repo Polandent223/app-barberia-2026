@@ -16,7 +16,7 @@
   const names={owner:"Propietario",admin:"Administrador",manager:"Gerente",reception:"Recepción",cashier:"Cajero",barber:"Profesional"};
   const $=id=>document.getElementById(id),S=()=>window.SaaS;
   const role=()=>String(S()?.session?.role||"");
-  const valid=()=>roles.has(role())&&!!S()?.session?.businessId;
+  const valid=()=>roles.has(role())&&!!S()?.session?.businessId&&!!window.FirebaseBridge?.user?.uid;
   const biz=()=>S()?.currentBusiness?.();
   const token=()=>String(window.FirebaseBridge?.user?.uid||"")+":"+String(S()?.session?.businessId||"")+":"+role();
   const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
@@ -79,6 +79,7 @@
     const receipt=$("homeReceiptBtn");if(receipt)receipt.classList.toggle("business-policy-hidden",!permitted("recibos"));
     $("openClientAppBtn")?.classList.toggle("business-policy-hidden",!permitted("clienteConfig")&&!permitted("reservas"));
     $("openNotificationsBtn")?.classList.toggle("business-policy-hidden",!permitted("notificationsHub"));
+    for(const id of ["languageSelect","currencySelect"])$(id)?.classList.toggle("business-policy-hidden",!S()?.canWriteDomain?.("config"));
   }
   function sync(){
     if(!valid()){
@@ -89,7 +90,8 @@
     app.dataset.businessWorkspace="ready";nav.hidden=false;
     if(session!==t){session=t;lastPage=currentPage;signature=sig;showMenu();restrictOverview();return;}
     if(currentPage!==lastPage){lastPage=currentPage;if(currentPage&&currentPage!=="accessDenied"&&permitted(currentPage)){group=GROUPS.find(g=>g.pages.some(p=>p[0]===currentPage))?.id||"";mode="page";root.hidden=true;app.dataset.businessWorkspaceView="page";}}
-    if(sig!==signature){signature=sig;if(mode==="menu")draw();else if(currentPage&&!permitted(currentPage))showMenu();}
+    if(mode==="page"&&currentPage!=="accessDenied"&&!permitted(currentPage)){showMenu();}
+    if(sig!==signature){signature=sig;if(mode==="menu")draw();}
     restrictOverview();updateNav();
   }
   function schedule(){if(scheduled)return;scheduled=true;queueMicrotask(()=>{scheduled=false;sync();});}
@@ -104,6 +106,11 @@
     headline=e("h1");desc=e("p");search=e("input");search.type="search";search.addEventListener("input",filter);
     grid=e("div","","business-workspace-grid");summary=e("p");summary.setAttribute("role","status");
     root.append(headline,desc,search,grid,summary);main.prepend(nav,root);
+    const originalGo=window.App?.go;
+    if(originalGo)window.App.go=function(id,...args){
+      if(valid()&&id!=="accessDenied"&&!permitted(id)){window.App?.toast?.("Esta herramienta no está disponible para tu cargo o plan.");return;}
+      return originalGo.call(this,id,...args);
+    };
     const observer=new MutationObserver(schedule);observer.observe(document.body,{attributes:true,attributeFilter:["data-sambrix-role"]});observer.observe(app,{attributes:true,attributeFilter:["class"]});for(const p of main.querySelectorAll(".page"))observer.observe(p,{attributes:true,attributeFilter:["class"]});
     // Periodically re-evaluate policy after cloud changes without rebuilding an active search.
     setInterval(schedule,1200);
