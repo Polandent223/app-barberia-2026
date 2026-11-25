@@ -32,3 +32,5 @@ body[data-sambrix-role="superadmin"] #sambrixModuleBar{display:flex;align-items:
 #sambrixBusinessPanel #saasBusinessTable{overflow-x:auto;max-width:100%}
 @media(max-width:850px){#sambrixWorkspace .workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:470px){#sambrixWorkspace .workspace-grid{grid-template-columns:1fr}#sambrixWorkspace .workspace-card{min-height:68px}#sambrixModuleBar{gap:6px}#sambrixModuleBar strong{flex-basis:100%}}
+
+#sambrixWorkspace .workspace-card[hidden]{display:none!important}
