@@ -1,6 +1,6 @@
 /* SAMBRIX 2: cloud support and read-only company assistance. */
 import {firestore,auth,onAuthStateChanged} from "../firebase/firebase-core.js";
-import {collection,doc,query,where,getDocsFromServer,getDocFromServer,addDoc,writeBatch,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {collection,doc,query,where,getDocsFromServer,getDocFromServer,addDoc,writeBatch,runTransaction,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 const $=id=>document.getElementById(id);
 const admin=()=>!!auth.currentUser&&window.SaaS?.session?.role==="superadmin";
 const uid=()=>auth.currentUser?.uid||"";
@@ -100,6 +100,31 @@ async function openCompany(id,caseId=""){
     const meta=result[0];if(meta.status!=="fulfilled"||!meta.value.exists()){message(details,"La empresa no pudo verificarse en Firebase.","error");return;}
     const data=meta.value.data();const values=node("div","cloud-values");
     addValue(values,"Empresa",data.name||id);addValue(values,"Propietario",data.owner||"Sin registro");addValue(values,"Correo",data.ownerEmail||"Sin registro");addValue(values,"Estado",data.status||"Sin registro");addValue(values,"Plan",window.SaaS?.getPlan?.(data.planId)?.name||data.planId||"Sin registro");addValue(values,"Sucursales",Array.isArray(data.branches)?data.branches.length:"Sin verificar");details.append(values);
+    const access=node("div","cloud-access-control");
+    let blocked=data.accessSuspended===true;
+    const accessLabel=node("strong","",blocked?"Acceso administrativo bloqueado":"Acceso administrativo habilitado");
+    const accessReason=node("input");accessReason.maxLength=500;accessReason.placeholder="Motivo del bloqueo o reactivación";
+    const changeAccess=button(blocked?"Restablecer acceso":"Bloquear acceso",()=>busy(changeAccess,async()=>{
+      if(!still(id,owner,gen))return;
+      const why=accessReason.value.trim();
+      if(why.length<3){toast("Escribe un motivo para cambiar el acceso.");return;}
+      const next=!blocked;
+      if(!confirm(next?"¿Bloquear el acceso de esta empresa y sus nuevas reservas? No se eliminarán datos.":"¿Restablecer el bloqueo administrativo? El estado comercial seguirá aplicándose."))return;
+      const ref=doc(firestore,"businesses",id),audit=doc(collection(firestore,"support_access_events"));
+      await runTransaction(firestore,async tx=>{
+        const snap=await tx.get(ref);
+        if(!snap.exists()||(snap.data().accessSuspended===true)!==blocked)throw new Error("El acceso cambió. Vuelve a consultar.");
+        tx.update(ref,{accessSuspended:next,accessChangedAt:serverTimestamp(),accessChangedBy:owner});
+        tx.set(audit,eventData(id,next?"ACCESS_SUSPEND":"ACCESS_RESTORE",why,caseId));
+      });
+      if(!still(id,owner,gen))return;
+      blocked=next;accessReason.value="";
+      accessLabel.textContent=blocked?"Acceso administrativo bloqueado":"Acceso administrativo habilitado";
+      changeAccess.textContent=blocked?"Restablecer acceso":"Bloquear acceso";
+      toast(blocked?"Bloqueo guardado en Firebase.":"Bloqueo administrativo retirado.");
+    }),"primary");
+    access.append(accessLabel,node("p","cloud-message","Control independiente de cobros y renovaciones. No elimina usuarios ni historiales."),field("Motivo del cambio",accessReason),changeAccess);
+    details.append(access);
     const checks=node("div","cloud-values");details.append(node("h3","","Diagnóstico de lectura"),checks);
     for(let i=1;i<result.length;i++){const r=result[i];addValue(checks,paths[i][0],r.status==="rejected"?"No verificable":r.value.exists()?"Documento accesible":"Sin documento");}
     addValue(checks,"Usuarios",other[0].status==="fulfilled"?other[0].value.size+" registrados":"No verificable");
@@ -110,7 +135,7 @@ async function openCompany(id,caseId=""){
       for(const m of other[0].value.docs){const v=m.data();const row=node("div","cloud-company-row"),copy=node("div");copy.append(node("strong","",v.name||v.email||m.id),node("small","",(v.role||"Sin rol")+" · "+(v.active===false?"Suspendido":"Activo")));row.append(copy);if(v.email){const reset=button("Enviar recuperación",()=>busy(reset,async()=>{if(!still(id,owner,gen)||!confirm("¿Enviar correo de recuperación a "+v.email+"?"))return;await addDoc(collection(firestore,"support_access_events"),eventData(id,"RESET_REQUEST","Solicitud de recuperación para el usuario "+m.id,caseId));await window.FirebaseBridge.sendPasswordReset(v.email);toast("Solicitud de recuperación enviada.");}));row.append(reset);}details.append(row);}
     }
     if(other[1].status==="fulfilled"){details.append(node("h3","","Historial de solicitudes"));for(const t of other[1].value.slice(0,20))details.append(ticketCard(t));if(!other[1].value.length)message(details,"Sin solicitudes registradas.");}
-    if(other[2].status==="fulfilled"){details.append(node("h3","","Historial de asistencia"));const events=other[2].value.docs.map(x=>x.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));for(const e of events.slice(0,15))message(details,(e.action==="CONSULT"?"Consulta":e.action==="RESET_REQUEST"?"Recuperación de acceso":"Actualización")+" · "+e.reason+" · "+safeDate(e.createdAt));}
+    if(other[2].status==="fulfilled"){details.append(node("h3","","Historial de asistencia"));const events=other[2].value.docs.map(x=>x.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));for(const e of events.slice(0,15))message(details,(e.action==="CONSULT"?"Consulta":e.action==="RESET_REQUEST"?"Recuperación de acceso":e.action==="ACCESS_SUSPEND"?"Bloqueo de acceso":e.action==="ACCESS_RESTORE"?"Restablecimiento de acceso":"Actualización")+" · "+e.reason+" · "+safeDate(e.createdAt));}
     const phone=String(data.whatsapp||data.phone||data.branches?.[0]?.whatsapp||"").replace(/\D/g,"");
     if(phone.length>=8&&phone.length<=15){const a=node("a","btn secondary","Contactar por WhatsApp");a.href="https://wa.me/"+phone;a.target="_blank";a.rel="noopener noreferrer";details.append(a);}
   }),"primary");body.insertBefore(read,details);if(!companyDialog.d.open)companyDialog.d.showModal();
@@ -147,6 +172,10 @@ function boot(){
   S.createSupportTicket=()=>openStaff();
   S.startSupport=id=>{if(admin())openCompany(id);};
   S.enterSupportMode=id=>{if(admin())openCompany(id);};
+  // Legacy suspension controls were local-only. Route all manual access changes through the audited cloud control.
+  for(const name of ["suspendBusiness","toggleBusinessStatus","suspendBilling","reactivateBilling"]){
+    S[name]=id=>{if(admin()){toast("Usa el control de acceso de la ficha de empresa.");openCompany(id);}};
+  }
   const top=$("openSupportTicketBtn");top?.addEventListener("click",e=>{e.preventDefault();e.stopImmediatePropagation();S.openSupportTicket();},true);
   // Add a company detail action after each existing table refresh.
   const table=$("saasBusinessTable");
