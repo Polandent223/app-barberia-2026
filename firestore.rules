@@ -225,14 +225,17 @@ service cloud.firestore {
         allow create: if isSuperAdmin() ||
           (canManageMembers(businessId) && request.resource.data.uid == uid &&
             request.resource.data.businessId == businessId && validBusinessRole(request.resource.data.role) &&
-            request.resource.data.role != 'owner');
+            request.resource.data.role != 'owner' &&
+            (role(businessId) == 'owner' || request.resource.data.role != 'admin'));
         allow update: if isSuperAdmin() ||
           (canManageMembers(businessId) && uid != request.auth.uid &&
             request.resource.data.uid == resource.data.uid &&
             request.resource.data.businessId == resource.data.businessId &&
-            validBusinessRole(request.resource.data.role) && request.resource.data.role != 'owner' && resource.data.role != 'owner');
+            validBusinessRole(request.resource.data.role) && request.resource.data.role != 'owner' && resource.data.role != 'owner' &&
+            (role(businessId) == 'owner' || (request.resource.data.role != 'admin' && resource.data.role != 'admin')));
         allow delete: if isSuperAdmin() ||
-          (canManageMembers(businessId) && uid != request.auth.uid && resource.data.role != 'owner');
+          (canManageMembers(businessId) && uid != request.auth.uid && resource.data.role != 'owner' &&
+            (role(businessId) == 'owner' || resource.data.role != 'admin'));
       }
 
       match /state/{stateName} {
@@ -243,6 +246,29 @@ service cloud.firestore {
             (role(businessId) == 'cashier' && stateName in ['crm','finance','inventory']) ||
             (role(businessId) == 'barber' && stateName in ['schedule','attendance'])
           ));
+        }
+        function protectedDomain() { return stateName in ['finance','inventory']; }
+        function preservesRecords(field) {
+          let previous = resource.data.payload.get(field, []);
+          let next = request.resource.data.payload.get(field, []);
+          return previous is list && next is list &&
+            next.size() >= previous.size() && next.hasAll(previous);
+        }
+        function preservesLedger() {
+          return (stateName != 'finance' || (preservesRecords('cash') && preservesRecords('sales'))) &&
+            (stateName != 'inventory' || preservesRecords('stockMoves'));
+        }
+        function hasWriteAudit() {
+          let auditId = request.resource.data.get('auditId', '');
+          let auditPath = /databases/$(database)/documents/businesses/$(businessId)/state_write_events/$(auditId);
+          return !protectedDomain() || (
+            auditId is string && auditId.size() > 0 && auditId.size() <= 120 &&
+            !exists(auditPath) && existsAfter(auditPath) &&
+            getAfter(auditPath).data.domain == stateName &&
+            getAfter(auditPath).data.revision == request.resource.data.syncRevision &&
+            getAfter(auditPath).data.actorUid == request.auth.uid &&
+            getAfter(auditPath).data.createdAt == request.time
+          );
         }
         function validStateWrite() {
           return stateName in ['config','crm','schedule','finance','inventory','staff','attendance','history'] &&
@@ -255,20 +281,34 @@ service cloud.firestore {
         allow read: if isSuperAdmin() || isBusinessMember(businessId);
         allow create: if canWriteState() && validStateWrite() &&
           (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
-          request.resource.data.syncRevision == 1;
-        allow update: if canWriteState() && validStateWrite() &&
+          request.resource.data.syncRevision == 1 && hasWriteAudit();
+        allow update: if canWriteState() && validStateWrite() && preservesLedger() && hasWriteAudit() &&
           request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision'
+            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId'
           ]);
         // A whole module cannot be deleted from a browser.
         allow delete: if false;
       }
 
-      match /{document=**} {
-        allow read: if isSuperAdmin() || isBusinessMember(businessId);
-        allow write: if false;
+      match /state_write_events/{eventId} {
+        allow read: if canManageBusiness(businessId);
+        allow create: if (isBusinessMember(businessId) || isSuperAdmin()) &&
+          request.resource.data.keys().hasAll(['businessId','domain','revision','actorUid','createdAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','domain','revision','actorUid','createdAt']) &&
+          request.resource.data.businessId == businessId &&
+          request.resource.data.domain in ['finance','inventory'] &&
+          request.resource.data.revision is int && request.resource.data.revision > 0 &&
+          request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.createdAt == request.time &&
+          existsAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)) &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.auditId == eventId &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.syncRevision == request.resource.data.revision &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.updatedAt == request.time;
+        allow update, delete: if false;
       }
+
+      // Explicit subcollection rules above are authoritative; do not grant blanket reads.
     }
 
     match /public_businesses/{businessId} {
