@@ -161,14 +161,33 @@ service cloud.firestore {
       }
 
       match /state/{stateName} {
-        allow read: if isSuperAdmin() || isBusinessMember(businessId);
-        allow write: if isSuperAdmin() ||
-          (isBusinessMember(businessId) && (
+        function canWriteState() {
+          return isSuperAdmin() || (isBusinessMember(businessId) && (
             role(businessId) in ['owner','admin','manager'] ||
             (role(businessId) == 'reception' && stateName in ['crm','schedule','finance']) ||
             (role(businessId) == 'cashier' && stateName in ['crm','finance','inventory']) ||
             (role(businessId) == 'barber' && stateName in ['schedule','attendance'])
           ));
+        }
+        function validStateWrite() {
+          return stateName in ['config','crm','schedule','finance','inventory','staff','attendance','history'] &&
+            request.resource.data.businessId == businessId &&
+            request.resource.data.payload is map &&
+            request.resource.data.updatedByUid == request.auth.uid &&
+            request.resource.data.updatedAt == request.time &&
+            request.resource.data.syncRevision is int;
+        }
+        allow read: if isSuperAdmin() || isBusinessMember(businessId);
+        allow create: if canWriteState() && validStateWrite() &&
+          (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
+          request.resource.data.syncRevision == 1;
+        allow update: if canWriteState() && validStateWrite() &&
+          request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision'
+          ]);
+        // A whole module cannot be deleted from a browser.
+        allow delete: if false;
       }
 
       match /{document=**} {
