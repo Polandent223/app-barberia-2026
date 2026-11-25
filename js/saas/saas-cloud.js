@@ -24,6 +24,13 @@ function keepDraft(key,job,error){
 export function tenantSyncBlocked(id){const key=tenantKey(id);return !!pending.get(key)?.failed||storedDraft(key);}
 export function tenantSyncDraftSaved(id){return storedDraft(tenantKey(id));}
 export function tenantSyncBusy(id){return !!pending.get(tenantKey(id))?.count;}
+export async function awaitTenantWrites(id){
+  const key=tenantKey(id);
+  while(pending.get(key)?.count)await pending.get(key).tail;
+  if(tenantSyncBlocked(id))throw Error("La empresa tiene cambios pendientes de revisión.");
+  return true;
+}
+
 
 
 function authEmail(){return window.FirebaseBridge?.user?.email||""}
@@ -114,7 +121,15 @@ export async function uploadTenantState(businessId,state){
   await runTransaction(firestore,async tx=>{
     const all=await Promise.all([...refs,legacy].map(ref=>tx.get(ref)));
     if(all.some(s=>s.exists()))throw new Error("La empresa ya tiene datos. No se realizará una inicialización destructiva.");
-    entries.forEach(([name,payload],i)=>tx.set(refs[i],{businessId,payload:cloneJSON(payload),updatedAt:serverTimestamp(),updatedBy:authEmail(),updatedByUid:authUid(),syncRevision:1}));
+    entries.forEach(([name,payload],i)=>{
+      const value={businessId,payload:cloneJSON(payload),updatedAt:serverTimestamp(),updatedBy:authEmail(),updatedByUid:authUid(),syncRevision:1};
+      if(protectedLists[name]){
+        const event=doc(collection(firestore,BUSINESSES,businessId,"state_write_events"));
+        value.auditId=event.id;
+        tx.set(event,{businessId,domain:name,revision:1,actorUid:authUid(),createdAt:serverTimestamp()});
+      }
+      tx.set(refs[i],value);
+    });
   });
   SaaS.saveTenantState?.(businessId,next);return true;
 }
@@ -138,7 +153,7 @@ export function uploadCurrentTenant(){
       entry.logicalAfter=entry.after;
       if(protectedLists[entry.name]){
         entry.after=protectHistory(entry.name,entry.before,entry.after,id);
-        entry.eventRef=doc(collection(firestore,BUSINESSES,id,"state_events"));
+        entry.eventRef=doc(collection(firestore,BUSINESSES,id,"state_write_events"));
       }
     }
   }catch(error){keepDraft(key,job,error);return Promise.reject(error);}
