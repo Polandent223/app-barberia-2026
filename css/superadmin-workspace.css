@@ -34,3 +34,6 @@ body[data-sambrix-role="superadmin"] #sambrixModuleBar{display:flex;align-items:
 @media(max-width:470px){#sambrixWorkspace .workspace-grid{grid-template-columns:1fr}#sambrixWorkspace .workspace-card{min-height:68px}#sambrixModuleBar{gap:6px}#sambrixModuleBar strong{flex-basis:100%}}
 
 #sambrixWorkspace .workspace-card[hidden]{display:none!important}
+
+#superadmin[data-module-view] .workspace-unverified-mrr{display:none!important}
+#superadmin[data-module-view="analytics"] .sambrix-analytics-grid{grid-template-columns:minmax(0,1fr)}
