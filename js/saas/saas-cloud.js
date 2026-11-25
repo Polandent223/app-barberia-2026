@@ -71,7 +71,25 @@ export async function cloudBootstrapPlatform(){
 }
 
 export async function uploadBusinessCatalog(){
-  await setDoc(doc(firestore,PLATFORM,"business_catalog"),{businesses:SaaS.db.businesses,plans:SaaS.db.plans,supportAudit:SaaS.db.supportAudit||[],updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true});
+  const actor=authUid(),email=authEmail(),ref=doc(firestore,PLATFORM,"business_catalog");
+  const local=cloneJSON({businesses:SaaS.db.businesses||[],plans:SaaS.db.plans||[],supportAudit:SaaS.db.supportAudit||[]});
+  await runTransaction(firestore,async tx=>{
+    if(!actor||authUid()!==actor||SaaS.session?.role!=="superadmin")throw Error("La sesión de plataforma cambió.");
+    const snap=await tx.get(ref),previous=snap.exists()?snap.data():{};
+    const prior=new Map((previous.businesses||[]).map(b=>[b.id,b]));
+    const businesses=local.businesses.map(b=>{
+      const server=prior.get(b.id);
+      if(!server?.commercialManaged)return b;
+      // Legacy autosaves must not undo a confirmed commercial transaction.
+      const result={...b};
+      for(const key of ["commercialManaged","planId","nextPayment","status"])if(Object.prototype.hasOwnProperty.call(server,key))result[key]=server[key];
+      return result;
+    });
+    const present=new Set(businesses.map(b=>b.id));
+    for(const b of previous.businesses||[])if(!present.has(b.id))businesses.push(b);
+    const plans=previous.commercialPlansManaged===true?(previous.plans||[]):local.plans;
+    tx.set(ref,{businesses,plans,supportAudit:local.supportAudit,updatedAt:serverTimestamp(),updatedBy:email},{merge:true});
+  });
 }
 
 export async function downloadBusinessCatalog(){
