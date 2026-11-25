@@ -2,6 +2,13 @@
 import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
 import {updateDoc,deleteDoc,collection,addDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
+function publicProfessionals(A){
+  return (A.db.barbers||[]).map(x=>{
+    const employee=(A.db.employees||[]).find(e=>e.barberId===x.id);
+    const schedule=Array.isArray(employee?.schedule)?employee.schedule:Array.isArray(x.schedule)?x.schedule:null;
+    return {id:x.id,name:x.name,schedule:schedule?schedule.map(d=>({day:Number(d.day),active:d.active===true,start:String(d.start||""),end:String(d.end||"")})):null};
+  });
+}
 function publicSnapshot(){
   const A=window.App,b=SaaS.currentBusiness(),br=SaaS.currentBranch();
   const client=A.db.business?.clientApp||{};
@@ -31,8 +38,8 @@ function publicSnapshot(){
       facebook:client.facebook||""
     },
     businessHours:{open:A.db.business?.open||"09:00",close:A.db.business?.close||"19:00"},
-    services:(A.db.services||[]).map(s=>({id:s.id,name:s.name,price:Number(s.price||0),duration:Number(s.duration||40),description:s.description||"",photo:s.photo||""})),
-    barbers:(A.db.barbers||[]).map(x=>({id:x.id,name:x.name,schedule:x.schedule?JSON.parse(JSON.stringify(x.schedule)):null})),
+    services:(A.db.services||[]).map(s=>({id:s.id,name:s.name,price:Number(s.price||0),duration:Number(s.duration||40),description:s.description||""})),
+    barbers:publicProfessionals(A),
     products:(A.db.products||[]).filter(p=>p.stock>0&&p.price>0).map(p=>({id:p.id,name:p.name,price:Number(p.price),available:Number(p.stock)>0,category:p.category||""})),
     busy:(A.db.appointments||[]).filter(a=>!["Cancelada","Rechazada"].includes(a.status)).map(a=>({barberId:a.barberId,date:a.date,time:a.time,serviceId:a.serviceId,status:a.status})),
     updatedAt:Date.now()
@@ -52,7 +59,7 @@ export function availabilitySnapshot(){
   return {
     businessId:b.id,
     businessHours:{open:A.db.business?.open||"09:00",close:A.db.business?.close||"19:00"},
-    barbers:(A.db.barbers||[]).map(x=>({id:x.id,name:x.name,schedule:x.schedule?JSON.parse(JSON.stringify(x.schedule)):null})),
+    barbers:publicProfessionals(A),
     busy:(A.db.appointments||[]).filter(a=>!["Cancelada","Rechazada"].includes(a.status)).map(a=>({id:a.id||"",barberId:a.barberId,date:a.date,time:a.time,serviceId:a.serviceId,status:a.status,duration:Number(a.duration||0)})),
     updatedAt:Date.now()
   };
