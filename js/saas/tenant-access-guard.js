@@ -3,6 +3,7 @@ import {auth,firestore,doc,onSnapshot,onAuthStateChanged} from "../firebase/fire
 let observed="", generation=0, unsub=[], leaving=false;
 function reset(){generation++;observed="";for(const stop of unsub.splice(0)){try{stop();}catch{}}}
 function check(){
+  if(leaving)return;
   const session=window.SaaS?.session,uid=auth.currentUser?.uid||"",id=String(session?.businessId||"");
   const role=String(session?.role||"");
   const key=uid&&id&&["owner","admin","manager","reception","cashier","barber"].includes(role)?uid+":"+id+":"+role:"";
