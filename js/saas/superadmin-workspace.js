@@ -3,8 +3,8 @@
   "use strict";
   const groups = [
     {id:"companies",icon:"01",title:"Empresas y usuarios",description:"Alta, sucursales, propietarios y accesos",pages:[["branches","Sucursales"],["saasCRM","Directorio comercial"],["activationCenter","Activar empresas"],["saasOnboarding","Alta y configuración"],["onboardingCenter","Seguimiento de altas"],["licenseCenter","Licencias"]]},
-    {id:"plans",icon:"02",title:"Planes y suscripciones",description:"Mensualidades, renovaciones y beneficios",pages:[["saasPlans","Planes y precios"],["saasSubscriptions","Suscripciones"],["saasAddons","Servicios adicionales"],["renewalAlertsCenter","Renovaciones"],["discountsCenter","Descuentos"]]},
-    {id:"finance",icon:"03",title:"Finanzas",description:"Cobros, facturas y estados de cuenta",pages:[["billingOperationsCenter","Cobros y pagos"],["billingCenter","Facturación general"],["invoicesCenter","Facturas"],["accountStatementsCenter","Estados de cuenta"]]},
+    {id:"plans",icon:"02",title:"Planes y suscripciones",description:"Mensualidades, renovaciones y beneficios",pages:[["saasPlans","Planes y mensualidades"],["saasAddons","Servicios adicionales"]]},
+    {id:"finance",icon:"03",title:"Finanzas",description:"Cobros, facturas y estados de cuenta",pages:[["billingOperationsCenter","Cobros, suscripciones y comprobantes"]]},
     {id:"support",icon:"04",title:"Soporte y avisos",description:"Atención a negocios y comunicaciones",pages:[["saasSupport","Entrar como soporte"],["operationsCenter","Casos de soporte"],["supportCenter","Tickets"],["saasAlerts","Alertas"],["notificationsHub","Notificaciones"],["serviceStatusCenter","Estado del servicio"],["helpCenter","Centro de ayuda"],["trainingHandoffCenter","Entrega y capacitación"]]},
     {id:"analytics",icon:"05",title:"Estadísticas",description:"Indicadores y evolución comercial",pages:[["saasMetricsCenter","Métricas SaaS"],["saasAnalytics","Analítica global"]]},
     {id:"security",icon:"06",title:"Seguridad y auditoría",description:"Permisos, accesos y protección de datos",pages:[["saasSecurity","Seguridad"],["authSecurityCenter","Autenticación"],["firebaseRulesCenter","Reglas Firebase"],["privacyCenter","Privacidad"],["secretsSecurityCenter","Credenciales"],["saasAudit","Auditoría"],["validationSecurityCenter","Validación"]]},
@@ -67,7 +67,7 @@
   function boot(){
     const root=byId("superadmin"), directory=byId("superadminModuleDirectory"), main=document.querySelector("#adminApp main");
     if(!root||!directory||!main||!window.SaaS||byId("sambrixWorkspace"))return;
-    const mapped=new Set(groups.flatMap(g=>g.pages.map(p=>p[0])));
+    const mapped=new Set([...groups.flatMap(g=>g.pages.map(p=>p[0])),"saasSubscriptions","billingCenter","renewalAlertsCenter","discountsCenter","invoicesCenter","accountStatementsCenter"]);
     // Keep all previous technical tools reachable, without cluttering the dashboard.
     const advanced=groups.find(g=>g.id==="technical");
     for(const btn of directory.querySelectorAll("[data-page-jump]")){
