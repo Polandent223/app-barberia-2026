@@ -95,12 +95,48 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['businessId','action','reason','caseId','actorUid','createdAt']) &&
         request.resource.data.businessId is string &&
         exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)) &&
-        request.resource.data.action in ['CONSULT','CASE_UPDATE','RESET_REQUEST','ACCESS_SUSPEND','ACCESS_RESTORE'] &&
+        request.resource.data.action in ['CONSULT','CASE_UPDATE','RESET_REQUEST','ACCESS_SUSPEND','ACCESS_RESTORE','BACKUP_CREATE','BACKUP_REVIEW','BACKUP_EXPORT'] &&
         request.resource.data.reason is string && request.resource.data.reason.size() >= 3 && request.resource.data.reason.size() <= 500 &&
         request.resource.data.caseId is string && request.resource.data.caseId.size() <= 120 &&
         request.resource.data.actorUid == request.auth.uid &&
         request.resource.data.createdAt == request.time;
       allow update, delete: if false;
+    }
+
+    // Immutable operational backup snapshots. Never expose these to tenant users.
+    match /tenant_backups/{businessId}/snapshots/{backupId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+        exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+        request.resource.data.keys().hasAll(['businessId','name','reason','createdBy','createdAt','domains','schemaVersion']) &&
+        request.resource.data.keys().hasOnly(['businessId','name','reason','createdBy','createdAt','domains','schemaVersion']) &&
+        request.resource.data.businessId == businessId &&
+        request.resource.data.name is string && request.resource.data.name.size() <= 180 &&
+        request.resource.data.reason is string && request.resource.data.reason.size() >= 3 && request.resource.data.reason.size() <= 500 &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.schemaVersion == 1 &&
+        request.resource.data.domains is list && request.resource.data.domains.size() > 0 &&
+        request.resource.data.domains.size() <= 9 &&
+        request.resource.data.domains.hasOnly(['config','crm','schedule','finance','inventory','staff','attendance','history','operations']);
+      allow update, delete: if false;
+      match /parts/{domain} {
+        allow read: if isSuperAdmin();
+        allow create: if isSuperAdmin() &&
+          domain in ['config','crm','schedule','finance','inventory','staff','attendance','history','operations'] &&
+          !exists(/databases/$(database)/documents/tenant_backups/$(businessId)/snapshots/$(backupId)) &&
+          existsAfter(/databases/$(database)/documents/tenant_backups/$(businessId)/snapshots/$(backupId)) &&
+          domain in getAfter(/databases/$(database)/documents/tenant_backups/$(businessId)/snapshots/$(backupId)).data.domains &&
+          request.resource.data.keys().hasAll(['businessId','domain','payload','sourceRevision','sourceUpdatedAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','domain','payload','sourceRevision','sourceUpdatedAt']) &&
+          request.resource.data.businessId == businessId &&
+          request.resource.data.domain == domain &&
+          request.resource.data.payload is map &&
+          request.resource.data.sourceRevision is int &&
+          request.resource.data.sourceRevision >= 0 &&
+          (request.resource.data.sourceUpdatedAt == null || request.resource.data.sourceUpdatedAt is timestamp);
+        allow update, delete: if false;
+      }
     }
 
     match /platform/{documentId} {
