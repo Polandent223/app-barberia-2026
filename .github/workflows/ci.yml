@@ -15,6 +15,7 @@ jobs:
         run: |
           npm i -D puppeteer
           npm run smoke
+          node scripts/client-browser-test.mjs
 
   firestore-rules:
     runs-on: ubuntu-latest
