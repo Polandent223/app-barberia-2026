@@ -10,6 +10,7 @@ export function available(data,serviceId,barberId,date,time,now=clock(data?.time
   const s=data?.services?.find(x=>x.id===serviceId),b=data?.barbers?.find(x=>x.id===barberId);
   const duration=durationOf(s),start=minute(time),open=minute(data?.businessHours?.open),close=minute(data?.businessHours?.close);
   if(!s||!b||!duration||!dayValid(date)||!Number.isFinite(start)||!Number.isFinite(open)||!Number.isFinite(close)||date<now.date||date===now.date&&start<=minute(now.time)||start<open||start+duration>close)return false;
+  if(Array.isArray(b.schedule)&&b.schedule.length){const weekday=new Date(date+"T00:00:00Z").getUTCDay(),work=b.schedule.find(x=>Number(x.day)===weekday);if(!work||work.active!==true||!Number.isFinite(minute(work.start))||!Number.isFinite(minute(work.end))||start<minute(work.start)||start+duration>minute(work.end))return false;}
   return !(data.busy||[]).some(a=>{
     if(a.barberId!==barberId||a.date!==date||["Cancelada","Rechazada"].includes(a.status))return false;
     const at=minute(a.time),len=durationOf(a)||durationOf(data.services.find(x=>x.id===a.serviceId))||720;
