@@ -1,5 +1,5 @@
 SaaS.deploymentConfig=SaaS.deploymentConfig||{
-  projectId:"app-barberia-2026",
+  projectId:"sambrix-demo",
   publicDir:".",
   spaRewrite:true
 };
