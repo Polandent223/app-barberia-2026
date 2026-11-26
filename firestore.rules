@@ -324,7 +324,7 @@ service cloud.firestore {
           let p = /databases/$(database)/documents/businesses/$(businessId)/shop_operations/$(id);
           let d = getAfter(p).data;
           return canSellProducts(businessId) && id != resource.data.get('shopOperationId','none') &&
-            !exists(p) && existsAfter(p) && d.kind == 'SALE' && d.actorUid == request.auth.uid &&
+            !exists(p) && existsAfter(p) && d.kind in ['SALE','RETURN'] && d.actorUid == request.auth.uid &&
             d.createdAt == request.time && request.resource.data.syncRevision ==
               (stateName == 'inventory' ? d.inventoryRevision : d.financeRevision);
         }
@@ -460,16 +460,19 @@ service cloud.firestore {
           return l.index is int && l.index >= 0 && l.index < b.products.size() &&
             l.productId == p.id && n.id == p.id && p.get('businessId',businessId) == businessId &&
             p.get('archived',false) == false && p.stock is int && n.stock is int &&
-            l.qty is int && l.qty > 0 && l.qty <= p.stock && n.stock == p.stock - l.qty &&
+            l.qty is int && l.qty > 0 && n.stock >= 0 && n.stock <= 9999999 &&
             n.diff(p).affectedKeys().hasOnly(['stock']) &&
-            l.unitCents is int && l.unitCents > 0 && p.price == l.unitCents / 100.0 &&
-            l.lineCents == l.unitCents * l.qty &&
-            item.refId == p.id && item.name == p.name && item.type == 'Producto' &&
-            item.qty == l.qty && item.unit == p.price && item.total == l.lineCents / 100.0 &&
+            l.unitCents is int && l.unitCents > 0 && l.lineCents == l.unitCents * l.qty &&
+            ((d.kind == 'SALE' && l.qty <= p.stock && n.stock == p.stock - l.qty &&
+              p.price == l.unitCents / 100.0 && item.name == p.name) ||
+             (d.kind == 'RETURN' && n.stock == p.stock + l.qty)) &&
+            item.refId == p.id && item.type == 'Producto' &&
+            item.qty == l.qty && item.unit == l.unitCents / 100.0 && item.total == l.lineCents / 100.0 &&
             m.id == ('shopstock_' + operationId + '_' + string(i)) && m.operationId == operationId &&
             m.businessId == businessId && m.productId == p.id && m.productName == p.name &&
-            m.type == 'Salida' && m.qty == l.qty && m.stockBefore == p.stock && m.stockAfter == n.stock &&
-            m.createdBy == request.auth.uid && m.date == d.date && m.reason == 'Venta de productos' &&
+            m.type == (d.kind == 'SALE' ? 'Salida' : 'Entrada') && m.qty == l.qty && m.stockBefore == p.stock && m.stockAfter == n.stock &&
+            m.createdBy == request.auth.uid && m.date == d.date &&
+            m.reason == (d.kind == 'SALE' ? 'Venta de productos' : 'Devolución de productos') &&
             m.branchId == p.get('branchId','');
         }
         function oldProducts(d,b) {
@@ -510,6 +513,17 @@ service cloud.firestore {
             b.shopOrders.removeAll([o]).size() == b.shopOrders.size() - 1 &&
             b.shopOrders.removeAll([o]) == a.shopOrders.removeAll([n]);
         }
+        function validReturnedOrder(d,b,a) {
+          let o = b.shopOrders[d.orderIndex];
+          let n = a.shopOrders[d.orderIndex];
+          return o.id == d.orderId && o.get('businessId',businessId) == businessId &&
+            o.status == 'Pagado/Entregado' && o.saleId == d.sale.id &&
+            n.status == 'Devuelto' && n.refundedAt == (d.date + 'T' + d.time) &&
+            n.diff(o).affectedKeys().hasOnly(['status','refundedAt']) &&
+            a.shopOrders.size() == b.shopOrders.size() &&
+            b.shopOrders.removeAll([o]).size() == b.shopOrders.size() - 1 &&
+            b.shopOrders.removeAll([o]) == a.shopOrders.removeAll([n]);
+        }
         function validInventory(d) {
           let b = get(st('inventory')).data.payload;
           let a = getAfter(st('inventory')).data.payload;
@@ -524,7 +538,7 @@ service cloud.firestore {
             b.products.removeAll(old) == a.products.removeAll(next) &&
             a.stockMoves == b.stockMoves.concat(lineMoves(d)) &&
             ((d.orderId == '' && d.orderIndex == -1 && a.shopOrders == b.shopOrders) ||
-             (d.orderId != '' && d.orderIndex >= 0 && d.orderIndex < b.shopOrders.size() && validOrder(d,b,a)));
+             (d.orderId != '' && d.orderIndex >= 0 && d.orderIndex < b.shopOrders.size() && (d.kind == 'SALE' ? validOrder(d,b,a) : validReturnedOrder(d,b,a))));
         }
         function validFinance(d) {
           let b = get(st('finance')).data.payload;
@@ -544,6 +558,30 @@ service cloud.firestore {
             a.diff(b).affectedKeys().hasOnly(['sales','cash']) &&
             a.sales == b.sales.concat([s]) && a.cash == b.cash.concat([c]);
         }
+        function originalLine(d,o,i) {
+          let x = d.lines[i];
+          let y = o.lines[i];
+          return x.productId == y.productId && x.qty == y.qty && x.unitCents == y.unitCents &&
+            x.lineCents == y.lineCents && x.item == y.item;
+        }
+        function validReturnFinance(d) {
+          let o = get(/databases/$(database)/documents/businesses/$(businessId)/shop_operations/$(d.originalOperationId)).data;
+          let cp = /databases/$(database)/documents/businesses/$(businessId)/financial_corrections/$(d.correctionId);
+          let correction = getAfter(cp).data;
+          let b = get(st('finance')).data.payload;
+          let a = getAfter(st('finance')).data.payload;
+          return canCorrectFinance(businessId) && o.kind == 'SALE' && o.businessId == businessId &&
+            o.sale == d.sale && o.orderId == d.orderId && o.totalCents == d.totalCents &&
+            o.lines.size() == d.lines.size() && originalLine(d,o,0) &&
+            (d.lines.size() < 2 || originalLine(d,o,1)) && (d.lines.size() < 3 || originalLine(d,o,2)) &&
+            d.method == o.method && !exists(cp) && existsAfter(cp) &&
+            correction.kind == 'VOID' && correction.sourceId == o.cash.id &&
+            correction.previousCents == 0 && correction.amountCents == o.totalCents &&
+            correction.cashEntry == d.cash && correction.actorUid == request.auth.uid &&
+            correction.createdAt == request.time &&
+            a.diff(b).affectedKeys().hasOnly(['cash']) &&
+            a.sales == b.sales && a.cash == b.cash.concat([d.cash]);
+        }
         function linkedStates(d) {
           let i = getAfter(st('inventory')).data;
           let f = getAfter(st('finance')).data;
@@ -554,15 +592,17 @@ service cloud.firestore {
         }
         allow read: if canSellProducts(businessId);
         allow create: if canSellProducts(businessId) &&
-          request.resource.data.keys().hasOnly(['businessId','actorUid','kind','orderId','orderIndex','lines','totalCents','sale','cash','date','time','method','inventoryRevision','financeRevision','createdAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','actorUid','kind','orderId','orderIndex','lines','totalCents','sale','cash','date','time','method','inventoryRevision','financeRevision','createdAt','originalOperationId','correctionId']) &&
           request.resource.data.businessId == businessId && request.resource.data.actorUid == request.auth.uid &&
-          request.resource.data.kind == 'SALE' && request.resource.data.createdAt == request.time &&
+          request.resource.data.kind in ['SALE','RETURN'] && request.resource.data.createdAt == request.time &&
           request.resource.data.orderId is string && request.resource.data.orderIndex is int &&
           request.resource.data.lines is list && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 3 &&
           request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
           request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
           request.resource.data.method in ['Efectivo','Pago móvil','Transferencia','Divisa','Tarjeta','Otro'] &&
-          linkedStates(request.resource.data) && validInventory(request.resource.data) && validFinance(request.resource.data);
+          linkedStates(request.resource.data) && validInventory(request.resource.data) &&
+          ((request.resource.data.kind == 'SALE' && !request.resource.data.keys().hasAny(['originalOperationId','correctionId']) && validFinance(request.resource.data)) ||
+           (request.resource.data.kind == 'RETURN' && validReturnFinance(request.resource.data)));
         allow update, delete: if false;
       }
 
