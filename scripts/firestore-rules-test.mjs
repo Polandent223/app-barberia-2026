@@ -253,3 +253,20 @@ test("point of sale: three product lines, correct receipt and cash, stock concur
  const b=writeBatch(owner);b.update(fin,{payload:{...f,cash:[...f.cash,{id:"forged",type:"Ingreso",amount:1,shopOperationId:"fake"}]},syncRevision:rev,updatedByUid:"qa-owner",updatedAt:serverTimestamp(),auditId:"forged-pos"});
  b.set(path(owner,"businesses",id,"state_events","forged-pos"),{businessId:id,domain:"finance",revision:rev,actorUid:"qa-owner",createdAt:serverTimestamp()});await assertFails(b.commit());
 });
+
+test("cashier can collect an existing order once, without authority to change stock directly",async()=>{
+ const id="qa-lifecycle",owner=actor("qa-owner"),cashier=actor("qa-shop-cashier");
+ await assertSucceeds(setDoc(member(owner,id,"qa-shop-cashier"),{uid:"qa-shop-cashier",businessId:id,role:"cashier",active:true}));
+ await assertSucceeds(setDoc(path(owner,"platform_users","qa-shop-cashier"),{uid:"qa-shop-cashier",businessId:id,role:"business_user",active:true}));
+ // A legacy order already stored on the server; online ordering is not yet enabled.
+ await env.withSecurityRulesDisabled(async ctx=>{
+  const ref=state(ctx.firestore(),id,"inventory"),snap=await getDoc(ref);
+  await updateDoc(ref,{payload:{...snap.data().payload,shopOrders:[{id:"existing-order",phone:"5551234567",status:"Reservado",saleId:"",total:6.5,currency:"$",items:[{id:"sale-b",name:"sale-b",price:3.25,qty:2}]}]}});
+ });
+ const opts={db:cashier,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-shop-cashier",method:"Efectivo",date:"2026-11-26",time:"11:00",orderId:"existing-order"};
+ await assert.rejects(applyInventoryOperation({...opts,kind:"EXIT",productId:"sale-b",quantity:1,reason:"No autorizado"}));
+ const sale=await checkoutShop(opts);assert.equal(sale.total,6.5);
+ await assert.rejects(checkoutShop(opts));
+ const i=(await getDoc(state(owner,id,"inventory"))).data().payload;
+ assert.equal(i.shopOrders[0].status,"Pagado/Entregado");assert.equal(i.shopOrders[0].saleId,sale.id);assert.equal(i.products.find(x=>x.id==="sale-b").stock,7);
+});
