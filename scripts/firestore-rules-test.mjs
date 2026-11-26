@@ -5,7 +5,8 @@ import {doc,collection,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,runTransacti
 import assert from "node:assert/strict";
 import {closeAppointment} from "../js/saas/financial-close-core.js";
 import {applyInventoryOperation} from "../js/saas/inventory-core.js";
-import {checkoutShop,returnShopSale} from "../js/saas/shop-core.js";
+import {createShopService} from "../functions/shop-service.js";
+import {randomUUID} from "node:crypto";
 import {applyCorrection} from "../js/saas/financial-corrections-core.js";
 import {renewalDate,paymentAmount} from "../js/saas/commercial-core.js";
 let env;
@@ -228,70 +229,74 @@ test("inventory: create at zero, authorized entry, concurrent exits, archive, an
   await assertFails(deleteDoc(path(owner,"businesses",id,"inventory_operations",archived.id)));
 });
 
-test("point of sale: three product lines, correct receipt and cash, stock concurrency, no direct forged checkout",async()=>{
- const id="qa-lifecycle",owner=actor("qa-owner"),reception=actor("qa-reception"),inv=state(owner,id,"inventory"),fin=state(owner,id,"finance");
- const io={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",reason:"Productos de prueba",date:"2026-11-26"};
+
+const shopId="qa-lifecycle";
+function serverShop(kind,uid,data){
+ return env.withSecurityRulesDisabled(async context=>{
+  const service=createShopService({db:context.firestore(),sdk:{doc,collection,runTransaction,serverTimestamp},now:()=>new Date("2026-11-26T15:00:00Z")});
+  return service(kind,uid?{uid}:null,{businessId:shopId,requestId:randomUUID(),...data});
+ });
+}
+test("server POS: permission, feature flag, prices, three lines, idempotency and stock race",async()=>{
+ const owner=actor("qa-owner"),root=actor("root"),reception=actor("qa-reception"),inv=state(owner,shopId,"inventory"),fin=state(owner,shopId,"finance");
+ const io={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:shopId,actor:"qa-owner",reason:"Productos de prueba",date:"2026-11-26"};
  for(const [productId,price] of [["sale-a",4],["sale-b",3.25],["sale-c",2.5]]){
   await applyInventoryOperation({...io,productId,kind:"CREATE",values:{name:productId,category:"Insumo",min:1,cost:1,price}});
   await applyInventoryOperation({...io,productId,kind:"ENTRY",quantity:10});
  }
- const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",method:"Efectivo",date:"2026-11-26",time:"10:30"};
- const items=[{id:"sale-a",qty:2,price:4},{id:"sale-b",qty:1,price:3.25},{id:"sale-c",qty:2,price:2.5}];
- await assert.rejects(checkoutShop({...opts,items:[{id:"sale-a",qty:1,price:1}]}));
- await assert.rejects(checkoutShop({...opts,db:reception,actor:"qa-reception",items}));
- const sale=await checkoutShop({...opts,items});
- assert.equal(sale.total,16.25);
+ const requestId=randomUUID(),items=[{id:"sale-a",qty:2,price:4},{id:"sale-b",qty:1,price:3.25},{id:"sale-c",qty:2,price:2.5}],args={requestId,items,method:"Efectivo"};
+ await assert.rejects(serverShop("SALE",null,args));
+ await assert.rejects(serverShop("SALE","qa-owner",args));
+ await assertSucceeds(updateDoc(path(root,"platform","config"),{shopServerEnabled:true}));
+ await assert.rejects(serverShop("SALE","qa-owner",args)); // unsupported QA plan
+ await assertSucceeds(updateDoc(path(root,"businesses",shopId),{planId:"plan-pro"}));
+ await assert.rejects(serverShop("SALE","qa-reception",args));
+ await assert.rejects(serverShop("SALE","other",args));
+ await assert.rejects(serverShop("SALE","qa-owner",{...args,items:[{id:"sale-a",qty:1,price:1}]}));
+ const sale=await serverShop("SALE","qa-owner",args);
+ assert.equal(sale.total,16.25);assert.deepEqual(await serverShop("SALE","qa-owner",args),sale);
+ await assert.rejects(serverShop("SALE","qa-owner",{...args,items:[{id:"sale-a",qty:1,price:4}]}));
  let f=(await getDoc(fin)).data().payload,i=(await getDoc(inv)).data().payload;
  assert.equal(f.cash.find(x=>x.saleId===sale.id).amount,16.25);
  assert.deepEqual(i.products.filter(x=>x.id.startsWith("sale-")).map(x=>x.stock),[8,9,8]);
- const results=await Promise.allSettled([checkoutShop({...opts,items:[{id:"sale-a",qty:7}]}),checkoutShop({...opts,items:[{id:"sale-a",qty:7}]})]);
- assert.equal(results.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(results.map(x=>x.status==="rejected"?String(x.reason):x.status)));
+ const race=()=>serverShop("SALE","qa-owner",{method:"Efectivo",items:[{id:"sale-a",qty:7,price:4}]});
+ const results=await Promise.allSettled([race(),race()]);assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
  i=(await getDoc(inv)).data().payload;assert.equal(i.products.find(x=>x.id==="sale-a").stock,1);
- const op=path(owner,"businesses",id,"shop_operations",sale.shopOperationId);
+ const op=path(owner,"businesses",shopId,"shop_operations",sale.shopOperationId);
  await assertFails(deleteDoc(op));await assertFails(updateDoc(op,{totalCents:1}));
- const fs=await getDoc(fin);f=fs.data().payload;const rev=fs.data().syncRevision+1;
- const b=writeBatch(owner);b.update(fin,{payload:{...f,cash:[...f.cash,{id:"forged",type:"Ingreso",amount:1,shopOperationId:"fake"}]},syncRevision:rev,updatedByUid:"qa-owner",updatedAt:serverTimestamp(),auditId:"forged-pos"});
- b.set(path(owner,"businesses",id,"state_events","forged-pos"),{businessId:id,domain:"finance",revision:rev,actorUid:"qa-owner",createdAt:serverTimestamp()});await assertFails(b.commit());
+ const fs=await getDoc(fin),rev=fs.data().syncRevision+1,b=writeBatch(owner);
+ b.update(fin,{payload:{...fs.data().payload,cash:[...fs.data().payload.cash,{id:"forged",type:"Ingreso",amount:1,shopOperationId:"fake"}]},syncRevision:rev,updatedByUid:"qa-owner",updatedAt:serverTimestamp(),auditId:"forged-pos"});
+ b.set(path(owner,"businesses",shopId,"state_events","forged-pos"),{businessId:shopId,domain:"finance",revision:rev,actorUid:"qa-owner",createdAt:serverTimestamp()});await assertFails(b.commit());
+ await assertSucceeds(updateDoc(path(root,"businesses",shopId),{accessSuspended:true}));
+ await assert.rejects(serverShop("SALE","qa-owner",{method:"Efectivo",items:[{id:"sale-b",qty:1,price:3.25}]}));
+ await assertSucceeds(updateDoc(path(root,"businesses",shopId),{accessSuspended:false}));
 });
-
-test("cashier can collect an existing order once, without authority to change stock directly",async()=>{
- const id="qa-lifecycle",owner=actor("qa-owner"),cashier=actor("qa-shop-cashier");
- await assertSucceeds(setDoc(member(owner,id,"qa-shop-cashier"),{uid:"qa-shop-cashier",businessId:id,role:"cashier",active:true}));
- await assertSucceeds(setDoc(path(owner,"platform_users","qa-shop-cashier"),{uid:"qa-shop-cashier",businessId:id,role:"business_user",active:true}));
- // A legacy order already stored on the server; online ordering is not yet enabled.
- await env.withSecurityRulesDisabled(async ctx=>{
-  const ref=state(ctx.firestore(),id,"inventory"),snap=await getDoc(ref);
-  await updateDoc(ref,{payload:{...snap.data().payload,shopOrders:[{id:"existing-order",phone:"5551234567",status:"Reservado",saleId:"",total:6.5,currency:"$",items:[{id:"sale-b",name:"sale-b",price:3.25,qty:2}]}]}});
- });
- const opts={db:cashier,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-shop-cashier",method:"Efectivo",date:"2026-11-26",time:"11:00",orderId:"existing-order"};
- await assert.rejects(applyInventoryOperation({...opts,kind:"EXIT",productId:"sale-b",quantity:1,reason:"No autorizado"}));
- const sale=await checkoutShop(opts);assert.equal(sale.total,6.5);
- await assert.rejects(checkoutShop(opts));
- const i=(await getDoc(state(owner,id,"inventory"))).data().payload;
- assert.equal(i.shopOrders[0].status,"Pagado/Entregado");assert.equal(i.shopOrders[0].saleId,sale.id);assert.equal(i.products.find(x=>x.id==="sale-b").stock,7);
+test("server POS: cashier collects existing order once but cannot manually change stock or refund",async()=>{
+ const owner=actor("qa-owner"),cashier=actor("qa-shop-cashier");
+ await assertSucceeds(setDoc(member(owner,shopId,"qa-shop-cashier"),{uid:"qa-shop-cashier",businessId:shopId,role:"cashier",active:true}));
+ await assertSucceeds(setDoc(path(owner,"platform_users","qa-shop-cashier"),{uid:"qa-shop-cashier",businessId:shopId,role:"business_user",active:true}));
+ await env.withSecurityRulesDisabled(async ctx=>{const ref=state(ctx.firestore(),shopId,"inventory"),s=await getDoc(ref);await updateDoc(ref,{payload:{...s.data().payload,shopOrders:[{id:"existing-order",phone:"5551234567",status:"Reservado",saleId:"",total:6.5,currency:"$",items:[{id:"sale-b",name:"sale-b",price:3.25,qty:2}]}]}});});
+ await assert.rejects(applyInventoryOperation({db:cashier,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:shopId,actor:"qa-shop-cashier",kind:"EXIT",productId:"sale-b",quantity:1,reason:"No autorizado",date:"2026-11-26"}));
+ const sale=await serverShop("SALE","qa-shop-cashier",{method:"Efectivo",orderId:"existing-order"});
+ assert.equal(sale.total,6.5);await assert.rejects(serverShop("SALE","qa-shop-cashier",{method:"Efectivo",orderId:"existing-order"}));
+ await assert.rejects(serverShop("RETURN","qa-shop-cashier",{originalOperationId:sale.shopOperationId,reason:"Mercancía devuelta"}));
+ const i=(await getDoc(state(owner,shopId,"inventory"))).data().payload;
+ assert.equal(i.shopOrders[0].status,"Pagado/Entregado");assert.equal(i.products.find(x=>x.id==="sale-b").stock,7);
 });
-
-test("full physical return restores products and records one financial reversal",async()=>{
- const id="qa-lifecycle",owner=actor("qa-owner"),cashier=actor("qa-shop-cashier"),fin=state(owner,id,"finance"),inv=state(owner,id,"inventory");
- const before=(await getDoc(inv)).data().payload,finance=(await getDoc(fin)).data().payload;
- const sale=finance.sales.find(x=>x.orderId==="existing-order"),originalOperationId=sale.shopOperationId;
- const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",originalOperationId,reason:"Mercancía recibida y dinero devuelto",date:"2026-11-26",time:"12:00"};
- await assert.rejects(returnShopSale({...opts,db:cashier,actor:"qa-shop-cashier"}));
- const returned=await returnShopSale(opts);
- await assert.rejects(returnShopSale(opts));
- const after=(await getDoc(inv)).data().payload,f=(await getDoc(fin)).data().payload;
+test("server POS: full returns restore all items exactly once and keep original receipt",async()=>{
+ const owner=actor("qa-owner"),fin=state(owner,shopId,"finance"),inv=state(owner,shopId,"inventory");
+ const before=(await getDoc(inv)).data().payload,finance=(await getDoc(fin)).data().payload,sale=finance.sales.find(x=>x.orderId==="existing-order");
+ const input={originalOperationId:sale.shopOperationId,reason:"Mercancía recibida y dinero devuelto",requestId:randomUUID()};
+ const returned=await serverShop("RETURN","qa-owner",input);
+ const repeated=await serverShop("RETURN","qa-owner",input);assert.equal(repeated.cash.id,returned.cash.id);
+ await assert.rejects(serverShop("RETURN","qa-owner",{...input,requestId:randomUUID()}));
+ let after=(await getDoc(inv)).data().payload,f=(await getDoc(fin)).data().payload;
  assert.equal(after.products.find(x=>x.id==="sale-b").stock,before.products.find(x=>x.id==="sale-b").stock+2);
- assert.equal(after.shopOrders[0].status,"Devuelto");assert.deepEqual(f.sales,finance.sales);
- assert.equal(f.cash.length,finance.cash.length+1);assert.equal(returned.cash.type,"Egreso");assert.equal(returned.cash.amount,6.5);
-});
-
-test("three-line physical return restores all stock exactly once",async()=>{
- const id="qa-lifecycle",owner=actor("qa-owner"),fin=state(owner,id,"finance"),inv=state(owner,id,"inventory");
- const before=(await getDoc(inv)).data().payload,finance=(await getDoc(fin)).data().payload,sale=finance.sales.find(x=>x.shopOperationId&&x.items.length===3);
- const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",originalOperationId:sale.shopOperationId,reason:"Mercancía completa reintegrada",date:"2026-11-26",time:"12:30"};
- const results=await Promise.allSettled([returnShopSale(opts),returnShopSale(opts)]);
- assert.equal(results.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(results.map(x=>x.status==="rejected"?String(x.reason):x.status)));
- const after=(await getDoc(inv)).data().payload,f=(await getDoc(fin)).data().payload;
- for(const item of sale.items)assert.equal(after.products.find(x=>x.id===item.refId).stock,before.products.find(x=>x.id===item.refId).stock+item.qty);
- assert.deepEqual(f.sales,finance.sales);assert.equal(f.cash.length,finance.cash.length+1);
+ assert.equal(after.shopOrders[0].status,"Devuelto");assert.deepEqual(f.sales,finance.sales);assert.equal(returned.cash.amount,6.5);
+ const multi=f.sales.find(x=>x.shopOperationId&&x.items.length===3);
+ const races=await Promise.allSettled([serverShop("RETURN","qa-owner",{originalOperationId:multi.shopOperationId,reason:"Reintegro completo confirmado"}),serverShop("RETURN","qa-owner",{originalOperationId:multi.shopOperationId,reason:"Reintegro completo confirmado"})]);
+ assert.equal(races.filter(x=>x.status==="fulfilled").length,1);
+ const final=(await getDoc(inv)).data().payload;
+ for(const item of multi.items)assert.equal(final.products.find(x=>x.id===item.refId).stock,after.products.find(x=>x.id===item.refId).stock+item.qty);
+ assert.deepEqual((await getDoc(fin)).data().payload.sales,finance.sales);
 });
