@@ -1,5 +1,6 @@
 import {cpSync,readFileSync,readdirSync,writeFileSync,rmSync,mkdirSync} from "node:fs";
 import {join} from "node:path";
+import {execFileSync} from "node:child_process";
 const out="demo-dist";
 const config=readFileSync("js/firebase/firebase-config.js","utf8");
 if(!/projectId\s*:\s*["']sambrix-demo["']/.test(config))throw Error("Invalid DEMO project");
@@ -31,10 +32,24 @@ function repairText(input){
  return input;
 }
 if(repairText("EspaÃ±ol | ConversiÃ³n | â–¦ | Español")!=="Español | Conversión | ▦ | Español")throw Error("Encoding repair self-test failed");
-const htmlPath=join(out,"index.html");
-const originalHtml=readFileSync(htmlPath,"utf8");
-const fixedHtml=repairText(originalHtml);
-if(fixedHtml!==originalHtml)writeFileSync(htmlPath,fixedHtml);
+let repaired=0;
+function repairTree(dir){
+ for(const item of readdirSync(dir,{withFileTypes:true})){
+  const p=join(dir,item.name);
+  if(item.isDirectory()){repairTree(p);continue;}
+  if(!/\.(html|js|css|json)$/.test(p))continue;
+  const original=readFileSync(p,"utf8"),fixed=repairText(original);
+  if(fixed!==original){
+   writeFileSync(p,fixed,"utf8");
+   if(p.endsWith(".js"))execFileSync(process.execPath,["--check",p],{stdio:"inherit"});
+   repaired++;
+  }
+ }
+}
+repairTree(out);
+const verifyHtml=readFileSync(join(out,"index.html"),"utf8");
+for(const word of ["Español","administración","dueños","Tecnología"])if(!verifyHtml.includes(word))throw Error("Missing corrected text: "+word);
+console.log("DEMO encoding: corrected "+repaired+" static files; changed JavaScript syntax checked.");
 scan(out);
 const html=join(out,"index.html");writeFileSync(html,readFileSync(html,"utf8").replace("</body>",'<div style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#742b00;color:white;text-align:center;font:12px sans-serif;padding:4px;pointer-events:none">SAMBRIX DEMO · SOLO DATOS FICTICIOS</div></body>'));
 console.log("SAMBRIX DEMO build: isolated Firebase, static allowlist.");
