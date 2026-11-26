@@ -323,7 +323,7 @@ service cloud.firestore {
           let id = request.resource.data.get('shopOperationId','none');
           let p = /databases/$(database)/documents/businesses/$(businessId)/shop_operations/$(id);
           let d = getAfter(p).data;
-          return canSellProducts(businessId) && id != resource.data.get('shopOperationId','none') &&
+          return stateName in ['finance','inventory'] && id != resource.data.get('shopOperationId','none') &&
             !exists(p) && existsAfter(p) && d.kind in ['SALE','RETURN'] && d.actorUid == request.auth.uid &&
             d.createdAt == request.time && request.resource.data.syncRevision ==
               (stateName == 'inventory' ? d.inventoryRevision : d.financeRevision);
@@ -362,11 +362,19 @@ service cloud.firestore {
           (stateName != 'inventory' || isSuperAdmin()) &&
           (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
           request.resource.data.syncRevision == 1 && hasWriteAudit();
-        allow update: if canWriteState() && validStateWrite() && preservesLedger() && validFinanceAppend() && validShopFinance() && validInventoryOperation() && hasWriteAudit() &&
-          request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId','inventoryOperationId','shopOperationId'
-          ]);
+        function validRevision() {
+          return validStateWrite() &&
+            request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId','inventoryOperationId','shopOperationId'
+            ]);
+        }
+        // Shop records validate exact old/new arrays independently, so do not repeat
+        // every generic ledger predicate within the same rule expression.
+        allow update: if request.resource.data.get('shopOperationId','none') != resource.data.get('shopOperationId','none') &&
+          linkedShopOperation() && validRevision() && hasWriteAudit();
+        allow update: if request.resource.data.get('shopOperationId','none') == resource.data.get('shopOperationId','none') &&
+          canWriteState() && validRevision() && preservesLedger() && validFinanceAppend() && validShopFinance() && validInventoryOperation() && hasWriteAudit();
         // A whole module cannot be deleted from a browser.
         allow delete: if false;
       }
@@ -524,15 +532,19 @@ service cloud.firestore {
             b.shopOrders.removeAll([o]).size() == b.shopOrders.size() - 1 &&
             b.shopOrders.removeAll([o]) == a.shopOrders.removeAll([n]);
         }
+        function hasLineCheck(i) {
+          let p = /databases/$(database)/documents/businesses/$(businessId)/shop_operations/$(operationId)/lines/$(string(i));
+          return !exists(p) && existsAfter(p);
+        }
         function validInventory(d) {
           let b = get(st('inventory')).data.payload;
           let a = getAfter(st('inventory')).data.payload;
           let old = oldProducts(d,b);
           let next = oldProducts(d,a);
           return a.diff(b).affectedKeys().hasOnly(['products','stockMoves','shopOrders']) &&
-            validLine(d,0,b,a) &&
-            (d.lines.size() < 2 || (d.lines[1].productId != d.lines[0].productId && validLine(d,1,b,a))) &&
-            (d.lines.size() < 3 || (d.lines[2].productId != d.lines[0].productId && d.lines[2].productId != d.lines[1].productId && validLine(d,2,b,a))) &&
+            (d.lines.size() < 2 || d.lines[1].productId != d.lines[0].productId) &&
+            (d.lines.size() < 3 || (d.lines[2].productId != d.lines[0].productId && d.lines[2].productId != d.lines[1].productId)) &&
+            hasLineCheck(0) && (d.lines.size() < 2 || hasLineCheck(1)) && (d.lines.size() < 3 || hasLineCheck(2)) &&
             b.products.size() == a.products.size() &&
             b.products.removeAll(old).size() == b.products.size() - d.lines.size() &&
             b.products.removeAll(old) == a.products.removeAll(next) &&
@@ -570,7 +582,7 @@ service cloud.firestore {
           let correction = getAfter(cp).data;
           let b = get(st('finance')).data.payload;
           let a = getAfter(st('finance')).data.payload;
-          return canCorrectFinance(businessId) && o.kind == 'SALE' && o.businessId == businessId &&
+          return o.kind == 'SALE' && o.businessId == businessId &&
             o.sale == d.sale && o.orderId == d.orderId && o.totalCents == d.totalCents &&
             o.lines.size() == d.lines.size() && originalLine(d,o,0) &&
             (d.lines.size() < 2 || originalLine(d,o,1)) && (d.lines.size() < 3 || originalLine(d,o,2)) &&
@@ -591,7 +603,7 @@ service cloud.firestore {
             i.updatedByUid == request.auth.uid && f.updatedByUid == request.auth.uid;
         }
         allow read: if canSellProducts(businessId);
-        allow create: if canSellProducts(businessId) &&
+        allow create: if (request.resource.data.kind == 'RETURN' ? canCorrectFinance(businessId) : canSellProducts(businessId)) &&
           request.resource.data.keys().hasOnly(['businessId','actorUid','kind','orderId','orderIndex','lines','totalCents','sale','cash','date','time','method','inventoryRevision','financeRevision','createdAt','originalOperationId','correctionId']) &&
           request.resource.data.businessId == businessId && request.resource.data.actorUid == request.auth.uid &&
           request.resource.data.kind in ['SALE','RETURN'] && request.resource.data.createdAt == request.time &&
@@ -604,6 +616,23 @@ service cloud.firestore {
           ((request.resource.data.kind == 'SALE' && !request.resource.data.keys().hasAny(['originalOperationId','correctionId']) && validFinance(request.resource.data)) ||
            (request.resource.data.kind == 'RETURN' && validReturnFinance(request.resource.data)));
         allow update, delete: if false;
+
+        match /lines/{lineId} {
+          function parentPath() {
+            return /databases/$(database)/documents/businesses/$(businessId)/shop_operations/$(operationId);
+          }
+          function checkLine() {
+            let d = getAfter(parentPath()).data;
+            let i = request.resource.data.index;
+            return !exists(parentPath()) && existsAfter(parentPath()) &&
+              d.actorUid == request.auth.uid && d.createdAt == request.time &&
+              i is int && i >= 0 && i < d.lines.size() && lineId == string(i) &&
+              validLine(d,i,get(st('inventory')).data.payload,getAfter(st('inventory')).data.payload);
+          }
+          allow read: if canSellProducts(businessId);
+          allow create: if signedIn() && request.resource.data.keys().hasOnly(['index']) && checkLine();
+          allow update, delete: if false;
+        }
       }
 
       match /inventory_operations/{operationId} {
