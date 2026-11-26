@@ -21,3 +21,10 @@ body[data-sambrix-public-v2="true"] #sambrixPortal,body[data-sambrix-public-v2="
 .client-v2 nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(880px,100%);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:10px 8px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #dae4ec;z-index:30}
 .client-v2 nav button{padding:12px 4px;white-space:normal;font-size:13px}.client-v2 nav button[aria-current="true"]{background:#142d40;color:white}
 @media(max-width:480px){.client-v2{padding:12px 10px 92px}.client-v2-content{padding:14px}.client-v2-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Keep the demo notice and the navigation on separate lines. */
+.client-v2 nav{bottom:var(--sambrix-demo-footer-height,0px);box-sizing:border-box}
+.client-v2{padding-bottom:calc(100px + var(--sambrix-demo-footer-height,0px))}
+.client-v2-grid .client-v2-choice img{width:72px;height:72px;flex:0 0 72px;object-fit:contain;background:#f5f7fa}
+.client-v2-grid .client-v2-choice span{min-width:0}
+@media(max-width:480px){.client-v2{padding-bottom:calc(92px + var(--sambrix-demo-footer-height,0px))}}
