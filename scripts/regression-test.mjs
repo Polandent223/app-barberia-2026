@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync,existsSync} from "node:fs";
 import {cents,addMonths,renewalDate,paymentAmount,commercialState} from "../js/saas/commercial-core.js";
 import {available,slots,dayValid} from "../js/saas/client-booking-core.js";
+import {buildCorrection,correctionSummary,refundTotal} from "../js/saas/financial-corrections-core.js";
 import {protectHistory} from "../js/saas/protected-history.js";
 import {changedParts,assertUnchanged} from "../js/saas/sync-conflict.js";
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
@@ -20,3 +21,14 @@ test("cloud bridge imports its exposed commit function",()=>{const main=read("js
 test("single Firestore service and audit collection match",()=>{const rules=read("firestore.rules");assert.equal(rules.split("service cloud.firestore").length,2);assert.equal(rules.split("match /commercial_payments/{paymentId}").length,2);assert.match(rules,/match \/state_events\/\{eventId\}/);assert.match(read("js/saas/saas-cloud.js"),/"state_events"/);});
 
 test("pending drafts are persisted before cloud writes and only removed after confirmation",()=>{const code=read("js/saas/saas-cloud.js");const upload=code.slice(code.indexOf("export function uploadCurrentTenant"));assert(upload.indexOf("persistDraft(job);")<upload.indexOf("await runTransaction"));assert.match(upload,/clearConfirmedDraft\(job\)/);assert.match(code,/fingerprint\(snaps\[i\]\.data\(\)\.payload\)===fingerprint\(p\)/);assert.match(read("js/saas/saas-cloud-main.js"),/overlay\.style\.display="none"/);});
+
+test("correction preserves original sale and limits accumulated refunds",()=>{
+ const finance={cash:[{id:"c",type:"Ingreso",amount:12,saleId:"s",currency:"$",method:"Efectivo"}],sales:[{id:"s",total:12}]};
+ const opts={finance,businessId:"qa",sourceId:"c",kind:"REFUND",amount:5,reason:"Motivo comprobado",actor:"owner",correctionId:"a",date:"2026-11-26",previousCents:0};
+ const first=buildCorrection(opts);assert.equal(first.cumulativeCents,500);assert.equal(finance.cash.length,1);
+ finance.cash.push(first.cashEntry);assert.equal(correctionSummary(finance,"c").remaining,700);
+ assert.throws(()=>buildCorrection({...opts,correctionId:"b",previousCents:500,amount:8}));
+ assert.throws(()=>buildCorrection({...opts,correctionId:"b",previousCents:500,kind:"VOID",amount:1}));
+ const second=buildCorrection({...opts,correctionId:"b",previousCents:500,kind:"VOID",amount:7});finance.cash.push(second.cashEntry);
+ assert.equal(refundTotal(finance.cash),12);assert.equal(finance.sales[0].total,12);
+});
