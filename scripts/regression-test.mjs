@@ -4,7 +4,7 @@ import {readFileSync,existsSync} from "node:fs";
 import {cents,addMonths,renewalDate,paymentAmount,commercialState} from "../js/saas/commercial-core.js";
 import {available,slots,dayValid} from "../js/saas/client-booking-core.js";
 import {buildCorrection,correctionSummary,refundTotal} from "../js/saas/financial-corrections-core.js";
-import {buildShopSale,buildShopReturn} from "../js/saas/shop-core.js";
+import {buildShopSale,buildShopReturn} from "../functions/shop-core.js";
 import {buildInventoryOperation} from "../js/saas/inventory-core.js";
 import {protectHistory} from "../js/saas/protected-history.js";
 import {changedParts,assertUnchanged} from "../js/saas/sync-conflict.js";
