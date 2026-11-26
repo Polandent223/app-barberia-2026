@@ -1,7 +1,10 @@
 import {readFileSync} from "node:fs";
 import {before,after,test} from "node:test";
 import {initializeTestEnvironment,assertSucceeds,assertFails} from "@firebase/rules-unit-testing";
-import {doc,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,serverTimestamp} from "firebase/firestore";
+import {doc,collection,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,runTransaction,serverTimestamp} from "firebase/firestore";
+import assert from "node:assert/strict";
+import {closeAppointment} from "../js/saas/financial-close-core.js";
+import {renewalDate,paymentAmount} from "../js/saas/commercial-core.js";
 let env;
 const path=(db,...s)=>doc(db,...s);
 const state=(db,id,name)=>path(db,"businesses",id,"state",name);
@@ -99,4 +102,56 @@ test("public booking requires a linked slot; two simultaneous clients cannot res
   await assertFails(book("clientA","badTime","24:00"));
   await assertFails(book("clientA","crossTenant","11:00","two"));
   await assertFails(updateDoc(publicDoc(actor(winner),"one","client_accounts",winner),{points:999}));
+});
+
+test("commercial lifecycle: new company, plan, staff, subscription, booking, atomic receipt and cash",async()=>{
+  const id="qa-lifecycle",root=actor("root"),owner=actor("qa-owner"),reception=actor("qa-reception");
+  const company=path(root,"businesses",id),catalog=path(root,"platform","business_catalog");
+  const business={id,name:"SAMBRIX QA",status:"Activo",planId:"qa-plan",nextPayment:"2026-12-15",accessSuspended:false};
+  await assertSucceeds(setDoc(company,business));
+  await assertSucceeds(setDoc(catalog,{businesses:[business],plans:[{id:"qa-plan",name:"QA",price:25}]}));
+  await assertSucceeds(setDoc(member(root,id,"qa-owner"),{uid:"qa-owner",businessId:id,role:"owner",active:true}));
+  await assertSucceeds(setDoc(path(root,"platform_users","qa-owner"),{uid:"qa-owner",businessId:id,role:"business_user",active:true}));
+  await assertSucceeds(setDoc(member(owner,id,"qa-reception"),{uid:"qa-reception",businessId:id,role:"reception",active:true}));
+  await assertSucceeds(setDoc(path(owner,"platform_users","qa-reception"),{uid:"qa-reception",businessId:id,role:"business_user",active:true}));
+  const initial={config:{business:{open:"09:00",close:"19:00",currency:"$",pointsPerService:10},meta:{branchId:"branch"},services:[{id:"s1",name:"Corte",duration:60,price:12}],barbers:[{id:"staff1",name:"Profesional"}]},schedule:{appointments:[]},crm:{clients:[]},finance:{cash:[],sales:[]},inventory:{products:[],stockMoves:[]},staff:{employees:[]},attendance:{attendance:[],absences:[]},history:{auditLog:[]}};
+  const init=writeBatch(root);
+  for(const [name,value] of Object.entries(initial)){
+    const record={businessId:id,payload:value,syncRevision:1,updatedByUid:"root",updatedAt:serverTimestamp()};
+    if(["finance","inventory"].includes(name)){const e="init-"+name;record.auditId=e;init.set(path(root,"businesses",id,"state_events",e),{businessId:id,domain:name,revision:1,actorUid:"root",createdAt:serverTimestamp()});}
+    init.set(state(root,id,name),record);
+  }
+  await assertSucceeds(init.commit());
+  await assertSucceeds(getDoc(state(owner,id,"config")));
+  const paymentId="a".repeat(64),nextDue=renewalDate(business.nextPayment,"2026-11-26",2),pay=writeBatch(root),paid={...business,nextPayment:nextDue,commercialManaged:true};
+  const receipt=path(root,"commercial_payments",paymentId);
+  pay.update(company,{nextPayment:nextDue,commercialManaged:true,commercialUpdatedAt:serverTimestamp()});
+  pay.update(catalog,{businesses:[paid],updatedAt:serverTimestamp()});
+  pay.set(receipt,{businessId:id,businessName:business.name,planId:"qa-plan",planName:"QA",amountCents:paymentAmount(25,2),currency:"USD",months:2,paidAt:"2026-11-26",previousDue:business.nextPayment,nextDue,method:"Transferencia",reference:"QA-0001",note:"",createdBy:"root",createdAt:serverTimestamp()});
+  pay.set(path(root,"commercial_events","qa-payment"),{action:"PAYMENT",businessId:id,actorUid:"root",reason:"Pago de prueba",createdAt:serverTimestamp()});
+  await assertSucceeds(pay.commit());
+  assert.equal((await getDoc(receipt)).data().amountCents,5000);
+  assert.equal((await getDoc(company)).data().nextPayment,"2027-02-15");
+  await assertFails(updateDoc(receipt,{amountCents:1}));
+  await assertFails(getDoc(path(owner,"commercial_payments",paymentId)));
+  await seedClient("qa-client",id);await assertSucceeds(book("qa-client","qa-request","10:00",id));
+  const date="2099-06-15",slot="staff1_"+date+"_10:00",appt={id:"public_qa-request",clientId:"client_qa-client",serviceId:"s1",barberId:"staff1",date,time:"10:00",price:12,duration:60,status:"Confirmada",businessId:id,branchId:"branch",publicRequestId:"qa-request"};
+  // Exercise approval rules using one atomic batch; checkout calls the actual shared application function.
+  const approval=writeBatch(reception);
+  approval.update(state(reception,id,"schedule"),{payload:{appointments:[appt]},syncRevision:2,updatedByUid:"qa-reception",updatedAt:serverTimestamp()});
+  approval.update(state(reception,id,"crm"),{payload:{clients:[{id:"client_qa-client",firebaseUid:"qa-client",name:"Cliente qa-client",points:0,visits:0,businessId:id}]},syncRevision:2,updatedByUid:"qa-reception",updatedAt:serverTimestamp()});
+  approval.update(publicDoc(reception,id,"booking_requests","qa-request"),{status:"Aprobada",appointmentId:appt.id,resolvedAt:new Date().toISOString()});
+  approval.update(publicDoc(reception,id,"booking_slots",slot),{status:"Aprobada"});await assertSucceeds(approval.commit());
+  const opts={db:reception,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,appointmentId:appt.id,actor:"qa-reception",method:"Efectivo",amount:12};
+  await assert.rejects(closeAppointment({...opts,amount:1}));
+  assert.equal((await getDoc(state(owner,id,"finance"))).data().payload.sales.length,0);
+  const closes=await Promise.allSettled([closeAppointment(opts),closeAppointment(opts)]);
+  assert.equal(closes.filter(v=>v.status==="fulfilled").length,1,JSON.stringify(closes.map(v=>v.status==="rejected"?String(v.reason):v.status)));
+  const f=(await getDoc(state(owner,id,"finance"))).data(),sale=f.payload.sales[0],cash=f.payload.cash[0];
+  assert.equal(f.payload.sales.length,1);assert.equal(f.payload.cash.length,1);assert.equal(sale.total,12);assert.equal(cash.amount,12);assert.equal(cash.saleId,sale.id);
+  assert.equal(sale.number,"000001");assert.equal((await getDoc(state(owner,id,"schedule"))).data().payload.appointments[0].status,"Finalizada");
+  assert.equal((await getDoc(publicDoc(actor("qa-client"),id,"booking_requests","qa-request"))).data().status,"Finalizada");
+  assert.equal((await getDoc(publicDoc(owner,id,"booking_slots",slot))).exists(),false);
+  assert.equal((await getDoc(state(owner,id,"crm"))).data().payload.clients[0].visits,1);
+  await assertSucceeds(getDoc(path(owner,"businesses",id,"state_events",f.auditId)));
 });
