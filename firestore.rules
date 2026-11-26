@@ -264,8 +264,9 @@ service cloud.firestore {
             next.size() >= previous.size() && next.hasAll(previous);
         }
         function preservesLedger() {
-          return (stateName != 'finance' || (preservesRecords('cash') && preservesRecords('sales'))) &&
-            (stateName != 'inventory' || preservesRecords('stockMoves'));
+          // Finance is already checked more strictly by validFinanceAppend():
+          // both arrays must remain identical or gain exactly one trailing row.
+          return stateName != 'inventory' || preservesRecords('stockMoves');
         }
         function hasWriteAudit() {
           let auditId = request.resource.data.get('auditId', 'none');
@@ -411,9 +412,10 @@ service cloud.firestore {
       match /correction_totals/{sourceId} {
         function linkedTotal(d) {
           let p = /databases/$(database)/documents/businesses/$(businessId)/financial_corrections/$(d.lastCorrectionId);
-          return !exists(p) && existsAfter(p) && getAfter(p).data.sourceId == sourceId &&
-            getAfter(p).data.cumulativeCents == d.cents && getAfter(p).data.actorUid == request.auth.uid &&
-            getAfter(p).data.createdAt == request.time;
+          let correction = getAfter(p).data;
+          return !exists(p) && existsAfter(p) && correction.sourceId == sourceId &&
+            correction.cumulativeCents == d.cents && correction.actorUid == request.auth.uid &&
+            correction.createdAt == request.time;
         }
         allow read: if canManageBusiness(businessId);
         allow create, update: if canCorrectFinance(businessId) &&
