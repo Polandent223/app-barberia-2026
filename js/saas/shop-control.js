@@ -25,7 +25,7 @@ function boot(){
   const draft=prior||{intent,requestId:crypto.randomUUID()};
   localStorage.setItem(key,JSON.stringify(draft));
   try{const response=await endpoints[kind]({...input,requestId:draft.requestId});localStorage.removeItem(key);return response.data;}
-  catch(e){if(["functions/permission-denied","functions/invalid-argument","functions/unauthenticated"].includes(e.code))localStorage.removeItem(key);throw e;}
+  catch(e){throw e;}
  }
  async function resume(){
   if(!allowed()||busy)return;
@@ -64,7 +64,7 @@ function boot(){
    qty.type="number";qty.min="1";qty.step="1";qty.value="1";
    for(const m of METHODS)method.append(new Option(m,m));
    const add=button("Agregar",()=>{const p=inv.products.find(x=>x.id===select.value),n=Number(qty.value);if(!p||!Number.isSafeInteger(n)||n<=0)return A.toast("Cantidad inválida.");
-    const total=(cart.get(p.id)?.qty||0)+n;if(total>p.stock)return A.toast("Stock insuficiente.");if(!cart.has(p.id)&&cart.size>=MAX_LINES)return A.toast("Máximo "+MAX_LINES+" referencias por recibo.");cart.set(p.id,{id:p.id,qty:total,price:p.price});draw();});
+    const total=(cart.get(p.id)?.qty||0)+n;if(total>p.stock)return A.toast("Stock insuficiente.");if(!cart.has(p.id)&&cart.size>=MAX_LINES)return A.toast("Máximo "+MAX_LINES+" referencias por recibo.");cart.set(p.id,{id:p.id,qty:total,price:Number(p.price)});draw();});
    if(order)for(const i of order.items||[]){if(cart.has(i.id))throw Error("Pedido con referencias duplicadas.");cart.set(i.id,{id:i.id,qty:Number(i.qty),price:i.price});}
    function draw(){
     summary.replaceChildren();let total=0;for(const i of cart.values()){const p=inv.products.find(x=>x.id===i.id);const row=el("div","","row");row.append(el("span",String(p?.name||i.id)+" · "+i.qty+" u."),el("strong",format(Number(i.price)*i.qty,cur)));if(!order)row.append(button("Quitar",()=>{cart.delete(i.id);draw();}));summary.append(row);total+=Number(i.price)*i.qty;}
