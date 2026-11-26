@@ -924,3 +924,8 @@ select:disabled{
 #productList .product-card{min-width:0;}
 #productList .product-card .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;justify-content:stretch;}
 #productList .product-card .actions .btn{min-width:0;width:100%;padding:9px 5px;font-size:12px;line-height:1.25;white-space:normal;overflow-wrap:anywhere;}
+
+/* Goals must fit inside narrow employee cards. */
+.employee-card .goal-split{grid-template-columns:minmax(0,1fr);gap:6px}
+.employee-card .goal-mini{min-width:0;padding:8px;overflow-wrap:anywhere}
+.employee-card .goal-mini small,.employee-card .goal-mini strong{display:block;white-space:normal;line-height:1.3}
