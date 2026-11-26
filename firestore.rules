@@ -332,16 +332,16 @@ service cloud.firestore {
           let old = resource.data.payload;
           let next = request.resource.data.payload;
           return stateName != 'finance' ||
-            ((!next.cash.hasAll(old.cash) || next.cash.size() == old.cash.size() ||
-              !next.cash[old.cash.size()].keys().hasAny(['shopOperationId'])) &&
-             (next.sales.size() == old.sales.size() || !next.sales[old.sales.size()].keys().hasAny(['shopOperationId'])) &&
+            ((next.cash.size() == old.cash.size() ||
+              !next.cash[old.cash.size()].keys().hasAny(['shopOperationId','orderId'])) &&
+             (next.sales.size() == old.sales.size() || (!next.sales[old.sales.size()].keys().hasAny(['shopOperationId','orderId']) && next.sales[old.sales.size()].get('source','') != 'Punto de venta')) &&
              request.resource.data.get('shopOperationId','none') == resource.data.get('shopOperationId','none')) ||
             linkedShopOperation();
         }
         function validInventoryOperation() {
           let op = request.resource.data.get('inventoryOperationId','none');
           let p = /databases/$(database)/documents/businesses/$(businessId)/inventory_operations/$(op);
-          return stateName != 'inventory' || linkedShopOperation() || (
+          return stateName != 'inventory' || (request.resource.data.get('shopOperationId','none') != resource.data.get('shopOperationId','none') && linkedShopOperation()) || (
             canManageBusiness(businessId) && op is string &&
             !exists(p) && existsAfter(p) &&
             getAfter(p).data.revision == request.resource.data.syncRevision &&
