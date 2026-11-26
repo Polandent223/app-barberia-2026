@@ -5,7 +5,8 @@ const fail=(code,message)=>{const e=Error(message);e.code=code;throw e;};
 const idPattern=/^[A-Za-z0-9_-]{1,180}$/;
 const requestPattern=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 function normalized(input,kind){
- if(!input||typeof input!=="object"||!idPattern.test(input.businessId||"")||!requestPattern.test(input.requestId||""))fail("invalid-argument","Identificador de empresa u operación inválido.");
+ if(!input||typeof input!=="object"||typeof input.businessId!=="string"||typeof input.requestId!=="string"||!idPattern.test(input.businessId)||!requestPattern.test(input.requestId))fail("invalid-argument","Identificador de empresa u operación inválido.");
+ if(kind==="STATUS"||kind==="CANCEL")return {businessId:input.businessId,requestId:input.requestId};
  if(kind==="SALE"){
   const orderId=String(input.orderId||"");
   if(orderId&&!idPattern.test(orderId))fail("invalid-argument","Pedido inválido.");
@@ -35,19 +36,34 @@ function serverClock(now,business){
 export function createShopService({db,sdk,now=()=>new Date()}){
  return async function execute(kind,auth,input){
   if(!auth?.uid)fail("unauthenticated","Inicia sesión.");
-  if(!["SALE","RETURN"].includes(kind))fail("invalid-argument","Operación no válida.");
+  if(!["SALE","RETURN","STATUS","CANCEL"].includes(kind))fail("invalid-argument","Operación no válida.");
   const data=normalized(input,kind),{businessId,requestId,...args}=data,actor=auth.uid,email=String(auth.token?.email||"");
   const at=now(),operationId=hash(actor+":"+requestId.toLowerCase()),intentHash=hash(JSON.stringify({kind,...data,requestId:requestId.toLowerCase()}));
   const authorize=async(tx,action)=>{
    const paths=[["platform","config"],["platform_users",actor],["businesses",businessId],["businesses",businessId,"members",actor]];
    const [platform,profile,company,member]=await Promise.all(paths.map(p=>tx.get(sdk.doc(db,...p))));
-   if(!platform.exists()||platform.data().shopServerEnabled!==true)fail("failed-precondition","Punto de venta no habilitado por SAMBRIX.");
+   if(!["STATUS","CANCEL"].includes(action)&&(!platform.exists()||platform.data().shopServerEnabled!==true))fail("failed-precondition","Punto de venta no habilitado por SAMBRIX.");
    if([profile,company,member].some(s=>!s.exists()))fail("permission-denied","Empresa o usuario no autorizado.");
    const p=profile.data(),b=company.data(),m=member.data();
-   if(p.uid!==actor||p.role!=="business_user"||p.active===false||m.uid!==actor||m.businessId!==businessId||m.active===false||b.accessSuspended===true||!["activo","prueba"].includes(String(b.status||"").toLowerCase()))fail("permission-denied","Acceso empresarial no autorizado.");
-   if(!["plan-pro","plan-premium"].includes(b.planId)||b.nextPayment&&b.nextPayment<serverClock(at,{}).date)fail("failed-precondition","Suscripción no habilitada.");
+   if(p.uid!==actor||p.role!=="business_user"||p.businessId!==businessId||p.active===false||m.uid!==actor||m.businessId!==businessId||m.active===false||b.accessSuspended===true||!["activo","prueba"].includes(String(b.status||"").toLowerCase()))fail("permission-denied","Acceso empresarial no autorizado.");
+   if(!["STATUS","CANCEL"].includes(action)&&(!["plan-pro","plan-premium"].includes(b.planId)||b.nextPayment&&b.nextPayment<serverClock(at,{}).date))fail("failed-precondition","Suscripción no habilitada.");
    if(!(action==="RETURN"?["owner","admin"]:["owner","admin","manager","cashier"]).includes(m.role))fail("permission-denied","Tu cargo no autoriza esta operación.");
   };
+  if(kind==="STATUS"||kind==="CANCEL")return sdk.runTransaction(db,async tx=>{
+   await authorize(tx,kind);
+   const ref=sdk.doc(db,"businesses",businessId,"shop_operations",operationId),snap=await tx.get(ref);
+   if(snap.exists()){
+    const v=snap.data();
+    if(v.actorUid!==actor||v.businessId!==businessId)fail("permission-denied","Operación no autorizada.");
+    if(v.kind==="CANCELLED")return {status:"cancelled"};
+    if(v.kind==="SALE")return {status:"confirmed",kind:"SALE",sale:v.sale};
+    if(v.kind==="RETURN")return {status:"confirmed",kind:"RETURN",saleId:v.sale.id,amount:v.cash.amount};
+    fail("failed-precondition","Operación requiere revisión de soporte.");
+   }
+   if(kind==="STATUS")return {status:"not-found"};
+   tx.set(ref,{businessId,actorUid:actor,kind:"CANCELLED",createdAt:sdk.serverTimestamp()});
+   return {status:"cancelled"};
+  });
   const common={db,sdk,businessId,actor,email,authorize,operationId,intentHash,clock:b=>serverClock(at,b),...args};
   return kind==="SALE"?checkoutShop(common):returnShopSale(common);
  };
