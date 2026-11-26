@@ -1,3 +1,4 @@
+import {buildCorrection} from "./financial-corrections-core.js?v=2.0.13";
 /* POS sale: same shared transaction in browser and emulator. Limited to 3 distinct products per receipt until ledger migration. */
 export const MAX_LINES=3;
 export const METHODS=["Efectivo","Pago móvil","Transferencia","Divisa","Tarjeta","Otro"];
@@ -48,5 +49,48 @@ export async function checkoutShop({db,sdk,businessId,actor,email="",check=()=>{
    tx.update(refs[i],{businessId,payload:result[domain],updatedByUid:actor,updatedBy:email,updatedAt:serverTimestamp(),syncRevision:rev[i],auditId:events[i].id,shopOperationId:op.id});
   }
   return result.record.sale;
+ });
+}
+
+/* Full physical return of a confirmed POS sale, only if no prior financial refund.
+   A financial correction alone does not restock goods. */
+export function buildShopReturn({inventory,finance,businessId,actor,operationId,correctionId,original,reason,date,time,previousCents=0}){
+ if(original.kind!=="SALE"||original.businessId!==businessId||!original.sale?.id||previousCents!==0)throw Error("La venta no admite devolución integral. Consulta conciliación.");
+ const sale=finance.sales.find(s=>s.id===original.sale.id&&s.shopOperationId===original.sale.shopOperationId);
+ const source=finance.cash.find(c=>c.id===original.cash.id&&c.saleId===sale?.id);
+ if(!sale||!source||cents(sale.total)!==original.totalCents||cents(source.amount)!==original.totalCents)throw Error("Recibo y caja no conciliados.");
+ const correction=buildCorrection({finance,businessId,sourceId:source.id,kind:"VOID",amount:sale.total,reason,actor,correctionId,date,previousCents});
+ const products=copy(inventory.products),stockMoves=[...inventory.stockMoves],shopOrders=copy(inventory.shopOrders),lines=[];
+ for(const old of original.lines){
+  const index=products.findIndex(p=>p.id===old.productId),p=products[index];
+  if(!p||p.archived===true||p.businessId&&p.businessId!==businessId||products.filter(x=>x.id===old.productId).length!==1||!Number.isSafeInteger(p.stock)||p.stock<0||!Number.isSafeInteger(old.qty)||old.qty<=0||p.stock+old.qty>9999999)throw Error("Producto no disponible para reintegro. Consulta soporte.");
+  const movement={id:"shopstock_"+operationId+"_"+lines.length,productId:p.id,type:"Entrada",qty:old.qty,reason:"Devolución de productos",date,businessId,branchId:String(p.branchId||""),createdBy:actor,stockBefore:p.stock,stockAfter:p.stock+old.qty,operationId,productName:String(p.name||"Producto")};
+  lines.push({...old,index,movement});stockMoves.push(movement);p.stock+=old.qty;
+ }
+ const orderId=original.orderId||"",orderIndex=orderId?shopOrders.findIndex(o=>o.id===orderId):-1;
+ if(orderId){const o=shopOrders[orderIndex];if(!o||o.status!=="Pagado/Entregado"||o.saleId!==sale.id)throw Error("Pedido no conciliado.");shopOrders[orderIndex]={...o,status:"Devuelto",refundedAt:date+"T"+time};}
+ const {originalCents,...record}=correction;
+ return {inventory:{...inventory,products,stockMoves,shopOrders},finance:{...finance,cash:[...finance.cash,correction.cashEntry]},correction:record,record:{businessId,actorUid:actor,kind:"RETURN",originalOperationId:sale.shopOperationId,correctionId,orderId,orderIndex,lines,totalCents:original.totalCents,sale,cash:correction.cashEntry,date,time,method:source.method}};
+}
+export async function returnShopSale({db,sdk,businessId,actor,email="",check=()=>{},originalOperationId,...args}){
+ const {doc,collection,runTransaction,serverTimestamp}=sdk;
+ const ref=name=>doc(db,"businesses",businessId,"state",name),refs=["inventory","finance"].map(ref);
+ const base=doc(db,"businesses",businessId,"shop_operations",originalOperationId),op=doc(collection(db,"businesses",businessId,"shop_operations")),correction=doc(collection(db,"businesses",businessId,"financial_corrections")),events=["inventory","finance"].map(()=>doc(collection(db,"businesses",businessId,"state_events")));
+ return runTransaction(db,async tx=>{
+  check();const [i,f,s]=await Promise.all([...refs,base].map(r=>tx.get(r)));
+  if([i,f].some(x=>!x.exists()||x.data().businessId!==businessId)||!s.exists()||s.data().businessId!==businessId)throw Error("Venta no verificada.");
+  const original=s.data(),sourceId=original.cash?.id;if(!sourceId)throw Error("Venta inválida.");
+  const total=doc(db,"businesses",businessId,"correction_totals",sourceId),prior=await tx.get(total);
+  if(prior.exists())throw Error("Existe un ajuste anterior. Consulta soporte.");
+  const result=buildShopReturn({...args,businessId,actor,operationId:op.id,correctionId:correction.id,original,inventory:i.data().payload,finance:f.data().payload});
+  check();const rev=[i,f].map(x=>Number(x.data().syncRevision||0)+1);
+  tx.set(correction,{...result.correction,createdAt:serverTimestamp()});
+  tx.set(total,{businessId,sourceId,cents:result.correction.cumulativeCents,lastCorrectionId:correction.id,actorUid:actor,updatedAt:serverTimestamp()});
+  tx.set(op,{...result.record,inventoryRevision:rev[0],financeRevision:rev[1],createdAt:serverTimestamp()});
+  for(const [j,domain] of ["inventory","finance"].entries()){
+   tx.set(events[j],{businessId,domain,revision:rev[j],actorUid:actor,createdAt:serverTimestamp()});
+   tx.update(refs[j],{businessId,payload:result[domain],updatedByUid:actor,updatedBy:email,updatedAt:serverTimestamp(),syncRevision:rev[j],auditId:events[j].id,shopOperationId:op.id});
+  }
+  return result.record;
  });
 }
