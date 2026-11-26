@@ -18,7 +18,9 @@
       "eslint.config.js",
       "scripts/**",
       "tests/**",
-      "**/*.md"
+      "**/*.md",
+      "functions/**",
+      "firebase.shop.json"
     ],
     "rewrites": [
       {
