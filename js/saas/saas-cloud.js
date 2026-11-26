@@ -1,8 +1,71 @@
-import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp,writeBatch} from "../firebase/firebase-core.js?v=1.0.18";
+import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js?v=1.0.18";
+
+import {runTransaction,getDocFromServer,collection} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {cloneJSON,changedParts,assertUnchanged,fingerprint} from "./sync-conflict.js?v=2.0.3";
+
+import {protectHistory,protectedLists} from "./protected-history.js?v=2.0.9";
 
 const PLATFORM="platform";
 const BUSINESSES="businesses";
 let catalogUnsub=null,stateUnsubs=[];
+const baselines=new Map(), pending=new Map();
+const tenantKey=(id,uid=authUid())=>uid+":"+id;
+const draftKey=key=>"sambrix_sync_pending_v1:"+key;
+function draftPaths(key){
+  const prefix=draftKey(key);
+  const result=[];
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k===prefix||k?.startsWith(prefix+":"))result.push(k);}
+  return result;
+}
+function storedDraft(key,exclude=""){try{return draftPaths(key).some(k=>k!==exclude);}catch{return true;}}
+function persistDraft(job,error="pending"){
+  localStorage.setItem(job.storageKey,JSON.stringify({schemaVersion:2,businessId:job.businessId,uid:job.uid,at:new Date().toISOString(),error,parts:job.latest,before:job.before}));
+}
+function clearConfirmedDraft(job){try{localStorage.removeItem(job.storageKey);}catch(e){console.warn("[SAMBRIX draft cleanup]",e);}}
+function keepDraft(key,job,error){
+  job.failed=true;
+  try{persistDraft(job,String(error?.code||error?.message||"sync"));}
+  catch(e){console.error("[SAMBRIX pending draft]",e);}
+  if(authUid()===job.uid&&SaaS.getContext?.()?.businessId===job.businessId){
+    A()?.toast?.("Cambios pendientes. No continúes en este equipo: contacta a soporte.");
+    document.dispatchEvent(new CustomEvent("sambrix-sync-conflict",{detail:{businessId:job.businessId}}));
+  }
+}
+export function tenantSyncBlocked(id){const key=tenantKey(id);const job=pending.get(key);return !!job?.failed||storedDraft(key,job?.storageKey||"");}
+export function tenantSyncDraftSaved(id){return storedDraft(tenantKey(id));}
+export async function reviewPendingDrafts(id){
+  const uid=authUid(),key=tenantKey(id),job=pending.get(key);
+  if(!sessionCanReadTenant(id,uid)||SaaS.getContext?.()?.businessId!==id||job?.count)throw Error("Espera a que terminen las escrituras o verifica la sesión.");
+  const names=new Set(["config","crm","schedule","finance","inventory","staff","attendance","history"]);
+  const result=[];
+  for(const k of draftPaths(key)){
+    const raw=localStorage.getItem(k);if(!raw)continue;
+    let draft;
+    try{draft=JSON.parse(raw);}catch{result.push({matched:false,domains:[],reason:"Copia local ilegible"});continue;}
+    if(draft.businessId!==id||(draft.uid&&draft.uid!==uid)||!draft.parts||typeof draft.parts!=="object"||Array.isArray(draft.parts)){result.push({matched:false,domains:[],reason:"Identidad o contenido inválido"});continue;}
+    const parts=Object.entries(draft.parts);
+    if(!parts.length||parts.some(([n,p])=>!names.has(n)||!p||typeof p!=="object"||Array.isArray(p))){result.push({matched:false,domains:[],reason:"Módulos inválidos"});continue;}
+    const snaps=await Promise.all(parts.map(([n])=>getDocFromServer(doc(firestore,BUSINESSES,id,"state",n))));
+    if(!sessionCanReadTenant(id,uid)||SaaS.getContext?.()?.businessId!==id)throw Error("Cambió la sesión.");
+    const domains=parts.map(([n,p],i)=>({name:n,matched:snaps[i].exists()&&snaps[i].data().businessId===id&&fingerprint(snaps[i].data().payload)===fingerprint(p)}));
+    const matched=domains.every(d=>d.matched);
+    // Remove only an unchanged local copy whose complete payload is confirmed in Firestore.
+    if(matched&&localStorage.getItem(k)===raw){localStorage.removeItem(k);if(job?.storageKey===k&&job.failed&&!job.count)pending.delete(key);}
+    result.push({matched,domains});
+  }
+  return result;
+}
+
+export function waitForTenantCommit(id){if(tenantSyncBlocked(id))return Promise.reject(Error('Cambios pendientes de revisión.'));return pending.get(tenantKey(id))?.tail||Promise.resolve(true);}
+export function tenantSyncBusy(id){return !!pending.get(tenantKey(id))?.count;}
+export async function awaitTenantWrites(id){
+  const key=tenantKey(id);
+  while(pending.get(key)?.count)await pending.get(key).tail;
+  if(tenantSyncBlocked(id))throw Error("La empresa tiene cambios pendientes de revisión.");
+  return true;
+}
+
+
 
 function authEmail(){return window.FirebaseBridge?.user?.email||""}
 function authUid(){return String(window.FirebaseBridge?.user?.uid||"")}
@@ -40,6 +103,9 @@ function assertTenantIdentity(businessId,state){
   if(!businessId||!state)throw new Error("Faltan datos del negocio para sincronizar.");
   const embedded=String(state?.meta?.businessId||"");
   if(embedded&&embedded!==String(businessId))throw new Error(`Bloqueada sincronización cruzada: ${embedded} -> ${businessId}`);
+  for(const name of ["users","barbers","services","clients","appointments","cash","sales","products","stockMoves","shopOrders","employees","attendance","absences","approvalRequests","clientRequests","auditLog","clientActivity"]){
+    if(Array.isArray(state[name])&&state[name].some(row=>row?.businessId&&String(row.businessId)!==String(businessId)))throw Error("Registro con identidad de otra empresa: "+name);
+  }
   const sessionBusiness=String(SaaS.session?.businessId||"");
   const role=String(SaaS.session?.role||"").toLowerCase();
   if(role!=="superadmin"&&sessionBusiness&&sessionBusiness!==String(businessId))throw new Error("La sesión actual no pertenece al negocio solicitado.");
@@ -51,7 +117,25 @@ export async function cloudBootstrapPlatform(){
 }
 
 export async function uploadBusinessCatalog(){
-  await setDoc(doc(firestore,PLATFORM,"business_catalog"),{businesses:SaaS.db.businesses,plans:SaaS.db.plans,supportAudit:SaaS.db.supportAudit||[],updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true});
+  const actor=authUid(),email=authEmail(),ref=doc(firestore,PLATFORM,"business_catalog");
+  const local=cloneJSON({businesses:SaaS.db.businesses||[],plans:SaaS.db.plans||[],supportAudit:SaaS.db.supportAudit||[]});
+  await runTransaction(firestore,async tx=>{
+    if(!actor||authUid()!==actor||SaaS.session?.role!=="superadmin")throw Error("La sesión de plataforma cambió.");
+    const snap=await tx.get(ref),previous=snap.exists()?snap.data():{};
+    const prior=new Map((previous.businesses||[]).map(b=>[b.id,b]));
+    const businesses=local.businesses.map(b=>{
+      const server=prior.get(b.id);
+      if(!server?.commercialManaged)return b;
+      // Legacy autosaves must not undo a confirmed commercial transaction.
+      const result={...b};
+      for(const key of ["commercialManaged","planId","nextPayment","status"])if(Object.prototype.hasOwnProperty.call(server,key))result[key]=server[key];
+      return result;
+    });
+    const present=new Set(businesses.map(b=>b.id));
+    for(const b of previous.businesses||[])if(!present.has(b.id))businesses.push(b);
+    const plans=previous.commercialPlansManaged===true?(previous.plans||[]):local.plans;
+    tx.set(ref,{businesses,plans,supportAudit:local.supportAudit,updatedAt:serverTimestamp(),updatedBy:email},{merge:true});
+  });
 }
 
 export async function downloadBusinessCatalog(){
@@ -63,20 +147,96 @@ export async function downloadBusinessCatalog(){
 function split(state){return {config:{business:state.business||{},users:state.users||[],barbers:state.barbers||[],services:state.services||[],meta:state.meta||{}},crm:{clients:state.clients||[],approvalRequests:state.approvalRequests||[],clientRequests:state.clientRequests||[]},schedule:{appointments:state.appointments||[]},finance:{cash:state.cash||[],sales:state.sales||[]},inventory:{products:state.products||[],stockMoves:state.stockMoves||[],shopOrders:state.shopOrders||[]},staff:{employees:state.employees||[]},attendance:{attendance:state.attendance||[],absences:state.absences||[]},history:{auditLog:state.auditLog||[],clientActivity:state.clientActivity||[]}}}
 function writablePartsForRole(role){role=String(role||"").toLowerCase();if(["superadmin","owner","admin","manager"].includes(role))return null;if(role==="reception")return new Set(["crm","schedule","finance"]);if(role==="cashier")return new Set(["crm","finance","inventory"]);if(role==="barber")return new Set(["schedule","attendance"]);return new Set()}
 
-async function writeTenantParts(businessId,state,allowed=null){
-  assertTenantIdentity(businessId,state);state=normalizeTenantState(businessId,state);const parts=split(state),entries=Object.entries(parts).filter(([name])=>allowed===null||allowed.has(name));if(!entries.length)return false;
-  const batch=writeBatch(firestore);entries.forEach(([name,payload])=>batch.set(doc(firestore,BUSINESSES,businessId,"state",name),{businessId,payload:JSON.parse(JSON.stringify(payload)),updatedAt:serverTimestamp(),updatedBy:authEmail()},{merge:true}));await batch.commit();return true;
+export async function uploadTenantState(businessId,state){
+  assertTenantIdentity(businessId,state);
+  const next=normalizeTenantState(businessId,cloneJSON(state)),parts=split(next);
+  const entries=Object.entries(parts),refs=entries.map(([name])=>doc(firestore,BUSINESSES,businessId,"state",name));
+  const legacy=doc(firestore,BUSINESSES,businessId,"state","operations");
+  await runTransaction(firestore,async tx=>{
+    const all=await Promise.all([...refs,legacy].map(ref=>tx.get(ref)));
+    if(all.some(s=>s.exists()))throw new Error("La empresa ya tiene datos. No se realizará una inicialización destructiva.");
+    entries.forEach(([name,payload],i)=>{
+      const value={businessId,payload:cloneJSON(payload),updatedAt:serverTimestamp(),updatedBy:authEmail(),updatedByUid:authUid(),syncRevision:1};
+      if(protectedLists[name]){
+        const event=doc(collection(firestore,BUSINESSES,businessId,"state_events"));
+        value.auditId=event.id;
+        tx.set(event,{businessId,domain:name,revision:1,actorUid:authUid(),createdAt:serverTimestamp()});
+      }
+      tx.set(refs[i],value);
+    });
+  });
+  SaaS.saveTenantState?.(businessId,next);return true;
 }
-export async function uploadTenantState(businessId,state){await writeTenantParts(businessId,state,null);SaaS.saveTenantState?.(businessId,normalizeTenantState(businessId,state));return true}
 export async function ensureTenantState(businessId){if(!businessId)return false;const cfg=await getDoc(doc(firestore,BUSINESSES,businessId,"state","config"));if(cfg.exists())return false;const business=businessById(businessId),fallback=SaaS.blankBusinessState?.(business)||{meta:{businessId},business:{name:business?.name||"Negocio"}};let state=SaaS.loadTenantState?.(businessId)||fallback;state=normalizeTenantState(businessId,state);await uploadTenantState(businessId,state);return true}
-export async function uploadCurrentTenant(){const b=SaaS.currentBusiness();if(!b||!A()?.db)return false;assertTenantIdentity(b.id,A().db);const allowed=writablePartsForRole(SaaS.session?.role),state=normalizeTenantState(b.id,A().db),ok=await writeTenantParts(b.id,state,allowed);if(ok)SaaS.saveTenantState(b.id,state);return ok}
+export function uploadCurrentTenant(){
+  const b=SaaS.currentBusiness();if(!b||!A()?.db)return Promise.resolve(false);
+  const id=b.id,uid=authUid(),key=tenantKey(id,uid),email=authEmail();
+  assertTenantIdentity(id,A().db);
+  const state=normalizeTenantState(id,cloneJSON(A().db)), next=split(state);
+  const allowed=writablePartsForRole(SaaS.session?.role);
+  const base=baselines.get(key);
+  if(tenantSyncBlocked(id))return Promise.reject(new Error("Hay cambios pendientes de revisión. Contacta a soporte."));
+  if(!base)return Promise.reject(new Error("No existe una lectura de Firebase verificada para este negocio."));
+  const entries=changedParts(next,base.logical,base.raw,allowed);
+  if(!entries.length)return Promise.resolve(false);
+  let job=pending.get(key);
+  if(!job){job={uid,businessId:id,count:0,tail:Promise.resolve(),failed:false,latest:{},before:{},storageKey:draftKey(key)+":"+crypto.randomUUID()};pending.set(key,job);}
+  for(const entry of entries){job.latest[entry.name]=entry.after;if(!Object.hasOwn(job.before,entry.name))job.before[entry.name]=entry.before??null;}
+  try{
+    for(const entry of entries){
+      entry.logicalAfter=entry.after;
+      if(protectedLists[entry.name]){
+        entry.after=protectHistory(entry.name,entry.before,entry.after,id);
+        entry.eventRef=doc(collection(firestore,BUSINESSES,id,"state_events"));
+      }
+    }
+  }catch(error){keepDraft(key,job,error);return Promise.reject(error);}
+  for(const entry of entries)job.latest[entry.name]=entry.after;
+  try{persistDraft(job);}catch(error){keepDraft(key,job,error);return Promise.reject(Error("No se pudo proteger la copia local. No se enviaron los cambios."));}
+  for(const entry of entries){base.raw[entry.name]=entry.after;base.logical[entry.name]=entry.logicalAfter;}
+  job.count++;
+  const valid=()=>sessionCanReadTenant(id,uid)&&SaaS.getContext?.()?.businessId===id;
+  const work=job.tail.then(async()=>{
+    if(job.failed||!valid())throw new Error("La sesión cambió antes de sincronizar.");
+    await runTransaction(firestore,async tx=>{
+      if(!valid())throw new Error("La sesión cambió antes de sincronizar.");
+      const refs=entries.map(e=>doc(firestore,BUSINESSES,id,"state",e.name));
+      const snaps=await Promise.all(refs.map(ref=>tx.get(ref)));
+      if(!valid())throw new Error("La sesión cambió durante la sincronización.");
+      const actual={};
+      snaps.forEach((s,i)=>{if(s.exists()){if(String(s.data().businessId||id)!==id)throw new Error("Documento con empresa incorrecta.");actual[entries[i].name]=s.data().payload;}});
+      assertUnchanged(entries,actual);
+      entries.forEach((e,i)=>{
+        const revision=Number(snaps[i].data()?.syncRevision||0)+1;
+        const value={businessId:id,payload:e.after,updatedAt:serverTimestamp(),updatedBy:email,updatedByUid:uid,syncRevision:revision};
+        if(e.eventRef){
+          value.auditId=e.eventRef.id;
+          tx.set(e.eventRef,{businessId:id,domain:e.name,revision,actorUid:uid,createdAt:serverTimestamp()});
+        }
+        tx.set(refs[i],value,{mergeFields:Object.keys(value)});
+      });
+    });
+    return true;
+  }).catch(error=>{keepDraft(key,job,error);throw error;}).finally(()=>{
+    job.count--;
+    if(!job.count&&!job.failed){
+      clearConfirmedDraft(job);
+      pending.delete(key);
+      if(valid())watchCurrentTenant();
+    }
+  });
+  job.tail=work;
+  return work;
+}
 
 export async function downloadTenant(businessId){
   if(!businessId)return false;
   const startedUid=authUid();
   if(!sessionCanReadTenant(businessId,startedUid))throw new Error("La sesión actual no puede leer este negocio.");
   const names=["operations","config","history","crm","schedule","finance","inventory","staff","attendance"];
-  const snaps=await Promise.all(names.map(n=>getDoc(doc(firestore,BUSINESSES,businessId,"state",n))));
+  const key=tenantKey(businessId,startedUid);
+  if(tenantSyncBlocked(businessId))throw new Error("Existen cambios locales pendientes de revisión.");
+  const snaps=await Promise.all(names.map(n=>getDocFromServer(doc(firestore,BUSINESSES,businessId,"state",n))));
   // La sesión puede cambiar mientras Firestore responde. En ese caso descartamos completamente la descarga.
   if(!sessionCanReadTenant(businessId,startedUid))return false;
   if(!snaps.some(s=>s.exists()))return false;
@@ -86,7 +246,10 @@ export async function downloadTenant(businessId){
   let state={meta:{businessId}};
   for(const s of snaps){if(!s.exists()||!s.data()?.payload)continue;const docBusinessId=String(s.data()?.businessId||businessId);if(docBusinessId!==businessId){console.error("[SAMBRIX] Documento de tenant con identidad inválida bloqueado",{expected:businessId,found:docBusinessId});continue}state={...state,...s.data().payload}}
   if(!sessionCanReadTenant(businessId,startedUid))return false;
-  state=normalizeTenantState(businessId,state);SaaS.saveTenantState(businessId,state);
+  state=normalizeTenantState(businessId,state);
+  const raw={};snaps.forEach((s,i)=>{if(s.exists()&&String(s.data()?.businessId||businessId)===businessId)raw[names[i]]=cloneJSON(s.data().payload||{});});
+  baselines.set(key,{raw,logical:cloneJSON(split(state))});
+  SaaS.saveTenantState(businessId,state);
   if(sessionCanReadTenant(businessId,startedUid)&&SaaS.getContext().businessId===businessId){A().db=state;A().ensurePermissionsData?.();A().ensureStaff?.();localStorage.setItem(A().KEY,JSON.stringify(state));A().renderAll?.()}
   return true;
 }
@@ -95,6 +258,9 @@ export function watchCatalog(){if(catalogUnsub)catalogUnsub();catalogUnsub=onSna
 
 export function watchCurrentTenant(){
   stateUnsubs.forEach(u=>u());stateUnsubs=[];const b=SaaS.currentBusiness();if(!b)return;const watchedBusinessId=b.id,watchedUid=authUid();if(!sessionCanReadTenant(watchedBusinessId,watchedUid))return;
-  ["config","crm","schedule","finance","inventory","staff","attendance","history"].forEach(name=>{stateUnsubs.push(onSnapshot(doc(firestore,BUSINESSES,watchedBusinessId,"state",name),s=>{if(!s.exists()||!s.data()?.payload)return;if(!sessionCanReadTenant(watchedBusinessId,watchedUid))return;if(SaaS.getContext().businessId!==watchedBusinessId)return;const docBusinessId=String(s.data()?.businessId||watchedBusinessId);if(docBusinessId!==watchedBusinessId){console.error(`[SAMBRIX tenant listener:${name}] identidad inválida`,{expected:watchedBusinessId,found:docBusinessId});return}const state=normalizeTenantState(watchedBusinessId,{...SaaS.loadTenantState(watchedBusinessId),...s.data().payload});if(!sessionCanReadTenant(watchedBusinessId,watchedUid))return;SaaS.saveTenantState(watchedBusinessId,state);if(SaaS.getContext().businessId===watchedBusinessId){A().db=state;A().ensurePermissionsData?.();A().ensureStaff?.();localStorage.setItem(A().KEY,JSON.stringify(state));A().renderAll?.()}},e=>console.error(`[SAMBRIX tenant listener:${name}]`,e)))});
+  ["config","crm","schedule","finance","inventory","staff","attendance","history"].forEach(name=>{stateUnsubs.push(onSnapshot(doc(firestore,BUSINESSES,watchedBusinessId,"state",name),{includeMetadataChanges:true},s=>{if(!s.exists()||!s.data()?.payload||s.metadata.fromCache||s.metadata.hasPendingWrites||tenantSyncBusy(watchedBusinessId)||tenantSyncBlocked(watchedBusinessId))return;if(!sessionCanReadTenant(watchedBusinessId,watchedUid))return;if(SaaS.getContext().businessId!==watchedBusinessId)return;const docBusinessId=String(s.data()?.businessId||watchedBusinessId);if(docBusinessId!==watchedBusinessId){console.error(`[SAMBRIX tenant listener:${name}] identidad inválida`,{expected:watchedBusinessId,found:docBusinessId});return}const state=normalizeTenantState(watchedBusinessId,{...SaaS.loadTenantState(watchedBusinessId),...s.data().payload});if(!sessionCanReadTenant(watchedBusinessId,watchedUid))return;const key=tenantKey(watchedBusinessId,watchedUid),base=baselines.get(key);
+    if(!base)return;
+    base.raw[name]=cloneJSON(s.data().payload);base.logical=cloneJSON(split(state));
+    SaaS.saveTenantState(watchedBusinessId,state);if(SaaS.getContext().businessId===watchedBusinessId){A().db=state;A().ensurePermissionsData?.();A().ensureStaff?.();localStorage.setItem(A().KEY,JSON.stringify(state));A().renderAll?.()}},e=>console.error(`[SAMBRIX tenant listener:${name}]`,e)))});
 }
 export function stopSaaSCloud(){if(catalogUnsub)catalogUnsub();catalogUnsub=null;stateUnsubs.forEach(u=>u());stateUnsubs=[]}

@@ -11,7 +11,16 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "**/*.zip"
+      "**/*.zip",
+      "firestore.rules",
+      "database.rules.json",
+      "package*.json",
+      "eslint.config.js",
+      "scripts/**",
+      "tests/**",
+      "**/*.md",
+      "functions/**",
+      "firebase.shop.json"
     ],
     "rewrites": [
       {

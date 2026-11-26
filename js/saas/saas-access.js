@@ -3,13 +3,13 @@ import {firebaseConfig} from "../firebase/firebase-config.js";
 import {firebaseApp,firestore,doc,getDoc,setDoc,serverTimestamp} from "../firebase/firebase-core.js";
 import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {getAuth,createUserWithEmailAndPassword,signOut,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {collection,getDocs,deleteDoc,updateDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {collection,getDocs,deleteDoc,updateDoc,getDocFromServer,runTransaction} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 let platformConfig=null,currentProfile=null;
 
 async function loadPlatformConfig(){
   try{
-    const s=await getDoc(doc(firestore,"platform","config"));
+    const s=await getDocFromServer(doc(firestore,"platform","config"));
     platformConfig=s.exists()?s.data():null;
   }catch(error){
     platformConfig=null;
@@ -24,7 +24,7 @@ async function loadPlatformConfig(){
 async function loadCurrentProfile(){
   const u=window.FirebaseBridge?.user;
   if(!u){currentProfile=null;return null}
-  const s=await getDoc(doc(firestore,"platform_users",u.uid));
+  const s=await getDocFromServer(doc(firestore,"platform_users",u.uid));
   currentProfile=s.exists()?s.data():null;
   return currentProfile;
 }
@@ -45,8 +45,8 @@ async function ensureSuperAdminProfile(){
 async function createAuthUser(email,password){
   const app=initializeApp(firebaseConfig,"secondary-"+Date.now()+"-"+Math.random().toString(36).slice(2));
   const auth=getAuth(app);
-  const credential=await createUserWithEmailAndPassword(auth,email,password);
-  return {app,auth,user:credential.user};
+  try{const credential=await createUserWithEmailAndPassword(auth,email,password);return {app,auth,user:credential.user};}
+  catch(error){try{await deleteApp(app);}catch{}throw error;}
 }
 
 async function createBusinessMember({businessId,name,email,password,role}){
@@ -65,15 +65,20 @@ async function createBusinessMember({businessId,name,email,password,role}){
     });
     memberCreated=true;
 
+    // Creating another user must never reset the commercial state of an existing company.
+    const businessRef=doc(firestore,"businesses",businessId);
     const business=SaaS.db.businesses?.find(b=>b.id===businessId);
-    if(business){
-      await setDoc(doc(firestore,"businesses",businessId),{
+    await runTransaction(firestore,async tx=>{
+      const existing=await tx.get(businessRef);
+      if(existing.exists())return;
+      if(!isSuperAdmin()||!business)throw Error("Primero verifica la empresa en Firebase.");
+      tx.set(businessRef,{
         id:businessId,name:business.name||"Negocio",type:business.type||"",status:business.status||"Activo",
         owner:business.owner||name||email,ownerEmail:business.ownerEmail||email,
         branches:business.branches||[],brand:business.brand||{},planId:business.planId||business.plan||"",
-        updatedAt:serverTimestamp()
-      },{merge:true});
-    }
+        nextPayment:business.nextPayment||"",updatedAt:serverTimestamp()
+      });
+    });
 
     await setDoc(doc(firestore,"platform_users",u.uid),{
       uid:u.uid,email,name:name||email,role:"business_user",businessId,active:true,createdAt:serverTimestamp()
@@ -126,10 +131,11 @@ async function resolveMyBusiness(){
   if(!currentProfile||currentProfile.active===false)return null;
   const businessId=String(currentProfile?.businessId||"");
   if(!businessId)return null;
-  const member=await getDoc(doc(firestore,"businesses",businessId,"members",u.uid));
+  const member=await getDocFromServer(doc(firestore,"businesses",businessId,"members",u.uid));
   if(!member.exists()||member.data()?.active===false)return null;
-  const businessSnap=await getDoc(doc(firestore,"businesses",businessId));
+  const businessSnap=await getDocFromServer(doc(firestore,"businesses",businessId));
   const business=businessSnap.exists()?{id:businessId,...businessSnap.data()}:{id:businessId,name:"Mi negocio",branches:[]};
+  if(business.accessSuspended===true)return null;
   const status=String(business.status||"Activo").toLowerCase();
   if(["suspendido","suspended","inactivo","inactive","bloqueado","blocked"].includes(status))return null;
   return {business,membership:{businessId,...member.data()}};

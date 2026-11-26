@@ -1403,9 +1403,13 @@ SaaS.approvePublicBooking=async function(id){
   if(req.status!=="Pendiente"&&req.status!=="Aprobada")return window.App?.toast?.("Esta solicitud ya fue resuelta");
   if(req.status==="Pendiente"&&SaaS.publicBookingConflict(req))return window.App?.toast?.("Ese horario ya no estÃ¡ disponible");
   try{
+    const businessId=SaaS.getContext().businessId,actor=window.FirebaseBridge?.user?.uid;
     const appt=SaaS.createAppointmentFromRequest(req);
     if(!appt)throw new Error("No se pudo crear la cita");
-    await window.NexoPublicCloud?.updateBookingRequest?.(SaaS.getContext().businessId,id,{status:"Aprobada",appointmentId:appt.id,resolvedAt:new Date().toISOString()});
+    if(!window.SaaSCloudProduction?.waitForTenantCommit)throw Error("La sincronización no está preparada.");
+    await window.SaaSCloudProduction.waitForTenantCommit(businessId);
+    if(SaaS.getContext().businessId!==businessId||window.FirebaseBridge?.user?.uid!==actor)throw Error("La sesión cambió. Revisa la reserva.");
+    await window.NexoPublicCloud.updateBookingRequest(businessId,id,{status:"Aprobada",appointmentId:appt.id,resolvedAt:new Date().toISOString()});
     SaaS.audit?.("BUSINESS","Reserva pÃºblica aprobada",{requestId:id,appointmentId:appt.id},SaaS.getContext().businessId);
     window.App?.toast?.("Reserva aprobada y cita creada");
   }catch(e){window.App?.toast?.(e.message||"No se pudo aprobar")}
@@ -8757,14 +8761,14 @@ setTimeout(()=>{
   }
   A.nextReceiptNumber=function(){const max=(A.db.sales||[]).reduce((m,s)=>{const n=parseInt(String(s.number||'').replace(/\D/g,''),10);return Number.isFinite(n)?Math.max(m,n):m},0);return String(max+1).padStart(6,'0')};
   A.commitAppointmentFinalization=function(id,{method='Efectivo',amount=null}={}){
-    if(!canFinalize()||finalizing.has(id))return false;const a=(A.db.appointments||[]).find(x=>x.id===id);if(!a)return false;if(a.status==='Cancelada'){A.toast('Una cita cancelada no puede finalizarse');return false}
+    if(!canFinalize()||finalizing.has(id))return false;const a=(A.db.appointments||[]).find(x=>x.id===id);if(!a)return false;if(a.status==='Cancelada'){A.toast('Una cita cancelada no puede finalizarse');return false}if(a.status==='Finalizada'||a.finalizedAccountingAt){A.toast('Esta cita ya tiene cierre financiero.');return false}
     const businessId=S?.getContext?.()?.businessId||A.db?.meta?.businessId||'',appointmentBusinessId=String(a.businessId||businessId||'');if(businessId&&appointmentBusinessId&&appointmentBusinessId!==businessId){A.toast('La cita no pertenece al negocio activo');console.error('[SAMBRIX] Cierre financiero bloqueado por identidad de negocio',{appointmentId:id,businessId,appointmentBusinessId});return false}
     finalizing.add(id);
     let rollbackOnError=null,persistCompleted=false;
     try{
-      const s=(A.db.services||[]).find(x=>x.id===a.serviceId),c=(A.db.clients||[]).find(x=>x.id===a.clientId),branchId=a.branchId||S?.getContext?.()?.branchId||A.db?.meta?.branchId||'',total=Number(amount==null?(a.price??s?.price??0):amount);if(!Number.isFinite(total)||total<0){A.toast('Monto invÃ¡lido');return false}
+      const s=(A.db.services||[]).find(x=>x.id===a.serviceId),c=(A.db.clients||[]).find(x=>x.id===a.clientId),branchId=a.branchId||S?.getContext?.()?.branchId||A.db?.meta?.branchId||'',total=Number(amount==null?(a.price??s?.price??0):amount);if(!Number.isFinite(total)||total<0||Math.abs(total*100-Math.round(total*100))>1e-7){A.toast('Monto invÃ¡lido');return false}
       const linkedSales=(A.db.sales||[]).filter(x=>x.appointmentId===a.id),linkedCash=(A.db.cash||[]).filter(x=>x.appointmentId===a.id&&x.type==='Ingreso');if(linkedSales.length>1||linkedCash.length>1){A.toast('Se detectaron registros financieros duplicados. Revisa esta cita antes de continuar.');console.error('[SAMBRIX] Duplicidad financiera detectada',{appointmentId:a.id,sales:linkedSales.length,cash:linkedCash.length});return false}
-      const existingSale=linkedSales[0]||null,existingCash=linkedCash[0]||null,targetBusinessId=businessId||appointmentBusinessId;
+      const existingSale=linkedSales[0]||null,existingCash=linkedCash[0]||null,targetBusinessId=businessId||appointmentBusinessId;if(existingSale||existingCash){A.toast('Existe un cierre previo. Contacta a soporte para conciliarlo.');return false}
       const appointmentSnapshot={...a},clientSnapshot=c?{...c}:null,saleSnapshot=existingSale?JSON.parse(JSON.stringify(existingSale)):null,cashSnapshot=existingCash?JSON.parse(JSON.stringify(existingCash)):null;
       const restoreObject=(target,snapshot)=>{if(!target||!snapshot)return;Object.keys(target).forEach(k=>delete target[k]);Object.assign(target,JSON.parse(JSON.stringify(snapshot)))};
       const rollbackLocal=()=>{restoreObject(a,appointmentSnapshot);if(c&&clientSnapshot)restoreObject(c,clientSnapshot);if(existingSale&&saleSnapshot)restoreObject(existingSale,saleSnapshot);else if(sale)A.db.sales=(A.db.sales||[]).filter(x=>x!==sale);if(existingCash&&cashSnapshot)restoreObject(existingCash,cashSnapshot);else A.db.cash=(A.db.cash||[]).filter(x=>x.appointmentId!==a.id)};rollbackOnError=rollbackLocal;
@@ -8774,10 +8778,21 @@ setTimeout(()=>{
       let sale=existingSale;if(!sale){sale={id:A.uid(),number:A.nextReceiptNumber(),date:a.date,time:a.time,clientId:a.clientId,clientName:A.clientName(a.clientId),barberId:a.barberId,barberName:A.barberName(a.barberId),serviceId:a.serviceId,appointmentId:a.id,publicRequestId:a.publicRequestId||'',businessId:a.businessId,branchId,currency:A.db.business.currency,paymentMethod:method,total,items:[{type:'Servicio',serviceId:a.serviceId,name:s?.name||'Servicio',qty:1,unit:total,total}],createdAt:now};A.db.sales=A.db.sales||[];A.db.sales.push(sale)}else{sale.paymentMethod=method;sale.total=total;sale.businessId=a.businessId;sale.branchId=branchId;sale.clientId=sale.clientId||a.clientId;sale.barberId=sale.barberId||a.barberId;sale.serviceId=sale.serviceId||a.serviceId;sale.appointmentId=a.id;if(sale.items?.[0]){sale.items[0].unit=total;sale.items[0].total=total;sale.items[0].type=sale.items[0].type||'Servicio'}}
       if(!existingCash){A.db.cash=A.db.cash||[];A.db.cash.push({id:A.uid(),type:'Ingreso',concept:`${s?.name||'Servicio'} - ${A.clientName(a.clientId)}`,amount:total,method,date:a.date,appointmentId:a.id,saleId:sale.id,clientId:a.clientId,businessId:a.businessId,branchId,currency:A.db.business.currency,createdAt:now})}else{existingCash.amount=total;existingCash.method=method;existingCash.saleId=sale.id;existingCash.businessId=a.businessId;existingCash.branchId=branchId}
       A.logAction?.('Cita finalizada','Citas',`${A.clientName(a.clientId)} Â· ${a.date} ${a.time} Â· ${method} Â· ${A.money(total)}`);const persisted=A.persist();if(persisted===false){rollbackLocal();A.toast('No se pudo guardar el cierre financiero');return false}persistCompleted=true
-      if(a.publicRequestId&&businessId){window.NexoPublicCloud?.updateBookingRequest?.(businessId,a.publicRequestId,{status:'Finalizada',resolvedAt:now}).catch(console.error);window.NexoPublicCloud?.releaseBookingSlotFor?.(businessId,a.barberId,a.date,a.time).catch(console.error)}if(c?.firebaseUid&&businessId)window.NexoPublicCloud?.updateClientAccount?.(businessId,c.firebaseUid,{points:Number(c.points||0),visits:Number(c.visits||0),lastVisit:c.lastVisit||''}).catch(console.error);return sale;
+      const actor=window.FirebaseBridge?.user?.uid;
+      const confirmed=window.SaaSCloudProduction?.waitForTenantCommit?.(businessId);
+      if(confirmed)Promise.resolve(confirmed).then(async()=>{
+        if(window.FirebaseBridge?.user?.uid!==actor||S?.getContext?.()?.businessId!==businessId)return;
+        if(a.publicRequestId&&businessId){
+          await window.NexoPublicCloud?.updateBookingRequest?.(businessId,a.publicRequestId,{status:'Finalizada',resolvedAt:now});
+          await window.NexoPublicCloud?.releaseBookingSlotFor?.(businessId,a.barberId,a.date,a.time);
+        }
+        if(c?.firebaseUid&&businessId)await window.NexoPublicCloud?.updateClientAccount?.(businessId,c.firebaseUid,{points:Number(c.points||0),visits:Number(c.visits||0),lastVisit:c.lastVisit||''});
+        A.toast('Cierre guardado en Firebase.');
+      }).catch(e=>{console.error('[SAMBRIX cierre]',e);A.toast('Revisa la sincronización del cierre con soporte.');});else A.toast('Cierre pendiente de verificación.');
+      return sale;
     }catch(error){if(!persistCompleted&&rollbackOnError){try{rollbackOnError();A.renderAll?.()}catch(rollbackError){console.error('[SAMBRIX] Error al revertir cierre financiero',rollbackError)}}console.error('[SAMBRIX] Error al finalizar cita',error);A.toast('No se pudo completar el cierre financiero');return false}finally{finalizing.delete(id)}
   };
-  A.finishAppointment=function(id){if(!canFinalize())return;const a=(A.db.appointments||[]).find(x=>x.id===id);if(!a)return;if(a.status==='Finalizada')return A.toast('Esta cita ya fue finalizada');if(a.status==='Cancelada')return A.toast('Una cita cancelada no puede finalizarse');const s=(A.db.services||[]).find(x=>x.id===a.serviceId),defaultAmount=Number(a.price??s?.price??0);if(typeof A.openFormModal!=='function')return A.commitAppointmentFinalization(id,{method:'Efectivo',amount:defaultAmount});A.openFormModal({tag:'COBRO',title:'Finalizar servicio',saveText:'Finalizar y cobrar',note:`${A.clientName(a.clientId)} Â· ${s?.name||'Servicio'} Â· ${a.date} ${a.time}`,fields:[{name:'paymentMethod',label:'MÃ©todo de pago',type:'select',value:a.paymentMethod||'Efectivo',options:['Efectivo','Pago mÃ³vil','Transferencia','Divisa','Tarjeta','Otro'].map(x=>({value:x,label:x}))},{name:'amount',label:'Total cobrado',type:'number',step:'0.01',value:defaultAmount}],onSave:()=>{const amount=Number(A.readModal('amount'));if(!Number.isFinite(amount)||amount<0)return A.toast('Escribe un monto vÃ¡lido');const method=A.readModal('paymentMethod')||'Efectivo',sale=A.commitAppointmentFinalization(id,{method,amount});if(sale){A.closeModal();A.toast(`Servicio finalizado Â· Recibo #${sale.number}`)}}})};
+  A.finishAppointment=function(id){if(!canFinalize())return;const a=(A.db.appointments||[]).find(x=>x.id===id);if(!a)return;if(a.status==='Finalizada')return A.toast('Esta cita ya fue finalizada');if(a.status==='Cancelada')return A.toast('Una cita cancelada no puede finalizarse');const s=(A.db.services||[]).find(x=>x.id===a.serviceId),defaultAmount=Number(a.price??s?.price??0);if(typeof A.openFormModal!=='function')return A.commitAppointmentFinalization(id,{method:'Efectivo',amount:defaultAmount});A.openFormModal({tag:'COBRO',title:'Finalizar servicio',saveText:'Finalizar y cobrar',note:`${A.clientName(a.clientId)} Â· ${s?.name||'Servicio'} Â· ${a.date} ${a.time}`,fields:[{name:'paymentMethod',label:'MÃ©todo de pago',type:'select',value:a.paymentMethod||'Efectivo',options:['Efectivo','Pago mÃ³vil','Transferencia','Divisa','Tarjeta','Otro'].map(x=>({value:x,label:x}))},{name:'amount',label:'Total cobrado',type:'number',step:'0.01',value:defaultAmount}],onSave:()=>{const amount=Number(A.readModal('amount'));if(!Number.isFinite(amount)||amount<0)return A.toast('Escribe un monto vÃ¡lido');const method=A.readModal('paymentMethod')||'Efectivo',sale=A.commitAppointmentFinalization(id,{method,amount});if(sale){A.closeModal();A.toast(`Cierre en verificación · Recibo #${sale.number}`)}}})};
   A.repairFinancialLinks=function(){if(!A.db)return;const businessId=S?.getContext?.()?.businessId||A.db?.meta?.businessId||'',branchId=S?.getContext?.()?.branchId||A.db?.meta?.branchId||'';(A.db.sales||[]).forEach(s=>{if(!s.businessId)s.businessId=businessId;if(!s.branchId)s.branchId=branchId;s.paymentMethod=s.paymentMethod||'No especificado'});(A.db.cash||[]).forEach(c=>{if(!c.businessId)c.businessId=businessId;if(!c.branchId)c.branchId=branchId})};
   const oldRenderAll=A.renderAll;if(oldRenderAll&&!A.__financialRenderHook){A.renderAll=function(){A.repairFinancialLinks();return oldRenderAll.apply(A,arguments)};A.__financialRenderHook=true}A.repairFinancialLinks();
 })();
@@ -8786,104 +8801,6 @@ setTimeout(()=>{
 
 /* ---- js/saas/public-runtime.js ---- */
 
-(async function(){
-  const params=new URLSearchParams(location.search);
-  const businessId=params.get("business");
-  const clientMode=params.get("cliente");
-  if(!businessId||clientMode!=="app")return;
-
-  try{
-    // hide admin login/app immediately
-    document.getElementById("loginView")?.classList.add("hidden");
-    document.getElementById("adminApp")?.classList.add("hidden");
-
-    let tries=0;
-    while((!window.NexoPublicCloud||!window.SambrixClientCloud)&&tries++<60)await new Promise(r=>setTimeout(r,100));
-    if(!window.NexoPublicCloud)throw new Error("Servicio pÃºblico no disponible");
-    if(!window.SambrixClientCloud)throw new Error("Servicio de cuenta del cliente no disponible");
-
-    const p=await NexoPublicCloud.loadPublicBusiness(businessId);
-    if(!p||!["Activo","Prueba"].includes(p.status)){
-      document.body.innerHTML='<main style="max-width:600px;margin:80px auto;font-family:Arial;padding:20px;text-align:center"><h2>Reservas temporalmente no disponibles</h2><p>Contacta directamente con el negocio.</p></main>';
-      return;
-    }
-
-    const A=window.App;
-    A.db.business=A.db.business||{};
-    A.db.business.name=p.name;
-    A.db.business.open=p.businessHours?.open||"09:00";
-    A.db.business.close=p.businessHours?.close||"19:00";
-    let availabilityLoaded=false;
-    const applyPublicState=next=>{
-      if(!next||!["Activo","Prueba"].includes(next.status))return false;
-      A.db.business.name=next.name||A.db.business.name;
-      A.db.business.open=next.businessHours?.open||"09:00";
-      A.db.business.close=next.businessHours?.close||"19:00";
-      A.db.business.clientApp={...(A.db.business.clientApp||{}),...(next.branding||{})};
-      A.db.services=next.services||[];
-      if(!availabilityLoaded){
-        A.db.barbers=next.barbers||[];
-        A.db.appointments=(next.busy||[]).map((x,i)=>({...x,id:"busy-"+i+"-"+String(x.barberId||"")+"-"+String(x.date||"")+"-"+String(x.time||""),clientId:"public-busy"}));
-      }
-      A.db.products=(next.products||[]).map(x=>({...x,stock:x.available?1:0}));
-      return true;
-    };
-    applyPublicState(p);
-    const applyAvailability=next=>{
-      if(!next)return false;
-      A.db.business.open=next.businessHours?.open||A.db.business.open||"09:00";
-      A.db.business.close=next.businessHours?.close||A.db.business.close||"19:00";
-      if(Array.isArray(next.barbers))A.db.barbers=next.barbers;
-      if(Array.isArray(next.busy))A.db.appointments=next.busy.map((x,i)=>({...x,id:x.id||("busy-live-"+i+"-"+String(x.barberId||"")+"-"+String(x.date||"")+"-"+String(x.time||"")),clientId:"public-busy"}));
-      return true;
-    };
-    let availabilityUnsub=null;
-    if(window.NexoPublicCloud.watchPublicAvailability){
-      availabilityUnsub=window.NexoPublicCloud.watchPublicAvailability(businessId,next=>{
-        if(!next)return;
-        applyAvailability(next);
-        availabilityLoaded=true;
-        A.renderClientBooking?.();
-      });
-    }
-
-    A.submitClientReservation=async function(){
-      const s=A.db.services.find(x=>x.id===A.clientSelection.serviceId),date=A.val("clientBookDate"),time=A.clientSelection.time,name=A.val("clientBookName"),phone=A.val("clientBookPhone");
-      if(!s||!date||!time||!name||!phone)return A.toast("Completa servicio, horario y tus datos");
-      let barberId=A.clientSelection.barberId;
-      if(!barberId){
-        const list=A.availableBarbers(date,time,s.duration);
-        if(!list.length)return A.toast("Horario no disponible");
-        barberId=list[0].id;
-      }
-      try{
-        if(!window.SambrixClientCloud?.isReady?.())throw new Error("La cuenta del cliente todavÃ­a estÃ¡ cargando");
-        if(!window.SambrixClientCloud?.currentUser?.())throw new Error("Debes iniciar sesiÃ³n para reservar");
-        await window.SambrixClientCloud.createBooking({serviceId:s.id,barberId,date,time,note:A.val("clientBookNote")||"",branchId:p.branch?.id||""});
-        A.toast("Solicitud de reserva enviada");
-        A.clientSelection={serviceId:"",barberId:"",time:""};
-        A.renderClientBooking();
-      }catch(e){A.toast(e?.message||"No se pudo enviar la reserva")}
-    };
-
-    A.openClientApp();
-    window.NexoPublicCloud.watchPublicBusiness?.(businessId,next=>{
-      if(!next||!["Activo","Prueba"].includes(next.status)){
-        try{availabilityUnsub?.()}catch{}
-        document.body.innerHTML='<main style="max-width:600px;margin:80px auto;font-family:Arial;padding:20px;text-align:center"><h2>Reservas temporalmente no disponibles</h2><p>Contacta directamente con el negocio.</p></main>';
-        return;
-      }
-      applyPublicState(next);
-      A.renderClientBooking?.();
-    });
-    const foot=document.getElementById("nexoPoweredBy");if(foot)foot.classList.toggle("white-label-hidden",p.whiteLabel?.showPoweredBy===false);
-  }catch(e){
-    console.error("[Public Client]",e);
-    const message=String(e?.message||"").includes("iniciar sesiÃ³n")
-      ?"Inicia sesiÃ³n nuevamente para continuar."
-      :"No pudimos cargar las reservas en este momento. Intenta recargar la pÃ¡gina.";
-    document.body.innerHTML=`<main style="max-width:600px;margin:80px auto;font-family:Arial;padding:20px;text-align:center"><h2>No se pudo abrir SAMBRIX</h2><p>${message}</p><button type="button" onclick="location.reload()" style="margin-top:12px;padding:12px 18px;border:0;border-radius:10px;cursor:pointer">Reintentar</button></main>`;
-  }
-})();
+/* Public client route is now handled by client-public-v2.js. */
 
 ;

@@ -1,0 +1,31 @@
+/* SAMBRIX Business: compact, role-aware workspace. */
+#adminApp[data-business-workspace="ready"] .bottom-nav{display:none!important}
+#adminApp[data-business-workspace="ready"] main{max-width:1240px;padding-bottom:36px}
+#adminApp[data-business-workspace="ready"][data-business-workspace-view="menu"] main>.page{display:none!important}
+#adminApp[data-business-workspace="ready"] .business-policy-hidden{display:none!important}
+#businessWorkspace[hidden],.business-workspace-nav[hidden],.business-workspace-nav button[hidden],.business-tile[hidden]{display:none!important}
+.business-workspace-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;background:#142d40;color:#fff;margin-bottom:18px}
+.business-workspace-nav strong{flex:1;min-width:160px;overflow-wrap:anywhere;font-size:14px}
+.business-workspace-nav button{border:1px solid #ffffff55;background:#fff;color:#142d40;padding:9px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+.business-workspace{min-width:0;max-width:100%;padding:0 0 18px}
+.business-workspace h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.035em;margin:0 0 6px}
+.business-workspace p{color:var(--muted,#64748b);margin:0 0 14px}
+.business-workspace input{max-width:440px;width:100%;margin:0 0 15px}
+.business-workspace-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.business-tile{display:flex;align-items:center;gap:12px;min-width:0;min-height:90px;text-align:left;padding:14px;background:#fff;color:#142d40;border:1px solid #d9e3ec;border-radius:14px;box-shadow:0 2px 6px #142d4008}
+.business-tile:hover,.business-tile:focus-visible{border-color:#3788a8;outline:2px solid #3788a8;outline-offset:2px}
+.business-tile-mark{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:10px;background:#e8f2f7;color:#175b78;font-weight:800}
+.business-tile strong,.business-tile small{display:block;overflow-wrap:anywhere}
+.business-tile strong{font-size:15px}.business-tile small{font-size:12px;color:#5c6979;line-height:1.4;margin-top:4px}
+#adminApp[data-business-workspace="ready"] .topbar{height:auto;min-height:64px;flex-wrap:wrap;gap:8px;padding:10px 16px}
+#adminApp[data-business-workspace="ready"] .topbar>div{min-width:0}
+#adminApp[data-business-workspace="ready"] .top-actions{flex-wrap:wrap;align-items:center}
+#adminApp[data-business-workspace="ready"] .topbar strong,#adminApp[data-business-workspace="ready"] .topbar span{overflow-wrap:anywhere}
+#adminApp[data-business-workspace="ready"] main>.page{min-width:0;max-width:100%}
+#adminApp[data-business-workspace="ready"] main>.page .panel{min-width:0}
+#adminApp[data-business-workspace="ready"] main>.page .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+#adminApp[data-business-workspace="ready"] main>.page .executive-stats{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+@media(max-width:850px){.business-workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){#adminApp[data-business-workspace="ready"] main>.page .grid2{grid-template-columns:minmax(0,1fr)}#adminApp[data-business-workspace="ready"] .topbar{position:static}.business-workspace-nav strong{flex-basis:100%}}
+@media(max-width:470px){.business-workspace-grid{grid-template-columns:minmax(0,1fr)}.business-tile{min-height:68px}.business-workspace-nav{gap:6px;padding:10px}.business-workspace-nav button{padding:8px 10px}}
+@media print{.business-workspace-nav,.business-workspace{display:none!important}}

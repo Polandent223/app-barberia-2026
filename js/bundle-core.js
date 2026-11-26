@@ -393,6 +393,7 @@ App.printReceipt=function(id){
       if(finalized(a)||(App.db.sales||[]).some(s=>s.appointmentId===id)||(App.db.cash||[]).some(c=>c.appointmentId===id))
         return "Esta cita ya tiene cierre financiero. No se puede eliminar porque romperÃ­a la caja y el historial.";
     }
+    if(type==="sale")return "Los recibos registrados son históricos. Solicita una corrección a soporte.";
     if(type==="sale"){
       const s=(App.db.sales||[]).find(x=>x.id===id);
       const a=s?.appointmentId?(App.db.appointments||[]).find(x=>x.id===s.appointmentId):null;
@@ -468,7 +469,7 @@ App.printReceipt=function(id){
     }
     if(type==="product"){
       App.db.products=App.db.products.filter(x=>x.id!==id);
-      App.db.stockMoves=App.db.stockMoves.filter(x=>x.productId!==id);
+      // Preserve the movement ledger even when a product is removed.
     }
     if(type==="service"){
       App.db.services=App.db.services.filter(x=>x.id!==id);
@@ -752,7 +753,7 @@ App.editAppointment = function(id){
     onSave:()=>{
       if(!App.requireAppointmentAccess())return;
       const barberId=App.readModal("barberId"),date=App.readModal("date"),time=App.readModal("time");
-      const clash=App.db.appointments.some(x=>x.id!==a.id&&x.barberId===barberId&&x.date===date&&x.time===time&&x.status!=="Cancelada");
+      const clash=App.appointmentConflict({...a,barberId,date,time,serviceId:App.readModal("serviceId")},a.id);
       if(clash)return App.toast(`Ese ${App.businessVocabulary?.().staffOne||"profesional"} ya tiene una cita a esa hora`);
       a.clientId=App.readModal("clientId");a.barberId=barberId;a.serviceId=App.readModal("serviceId");
       a.date=date;a.time=time;a.status=App.readModal("status");
@@ -841,6 +842,8 @@ App.saveProduct = function(){
   if(!App.val("productName"))return App.toast("Escribe el producto");
   const id=App.val("productEditId");
   const existing=id?App.db.products.find(x=>x.id===id):null;
+  if(existing&&Number(App.val("productStock"))!==Number(existing.stock))return App.toast("Registra una entrada o salida para cambiar las existencias.");
+  if([App.val("productStock"),App.val("productMin"),App.val("productCost"),App.val("productPrice")].some(v=>!Number.isFinite(Number(v))||Number(v)<0))return App.toast("Los valores de inventario deben ser válidos y no negativos.");
   const data={
     name:App.val("productName"),category:App.val("productCategory"),stock:Number(App.val("productStock")||0),
     min:Number(App.val("productMin")||0),cost:Number(App.val("productCost")||0),price:Number(App.val("productPrice")||0)
@@ -876,7 +879,8 @@ App.stockMove = function(id,type){
     saveText:`Registrar ${type.toLowerCase()}`,
     onSave:()=>{
       if(!App.requireInventoryAccess())return;
-      const q=Number(App.readModal("qty")||0);if(q<=0)return App.toast("Cantidad invÃ¡lida");
+      const q=Number(App.readModal("qty")||0);if(!Number.isFinite(q)||q<=0)return App.toast("Cantidad invÃ¡lida");
+      if(!String(App.readModal("reason")||"").trim())return App.toast("Escribe el motivo del movimiento.");
       if(type==="Salida"&&q>p.stock)return App.toast("Stock insuficiente");
       p.stock+=type==="Entrada"?q:-q;
       App.db.stockMoves.push({id:App.uid(),productId:id,type,qty:q,reason:App.readModal("reason"),date:App.today()});
@@ -885,11 +889,11 @@ App.stockMove = function(id,type){
   });
 };
 App.renderInventory = function(){
-  App.byId("invCount").textContent=App.db.products.length;
-  App.byId("invLow").textContent=App.db.products.filter(p=>p.stock<=p.min).length;
+  App.byId("invCount").textContent=App.db.products.filter(p=>!p.archived).length;
+  App.byId("invLow").textContent=App.db.products.filter(p=>!p.archived&&p.stock<=p.min).length;
   App.byId("invValue").textContent=App.money(App.db.products.reduce((s,p)=>s+p.stock*p.cost,0));
   App.byId("invMoves").textContent=App.db.stockMoves.length;
-  const q=App.filters.products||"";const filtered=App.db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q));
+  const q=App.filters.products||"";const filtered=App.db.products.filter(p=>!p.archived&&(!q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q)));
   App.byId("productList").innerHTML=filtered.map(p=>`<article class="card product-card">${p.photo?`<img class="catalog-card-photo" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.category}</div><div class="big">${p.stock} u.</div><div class="muted">MÃ­n. ${p.min} Â· Precio ${App.money(p.price)}</div><div class="actions"><button class="btn secondary" onclick="App.stockMove('${p.id}','Entrada')">+ Entrada</button><button class="btn secondary" onclick="App.stockMove('${p.id}','Salida')">- Salida</button></div><div class="manage-actions"><button class="btn edit" onclick="App.editProduct('${p.id}')">Editar</button><button class="btn danger" onclick="App.deleteProduct('${p.id}')">${App.deleteButtonLabel()}</button></div></article>`).join("");
   App.byId("stockMoveList").innerHTML=App.db.stockMoves.slice().reverse().map(m=>`<div class="row"><div><strong>${App.db.products.find(p=>p.id===m.productId)?.name||"Producto"}</strong><small>${m.date} Â· ${m.type}${m.reason?` Â· ${m.reason}`:""}</small></div><strong>${m.qty}</strong></div>`).join("")||'<div class="muted">Sin movimientos.</div>';
 };
@@ -905,7 +909,7 @@ App.byId("productPhoto")?.addEventListener("change",e=>{
 /* ---- js/cash.js ---- */
 App.saveCash = function(){
   if(window.SaaS&&!window.SaaS.pageAllowed?.("caja"))return App.toast("Tu rol no tiene permiso para registrar movimientos de caja");
-  const amount=Number(App.val("cashAmount"));if(!App.val("cashConcept")||!amount)return App.toast("Completa concepto y monto");
+  const amount=Number(App.val("cashAmount"));if(!App.val("cashConcept").trim()||!Number.isFinite(amount)||amount<=0)return App.toast("Completa concepto y monto");
   App.db.cash.push({id:App.uid(),type:App.val("cashType"),concept:App.val("cashConcept"),amount,method:App.val("cashMethod"),date:App.val("cashDate")||App.today(),currency:App.db.business.currency,businessId:window.SaaS?.getContext?.()?.businessId||App.db?.meta?.businessId||"",branchId:window.SaaS?.getContext?.()?.branchId||App.db?.meta?.branchId||"",createdAt:new Date().toISOString()});
   App.hide("cashForm");App.byId("cashConcept").value="";App.byId("cashAmount").value="";App.persist();
 };
@@ -1489,7 +1493,7 @@ App.submitClientReservation=function(){
 };
 App.lookupClientAppointments=function(){const phone=App.val("clientLookupPhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);App.byId("clientAppointmentsList").innerHTML=c?App.db.appointments.filter(a=>a.clientId===c.id).map(a=>`<div class="row"><strong>${a.date} ${a.time}</strong><small>${App.serviceName(a.serviceId)} Â· ${App.barberName(a.barberId)}</small></div>`).join(""):'<div class="muted">No encontrado.</div>'};
 App.lookupClientProfile=function(){const phone=App.val("clientProfilePhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);App.byId("clientProfileData").innerHTML=c?`<div class="stats"><article><span>Visitas</span><b>${c.visits||0}</b></article><article><span>Puntos</span><b>${c.points||0}</b></article></div>`:'<div class="muted">No encontrado.</div>'};
-App.renderClientShop=function(){App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>`<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.stock} disponibles</div><div class="big">${App.money(p.price)}</div></article>`).join("")||'<div class="muted">No hay productos disponibles.</div>'};
+App.renderClientShop=function(){App.byId("clientShopList").innerHTML=App.db.products.filter(p=>!p.archived&&p.stock>0&&p.price>0).map(p=>`<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.stock} disponibles</div><div class="big">${App.money(p.price)}</div></article>`).join("")||'<div class="muted">No hay productos disponibles.</div>'};
 
 
 App.renderClientBookingSummary=function(){
@@ -1512,7 +1516,7 @@ App.addShopItem=function(id){
   App.renderClientShop();
 };
 App.renderClientShop=function(){
-  App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>{
+  App.byId("clientShopList").innerHTML=App.db.products.filter(p=>!p.archived&&p.stock>0&&p.price>0).map(p=>{
     const item=App.clientCart.find(x=>x.id===p.id);
     return `<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<span class="qty-badge">${p.stock} disp.</span><h3>${p.name}</h3><div class="muted">${p.category}</div><div class="big">${App.money(p.price)}</div><button class="btn primary" onclick="App.addShopItem('${p.id}')">${item?`Agregar otro (${item.qty})`:"Agregar"}</button></article>`;
   }).join("")||'<div class="muted">No hay productos disponibles.</div>';
@@ -2066,7 +2070,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   App.byId("toggleClientForm").addEventListener("click",()=>App.show("clientForm"));App.byId("cancelClientForm").addEventListener("click",()=>App.hide("clientForm"));App.byId("saveClientBtn").addEventListener("click",App.saveClient);
   App.byId("toggleBarberForm").addEventListener("click",()=>App.show("barberForm"));App.byId("cancelBarberForm").addEventListener("click",()=>App.hide("barberForm"));App.byId("saveBarberBtn").addEventListener("click",App.saveBarber);
   App.byId("toggleCashForm").addEventListener("click",()=>App.show("cashForm"));App.byId("cancelCashForm").addEventListener("click",()=>App.hide("cashForm"));App.byId("saveCashBtn").addEventListener("click",App.saveCash);
-  App.byId("toggleProductForm").addEventListener("click",()=>App.show("productForm"));App.byId("cancelProductForm").addEventListener("click",()=>App.hide("productForm"));App.byId("saveProductBtn").addEventListener("click",App.saveProduct);
+  App.byId("toggleProductForm").addEventListener("click",()=>App.show("productForm"));App.byId("cancelProductForm").addEventListener("click",()=>App.hide("productForm"));App.byId("saveProductBtn").addEventListener("click",()=>App.saveProduct());
   App.byId("toggleServiceForm").addEventListener("click",()=>App.show("serviceForm"));App.byId("cancelServiceForm").addEventListener("click",()=>App.hide("serviceForm"));App.byId("saveServiceBtn").addEventListener("click",App.saveService);
   App.byId("toggleUserForm").addEventListener("click",()=>{App.show("userForm");App.renderRolePreview()});App.byId("cancelUserForm").addEventListener("click",()=>App.hide("userForm"));App.byId("saveUserBtn").addEventListener("click",App.saveUser);App.byId("userRole").addEventListener("change",App.renderRolePreview);
   App.byId("clientBookDate").addEventListener("change",App.renderClientSlots);App.byId("submitClientReservation").addEventListener("click",App.submitClientReservation);App.byId("lookupAppointmentsBtn").addEventListener("click",App.lookupClientAppointments);App.byId("lookupProfileBtn").addEventListener("click",App.lookupClientProfile);
@@ -2103,7 +2107,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   App.byId("auditSearch").addEventListener("input",App.renderAudit);
   App.bindSearch("appointmentSearch","appointments",App.renderAppointments);
   App.bindSearch("clientSearch","clients",App.renderClients);
-  App.bindSearch("productSearch","products",App.renderInventory);
+  App.bindSearch("productSearch","products",()=>App.renderInventory());
   App.bindSearch("serviceSearch","services",App.renderServices);
   App.byId("receiptFrom").value=App.today();App.byId("receiptTo").value=App.today();App.byId("receiptFrom").addEventListener("change",App.renderReceipts);App.byId("receiptTo").addEventListener("change",App.renderReceipts);
   // Production never trusts a legacy localStorage session to open the admin panel.

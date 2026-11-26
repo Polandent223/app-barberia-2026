@@ -7,7 +7,8 @@
     "lint": "eslint js --ext .js",
     "check:syntax": "node scripts/check-syntax.mjs",
     "smoke": "node scripts/smoke-test.mjs",
-    "test": "npm run check:syntax && npm run lint"
+    "test": "npm run check:syntax && npm run lint && npm run regression",
+    "regression": "node --test scripts/regression-test.mjs"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

@@ -18,6 +18,7 @@ service cloud.firestore {
 
     function businessActive(businessId) {
       return exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+        get(/databases/$(database)/documents/businesses/$(businessId)).data.get('accessSuspended', false) != true &&
         !(get(/databases/$(database)/documents/businesses/$(businessId)).data.status in ['Suspendido','suspendido','Suspended','suspended','Inactivo','inactivo','Inactive','inactive','Bloqueado','bloqueado','Blocked','blocked']);
     }
 
@@ -46,6 +47,15 @@ service cloud.firestore {
         role(businessId) in ['owner','admin','manager','reception','barber']);
     }
 
+    function canCorrectFinance(businessId) {
+      return isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
+    }
+
+    function canResolveBooking(businessId) {
+      return isSuperAdmin() || (isBusinessMember(businessId) &&
+        role(businessId) in ['owner','admin','manager','reception']);
+    }
+
     function validBusinessRole(value) {
       return value in ['owner','admin','manager','reception','cashier','barber'];
     }
@@ -58,6 +68,123 @@ service cloud.firestore {
       return signedIn() &&
         exists(clientAccountPath(businessId, request.auth.uid)) &&
         get(clientAccountPath(businessId, request.auth.uid)).data.status == 'Activo';
+    }
+
+    // Cloud support: tenants can read only their company's tickets.
+    match /support_cases/{caseId} {
+      allow read: if isSuperAdmin() ||
+        (isBusinessMember(resource.data.businessId) &&
+          (role(resource.data.businessId) in ['owner','admin','manager'] || resource.data.createdBy == request.auth.uid));
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasAll(['businessId','subject','description','priority','status','createdBy','createdAt']) &&
+        request.resource.data.keys().hasOnly(['businessId','subject','description','priority','status','createdBy','createdAt']) &&
+        request.resource.data.businessId is string &&
+        isBusinessMember(request.resource.data.businessId) &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.subject is string && request.resource.data.subject.size() >= 3 && request.resource.data.subject.size() <= 120 &&
+        request.resource.data.description is string && request.resource.data.description.size() >= 10 && request.resource.data.description.size() <= 2000 &&
+        request.resource.data.priority in ['Normal','Alta','Urgente'] &&
+        request.resource.data.status == 'Abierto';
+      allow update: if isSuperAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','response','updatedAt','updatedBy']) &&
+        request.resource.data.status in ['Abierto','En progreso','Resuelto'] &&
+        request.resource.data.response is string && request.resource.data.response.size() <= 2000 &&
+        (request.resource.data.status != 'Resuelto' || request.resource.data.response.size() >= 3) &&
+        request.resource.data.updatedBy == request.auth.uid &&
+        request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Append-only records for assistance consultations and ticket updates.
+    match /support_access_events/{eventId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+        request.resource.data.keys().hasAll(['businessId','action','reason','caseId','actorUid','createdAt']) &&
+        request.resource.data.keys().hasOnly(['businessId','action','reason','caseId','actorUid','createdAt']) &&
+        request.resource.data.businessId is string &&
+        exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)) &&
+        request.resource.data.action in ['CONSULT','CASE_UPDATE','RESET_REQUEST','ACCESS_SUSPEND','ACCESS_RESTORE','BACKUP_CREATE','BACKUP_REVIEW','BACKUP_EXPORT'] &&
+        request.resource.data.reason is string && request.resource.data.reason.size() >= 3 && request.resource.data.reason.size() <= 500 &&
+        request.resource.data.caseId is string && request.resource.data.caseId.size() <= 120 &&
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // Immutable operational backup snapshots. Never expose these to tenant users.
+    match /tenant_backups/{businessId}/snapshots/{backupId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+        exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+        request.resource.data.keys().hasAll(['businessId','name','reason','createdBy','createdAt','domains','schemaVersion']) &&
+        request.resource.data.keys().hasOnly(['businessId','name','reason','createdBy','createdAt','domains','schemaVersion']) &&
+        request.resource.data.businessId == businessId &&
+        request.resource.data.name is string && request.resource.data.name.size() <= 180 &&
+        request.resource.data.reason is string && request.resource.data.reason.size() >= 3 && request.resource.data.reason.size() <= 500 &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.schemaVersion == 1 &&
+        request.resource.data.domains is list && request.resource.data.domains.size() > 0 &&
+        request.resource.data.domains.size() <= 9 &&
+        request.resource.data.domains.hasOnly(['config','crm','schedule','finance','inventory','staff','attendance','history','operations']);
+      allow update, delete: if false;
+      match /parts/{domain} {
+        allow read: if isSuperAdmin();
+        allow create: if isSuperAdmin() &&
+          domain in ['config','crm','schedule','finance','inventory','staff','attendance','history','operations'] &&
+          !exists(/databases/$(database)/documents/tenant_backups/$(businessId)/snapshots/$(backupId)) &&
+          existsAfter(/databases/$(database)/documents/tenant_backups/$(businessId)/snapshots/$(backupId)) &&
+          domain in getAfter(/databases/$(database)/documents/tenant_backups/$(businessId)/snapshots/$(backupId)).data.domains &&
+          request.resource.data.keys().hasAll(['businessId','domain','payload','sourceRevision','sourceUpdatedAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','domain','payload','sourceRevision','sourceUpdatedAt']) &&
+          request.resource.data.businessId == businessId &&
+          request.resource.data.domain == domain &&
+          request.resource.data.payload is map &&
+          request.resource.data.sourceRevision is int &&
+          request.resource.data.sourceRevision >= 0 &&
+          (request.resource.data.sourceUpdatedAt == null || request.resource.data.sourceUpdatedAt is timestamp);
+        allow update, delete: if false;
+      }
+    }
+
+    // Immutable financial records, restricted to platform administration.
+    match /commercial_payments/{paymentId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+        paymentId.matches('^[a-f0-9]{64}$') &&
+        request.resource.data.keys().hasAll(['businessId','businessName','planId','planName','amountCents','currency','months','paidAt','previousDue','nextDue','method','reference','note','createdBy','createdAt']) &&
+        request.resource.data.keys().hasOnly(['businessId','businessName','planId','planName','amountCents','currency','months','paidAt','previousDue','nextDue','method','reference','note','createdBy','createdAt']) &&
+        request.resource.data.businessId is string &&
+        request.resource.data.businessName is string &&
+        request.resource.data.planId is string &&
+        request.resource.data.planName is string &&
+        request.resource.data.amountCents is int && request.resource.data.amountCents > 0 &&
+        request.resource.data.currency == 'USD' &&
+        request.resource.data.months is int && request.resource.data.months >= 1 && request.resource.data.months <= 12 &&
+        request.resource.data.paidAt is string && request.resource.data.paidAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        request.resource.data.previousDue is string &&
+        request.resource.data.nextDue is string && request.resource.data.nextDue.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        request.resource.data.method in ['Transferencia','Pago móvil','Zelle','USDT','Efectivo','Otro'] &&
+        request.resource.data.reference is string && request.resource.data.reference.size() >= 3 && request.resource.data.reference.size() <= 120 &&
+        request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
+        request.resource.data.createdBy == request.auth.uid && request.resource.data.createdAt == request.time &&
+        existsAfter(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)) &&
+        getAfter(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)).data.nextPayment == request.resource.data.nextDue &&
+        getAfter(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)).data.planId == request.resource.data.planId &&
+        getAfter(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)).data.commercialUpdatedAt == request.time;
+      allow update, delete: if false;
+    }
+    match /commercial_events/{eventId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+        request.resource.data.keys().hasAll(['action','businessId','actorUid','reason','createdAt']) &&
+        request.resource.data.keys().hasOnly(['action','businessId','actorUid','reason','createdAt']) &&
+        request.resource.data.action in ['PAYMENT','PLAN_CHANGE','PRICE_CHANGE'] &&
+        request.resource.data.businessId is string &&
+        request.resource.data.reason is string && request.resource.data.reason.size() >= 3 && request.resource.data.reason.size() <= 900 &&
+        request.resource.data.actorUid == request.auth.uid && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
 
     match /platform/{documentId} {
@@ -94,7 +221,12 @@ service cloud.firestore {
     match /businesses/{businessId} {
       allow read: if isSuperAdmin() || isBusinessMember(businessId);
       allow create: if isSuperAdmin();
-      allow update: if isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
+      // Subscription and suspension are controlled by the platform, not tenants.
+      allow update: if isSuperAdmin() || (isBusinessMember(businessId) &&
+        role(businessId) in ['owner','admin'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','type','branches','brand','updatedAt'
+        ]));
       allow delete: if isSuperAdmin();
 
       match /members/{uid} {
@@ -102,31 +234,287 @@ service cloud.firestore {
         allow create: if isSuperAdmin() ||
           (canManageMembers(businessId) && request.resource.data.uid == uid &&
             request.resource.data.businessId == businessId && validBusinessRole(request.resource.data.role) &&
-            request.resource.data.role != 'owner');
+            request.resource.data.role != 'owner' &&
+            (role(businessId) == 'owner' || request.resource.data.role != 'admin'));
         allow update: if isSuperAdmin() ||
           (canManageMembers(businessId) && uid != request.auth.uid &&
             request.resource.data.uid == resource.data.uid &&
             request.resource.data.businessId == resource.data.businessId &&
-            validBusinessRole(request.resource.data.role) && request.resource.data.role != 'owner' && resource.data.role != 'owner');
+            validBusinessRole(request.resource.data.role) && request.resource.data.role != 'owner' && resource.data.role != 'owner' &&
+            (role(businessId) == 'owner' || (request.resource.data.role != 'admin' && resource.data.role != 'admin')));
         allow delete: if isSuperAdmin() ||
-          (canManageMembers(businessId) && uid != request.auth.uid && resource.data.role != 'owner');
+          (canManageMembers(businessId) && uid != request.auth.uid && resource.data.role != 'owner' &&
+            (role(businessId) == 'owner' || resource.data.role != 'admin'));
       }
 
       match /state/{stateName} {
-        allow read: if isSuperAdmin() || isBusinessMember(businessId);
-        allow write: if isSuperAdmin() ||
-          (isBusinessMember(businessId) && (
+        function canWriteState() {
+          return isSuperAdmin() || (isBusinessMember(businessId) && (
             role(businessId) in ['owner','admin','manager'] ||
             (role(businessId) == 'reception' && stateName in ['crm','schedule','finance']) ||
             (role(businessId) == 'cashier' && stateName in ['crm','finance','inventory']) ||
             (role(businessId) == 'barber' && stateName in ['schedule','attendance'])
           ));
+        }
+        function protectedDomain() { return stateName in ['finance','inventory']; }
+        function preservesRecords(field) {
+          let previous = resource.data.payload.get(field, []);
+          let next = request.resource.data.payload.get(field, []);
+          return previous is list && next is list &&
+            next.size() >= previous.size() && next.hasAll(previous);
+        }
+        function preservesLedger() {
+          // Finance is already checked more strictly by validFinanceAppend():
+          // both arrays must remain identical or gain exactly one trailing row.
+          return stateName != 'inventory' || preservesRecords('stockMoves');
+        }
+        function hasWriteAudit() {
+          let auditId = request.resource.data.get('auditId', 'none');
+          let auditPath = /databases/$(database)/documents/businesses/$(businessId)/state_events/$(auditId);
+          return !protectedDomain() || (
+            auditId is string && auditId.size() > 0 && auditId.size() <= 120 &&
+            !exists(auditPath) && existsAfter(auditPath) &&
+            getAfter(auditPath).data.domain == stateName &&
+            getAfter(auditPath).data.revision == request.resource.data.syncRevision &&
+            getAfter(auditPath).data.actorUid == request.auth.uid &&
+            getAfter(auditPath).data.createdAt == request.time
+          );
+        }
+        function appendAtMostOne(field) {
+          let old = resource.data.payload.get(field, []);
+          let next = request.resource.data.payload.get(field, []);
+          return old is list && next is list && (next == old ||
+            (next.size() == old.size() + 1 && next == old.concat([next[old.size()]])));
+        }
+        function validCashAppend() {
+          let old = resource.data.payload.get('cash', []);
+          let next = request.resource.data.payload.get('cash', []);
+          return next == old || (validCashRow(next[old.size()]) &&
+            (!next[old.size()].keys().hasAny(['correctionId','correctionOf','correctionKind','originalSaleId']) ||
+              linkedCorrection(next[old.size()])));
+        }
+        function validCashRow(row) {
+          return row is map && !row.keys().hasAny(['shopOperationId','orderId']) && row.id is string && row.id.size() > 0 &&
+            row.type in ['Ingreso','Egreso'] &&
+            (row.amount is int || row.amount is float) && row.amount >= 0 && row.amount <= 9999999 &&
+            row.get('businessId', businessId) == businessId;
+        }
+        function linkedCorrection(row) {
+          let cid = row.get('correctionId', 'none');
+          let p = /databases/$(database)/documents/businesses/$(businessId)/financial_corrections/$(cid);
+          return canCorrectFinance(businessId) && cid is string && !exists(p) && existsAfter(p) &&
+            getAfter(p).data.cashEntry == row && getAfter(p).data.actorUid == request.auth.uid;
+        }
+        function validSaleAppend() {
+          let old = resource.data.payload.get('sales', []);
+          let next = request.resource.data.payload.get('sales', []);
+          return next == old || (next[old.size()] is map && !next[old.size()].keys().hasAny(['shopOperationId','orderId']) && next[old.size()].get('source','') != 'Punto de venta' && next[old.size()].id is string &&
+            (next[old.size()].total is int || next[old.size()].total is float) &&
+            next[old.size()].total >= 0 && next[old.size()].total <= 9999999 &&
+            next[old.size()].get('businessId', businessId) == businessId);
+        }
+        function validFinanceAppend() {
+          return stateName != 'finance' || (appendAtMostOne('cash') && appendAtMostOne('sales') && validCashAppend() && validSaleAppend());
+        }
+        function validInventoryOperation() {
+          let op = request.resource.data.get('inventoryOperationId','none');
+          let p = /databases/$(database)/documents/businesses/$(businessId)/inventory_operations/$(op);
+          return stateName != 'inventory' || (
+            canManageBusiness(businessId) && op is string &&
+            !exists(p) && existsAfter(p) &&
+            getAfter(p).data.revision == request.resource.data.syncRevision &&
+            getAfter(p).data.actorUid == request.auth.uid &&
+            getAfter(p).data.createdAt == request.time
+          );
+        }
+        function validStateWrite() {
+          return stateName in ['config','crm','schedule','finance','inventory','staff','attendance','history'] &&
+            request.resource.data.businessId == businessId &&
+            request.resource.data.payload is map &&
+            request.resource.data.updatedByUid == request.auth.uid &&
+            request.resource.data.updatedAt == request.time &&
+            request.resource.data.syncRevision is int;
+        }
+        allow read: if isSuperAdmin() || isBusinessMember(businessId);
+        allow create: if canWriteState() && validStateWrite() &&
+          (stateName != 'inventory' || isSuperAdmin()) &&
+          (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
+          request.resource.data.syncRevision == 1 && hasWriteAudit();
+        allow update: if canWriteState() && validStateWrite() && preservesLedger() && validFinanceAppend() && validInventoryOperation() && hasWriteAudit() &&
+          request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId','inventoryOperationId'
+          ]);
+        // A whole module cannot be deleted from a browser.
+        allow delete: if false;
       }
 
-      match /{document=**} {
-        allow read: if isSuperAdmin() || isBusinessMember(businessId);
-        allow write: if false;
+      // A correction is an immutable document, a compensating cash row and a
+      // per-source cumulative total committed together; original rows never change.
+      match /financial_corrections/{correctionId} {
+        function financePath() {
+          return /databases/$(database)/documents/businesses/$(businessId)/state/finance;
+        }
+        function totalPath(sourceId) {
+          return /databases/$(database)/documents/businesses/$(businessId)/correction_totals/$(sourceId);
+        }
+        function validOriginal(d, source, row) {
+          return source.id == d.sourceId && !('correctionId' in source) &&
+            source.type in ['Ingreso','Egreso'] && (source.amount is int || source.amount is float) &&
+            source.get('businessId', businessId) == businessId &&
+            d.saleId == source.get('saleId','') && d.cumulativeCents / 100.0 <= source.amount &&
+            row.type == (source.type == 'Ingreso' ? 'Egreso' : 'Ingreso') &&
+            row.get('originalSaleId','') == d.saleId &&
+            row.currency == source.get('currency','$') && row.method == source.get('method','No especificado') &&
+            ((d.kind == 'CASH_REVERSAL' && d.saleId == '' && d.cumulativeCents / 100.0 == source.amount) ||
+             (d.kind in ['REFUND','VOID','DISCOUNT'] && source.type == 'Ingreso' && d.saleId != '' &&
+              (d.kind != 'VOID' || d.cumulativeCents / 100.0 == source.amount)));
+        }
+        function validRow(d, row) {
+          return row is map && row.keys().hasAll(['id','type','concept','amount','method','date','currency','businessId','branchId','correctionId','correctionOf','correctionKind','createdBy']) &&
+            row.keys().hasOnly(['id','type','concept','amount','method','date','currency','businessId','branchId','correctionId','correctionOf','correctionKind','createdBy','originalSaleId']) &&
+            row.id == ('adj_' + correctionId) && row.businessId == businessId &&
+            row.correctionId == correctionId && row.correctionOf == d.sourceId && row.correctionKind == d.kind &&
+            row.createdBy == request.auth.uid && row.amount == d.amountCents / 100.0 &&
+            row.date is string && row.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+            row.concept is string && row.concept.size() <= 250 && row.branchId is string;
+        }
+        function validCorrection(d) {
+          let before = get(financePath()).data.payload;
+          let after = getAfter(financePath()).data.payload;
+          let t = totalPath(d.sourceId);
+          return d.sourceIndex >= 0 && d.sourceIndex < before.cash.size() &&
+            validOriginal(d, before.cash[d.sourceIndex], d.cashEntry) && validRow(d,d.cashEntry) &&
+            after.cash == before.cash.concat([d.cashEntry]) && after.sales == before.sales &&
+            getAfter(financePath()).data.updatedAt == request.time &&
+            d.previousCents == (exists(t) ? get(t).data.cents : 0) &&
+            existsAfter(t) && getAfter(t).data.cents == d.cumulativeCents &&
+            getAfter(t).data.lastCorrectionId == correctionId &&
+            getAfter(t).data.updatedAt == request.time;
+        }
+        allow read: if canManageBusiness(businessId);
+        allow create: if canCorrectFinance(businessId) &&
+          request.resource.data.keys().hasAll(['businessId','sourceId','sourceIndex','kind','amountCents','previousCents','cumulativeCents','saleId','reason','actorUid','cashEntry','createdAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','sourceId','sourceIndex','kind','amountCents','previousCents','cumulativeCents','saleId','reason','actorUid','cashEntry','createdAt']) &&
+          request.resource.data.businessId == businessId && request.resource.data.sourceId is string &&
+          request.resource.data.sourceId.size() > 0 && request.resource.data.sourceId.size() <= 180 &&
+          request.resource.data.sourceIndex is int && request.resource.data.saleId is string &&
+          request.resource.data.kind in ['REFUND','VOID','DISCOUNT','CASH_REVERSAL'] &&
+          request.resource.data.amountCents is int && request.resource.data.amountCents > 0 &&
+          request.resource.data.previousCents is int && request.resource.data.previousCents >= 0 &&
+          request.resource.data.cumulativeCents == request.resource.data.previousCents + request.resource.data.amountCents &&
+          request.resource.data.reason is string && request.resource.data.reason.size() >= 5 && request.resource.data.reason.size() <= 500 &&
+          request.resource.data.actorUid == request.auth.uid && request.resource.data.createdAt == request.time &&
+          validCorrection(request.resource.data);
+        allow update, delete: if false;
       }
+
+      match /correction_totals/{sourceId} {
+        function linkedTotal(d) {
+          let p = /databases/$(database)/documents/businesses/$(businessId)/financial_corrections/$(d.lastCorrectionId);
+          let correction = getAfter(p).data;
+          return !exists(p) && existsAfter(p) && correction.sourceId == sourceId &&
+            correction.cumulativeCents == d.cents && correction.actorUid == request.auth.uid &&
+            correction.createdAt == request.time;
+        }
+        allow read: if canManageBusiness(businessId);
+        allow create, update: if canCorrectFinance(businessId) &&
+          request.resource.data.keys().hasAll(['businessId','sourceId','cents','lastCorrectionId','actorUid','updatedAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','sourceId','cents','lastCorrectionId','actorUid','updatedAt']) &&
+          request.resource.data.businessId == businessId && request.resource.data.sourceId == sourceId &&
+          request.resource.data.cents is int && request.resource.data.cents > 0 &&
+          request.resource.data.lastCorrectionId is string && request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.updatedAt == request.time && linkedTotal(request.resource.data);
+        allow delete: if false;
+      }
+
+      match /inventory_operations/{operationId} {
+        function inventoryPath() {
+          return /databases/$(database)/documents/businesses/$(businessId)/state/inventory;
+        }
+        function validProduct(p) {
+          return p is map && p.id is string && p.name is string && p.name.size() > 0 && p.name.size() <= 120 &&
+            p.category is string && p.category.size() > 0 && p.category.size() <= 80 &&
+            p.stock is int && p.stock >= 0 && p.stock <= 9999999 &&
+            p.min is int && p.min >= 0 && p.min <= 9999999 &&
+            p.cost is number && p.cost >= 0 && p.cost <= 9999999 &&
+            p.price is number && p.price >= 0 && p.price <= 9999999 &&
+            p.get('businessId', businessId) == businessId &&
+            p.get('photo','') is string && p.get('photo','').size() <= 400000;
+        }
+        function validMovement(d, old, next, m) {
+          return m is map && m.keys().hasAll(['id','productId','type','qty','reason','date','businessId','branchId','createdBy','stockBefore','stockAfter','operationId','productName']) &&
+            m.keys().hasOnly(['id','productId','type','qty','reason','date','businessId','branchId','createdBy','stockBefore','stockAfter','operationId','productName']) &&
+            m.id == ('stock_' + operationId) && m.operationId == operationId && m.productId == d.productId &&
+            m.businessId == businessId && m.createdBy == request.auth.uid && m.reason == d.reason && m.date == d.date &&
+            m.productName == old.name && m.branchId == old.get('branchId','') &&
+            m.qty is int && m.qty > 0 && m.stockBefore == old.stock && m.stockAfter == next.stock &&
+            ((d.kind == 'ENTRY' && m.type == 'Entrada' && next.stock == old.stock + m.qty) ||
+             (d.kind == 'EXIT' && m.type == 'Salida' && next.stock == old.stock - m.qty));
+        }
+        function validChange(d,before,after) {
+          let old = before.products[d.productIndex];
+          let next = after.products[d.productIndex];
+          return old.id == d.productId && next.id == d.productId &&
+            old.get('businessId',businessId) == businessId && old.get('archived',false) == false &&
+            validProduct(next) && before.products.size() == after.products.size() &&
+            before.products.removeAll([old]).size() == before.products.size() - 1 &&
+            before.products.removeAll([old]) == after.products.removeAll([next]) &&
+            ((d.kind == 'EDIT' && d.movement == null && next.diff(old).affectedKeys().hasOnly(['name','category','min','cost','price','photo']) && after.stockMoves == before.stockMoves) ||
+             (d.kind == 'ARCHIVE' && d.movement == null && old.stock == 0 && next.archived == true &&
+              next.diff(old).affectedKeys().hasOnly(['archived']) && after.stockMoves == before.stockMoves) ||
+             (d.kind in ['ENTRY','EXIT'] && next.diff(old).affectedKeys().hasOnly(['stock']) &&
+              validMovement(d,old,next,d.movement) && after.stockMoves == before.stockMoves.concat([d.movement])));
+        }
+        function validOperation(d) {
+          let b = get(inventoryPath()).data.payload;
+          let a = getAfter(inventoryPath()).data.payload;
+          return a.diff(b).affectedKeys().hasOnly(['products','stockMoves']) &&
+            ((d.kind == 'CREATE' && d.productIndex == b.products.size() &&
+              a.products.size() == b.products.size() + 1 &&
+              validProduct(a.products[d.productIndex]) &&
+              a.products[d.productIndex].id == d.productId &&
+              a.products[d.productIndex].businessId == businessId &&
+              a.products[d.productIndex].archived == false && a.products[d.productIndex].stock == 0 &&
+              a.products == b.products.concat([a.products[d.productIndex]]) && d.movement == null && a.stockMoves == b.stockMoves) ||
+             (d.kind != 'CREATE' && d.productIndex >= 0 && d.productIndex < b.products.size() && validChange(d,b,a)));
+        }
+        allow read: if canManageBusiness(businessId);
+        allow create: if canManageBusiness(businessId) &&
+          request.resource.data.keys().hasAll(['businessId','productId','productIndex','kind','reason','actorUid','date','movement','revision','createdAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','productId','productIndex','kind','reason','actorUid','date','movement','revision','createdAt']) &&
+          request.resource.data.businessId == businessId && request.resource.data.productId is string &&
+          request.resource.data.productId.size() > 0 && request.resource.data.productId.size() <= 180 &&
+          request.resource.data.productIndex is int && request.resource.data.kind in ['CREATE','EDIT','ENTRY','EXIT','ARCHIVE'] &&
+          request.resource.data.reason is string && request.resource.data.reason.size() >= 5 && request.resource.data.reason.size() <= 500 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.actorUid == request.auth.uid && request.resource.data.createdAt == request.time &&
+          request.resource.data.revision == getAfter(inventoryPath()).data.syncRevision &&
+          getAfter(inventoryPath()).data.inventoryOperationId == operationId &&
+          getAfter(inventoryPath()).data.updatedAt == request.time &&
+          validOperation(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      match /state_events/{eventId} {
+        allow read: if canManageBusiness(businessId);
+        allow create: if (isBusinessMember(businessId) || isSuperAdmin()) &&
+          request.resource.data.keys().hasAll(['businessId','domain','revision','actorUid','createdAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','domain','revision','actorUid','createdAt']) &&
+          request.resource.data.businessId == businessId &&
+          request.resource.data.domain in ['finance','inventory'] &&
+          request.resource.data.revision is int && request.resource.data.revision > 0 &&
+          request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.createdAt == request.time &&
+          existsAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)) &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.auditId == eventId &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.syncRevision == request.resource.data.revision &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.updatedByUid == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/businesses/$(businessId)/state/$(request.resource.data.domain)).data.updatedAt == request.time;
+        allow update, delete: if false;
+      }
+
+      // Explicit subcollection rules above are authoritative; do not grant blanket reads.
     }
 
     match /public_businesses/{businessId} {
@@ -153,6 +541,7 @@ service cloud.firestore {
 
       match /booking_change_requests/{changeId} {
         allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
           request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','type','oldDate','oldTime','newDate','newTime','newSlotId','status','createdAt']) &&
           request.resource.data.clientUid == request.auth.uid &&
           request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
@@ -167,8 +556,8 @@ service cloud.firestore {
           ((request.resource.data.type == 'cancel' && request.resource.data.newDate == '' && request.resource.data.newTime == '' && !('newSlotId' in request.resource.data)) ||
            (request.resource.data.type == 'reschedule' &&
             request.resource.data.newSlotId is string &&
-            request.resource.data.newDate is string && request.resource.data.newDate.size() == 10 &&
-            request.resource.data.newTime is string && request.resource.data.newTime.size() == 5 &&
+            request.resource.data.newDate is string && request.resource.data.newDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+            request.resource.data.newTime is string && request.resource.data.newTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
             request.resource.data.newSlotId == (get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.barberId + '_' + request.resource.data.newDate + '_' + request.resource.data.newTime) &&
             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)) &&
             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.changeRequestId == changeId &&
@@ -176,19 +565,24 @@ service cloud.firestore {
             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.clientUid == request.auth.uid &&
             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.status == 'CambioPendiente'));
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if canManageSchedule(businessId);
+        allow update: if canResolveBooking(businessId) &&
+          resource.data.status == 'Pendiente' &&
+          request.resource.data.status in ['Aprobada','Rechazada'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reason','resolvedAt']);
+        allow delete: if false;
       }
 
 
       match /booking_slots/{slotId} {
         allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
           request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','changeRequestId','barberId','date','time','status','createdAt']) &&
           request.resource.data.clientUid == request.auth.uid &&
           request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
           request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
           request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 &&
-          request.resource.data.date is string && request.resource.data.date.size() == 10 &&
-          request.resource.data.time is string && request.resource.data.time.size() == 5 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
           slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
           request.resource.data.status in ['Pendiente','CambioPendiente'] &&
           (
@@ -204,11 +598,16 @@ service cloud.firestore {
              getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.clientUid == request.auth.uid)
           );
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if canManageSchedule(businessId);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+          request.resource.data.status == 'Aprobada' &&
+          resource.data.status in ['Pendiente','CambioPendiente'];
+        allow delete: if canResolveBooking(businessId);
       }
 
       match /booking_requests/{requestId} {
         allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
           request.resource.data.keys().hasOnly(['name','phone','clientUid','clientId','serviceId','barberId','date','time','note','branchId','status','slotId','createdAt']) &&
           request.resource.data.clientUid == request.auth.uid &&
           request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
@@ -218,8 +617,8 @@ service cloud.firestore {
           request.resource.data.phone is string && request.resource.data.phone.size() >= 7 && request.resource.data.phone.size() <= 30 &&
           request.resource.data.serviceId is string && request.resource.data.serviceId.size() > 0 && request.resource.data.serviceId.size() <= 120 &&
           request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 && request.resource.data.barberId.size() <= 120 &&
-          request.resource.data.date is string && request.resource.data.date.size() == 10 &&
-          request.resource.data.time is string && request.resource.data.time.size() >= 4 && request.resource.data.time.size() <= 5 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
           request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
           request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 &&
           request.resource.data.slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
@@ -228,7 +627,11 @@ service cloud.firestore {
           getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.clientUid == request.auth.uid &&
           request.resource.data.status == 'Pendiente';
         allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
-        allow update, delete: if canManageSchedule(businessId);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','appointmentId','reason','resolvedAt','date','time','slotId']) &&
+          ((resource.data.status == 'Pendiente' && request.resource.data.status in ['Aprobada','Rechazada']) ||
+           (resource.data.status == 'Aprobada' && request.resource.data.status in ['Aprobada','Cancelada','Finalizada']));
+        allow delete: if false;
       }
     }
 

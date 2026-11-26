@@ -1,0 +1,39 @@
+/* SuperAdmin workspace: existing modules, one area at a time. */
+body[data-sambrix-role="superadmin"] #adminApp .bottom-nav{display:none!important}
+body[data-sambrix-role="superadmin"] #adminApp main{max-width:1240px;padding-bottom:32px}
+#sambrixModuleBar{display:none}
+body[data-sambrix-role="superadmin"] #sambrixModuleBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 16px;padding:12px 14px;background:#142d40;color:#fff;border-radius:14px}
+#sambrixModuleBar button{background:#fff;color:#142d40;border:0;border-radius:8px;padding:9px 13px;font-weight:700;cursor:pointer}
+#sambrixModuleBar button[hidden]{display:none!important}
+#sambrixModuleBar strong{flex:1;min-width:130px}
+#superadmin[data-module-view] .superadmin-module-directory{padding:0;border:0;background:transparent;margin:18px 0}
+#superadmin[data-module-view] .superadmin-module-directory>.panel-head,#superadmin[data-module-view] .superadmin-module-groups{display:none!important}
+#superadmin[data-module-view] .sambrix-hero,#superadmin[data-module-view] .sambrix-analytics-grid,#superadmin[data-module-view] .sambrix-owner-grid,#superadmin[data-module-view] #maintenanceQuickControl,#superadmin[data-module-view] #superadminZeroState,#superadmin[data-module-view] #sambrixBusinessPanel,#superadmin[data-module-view] .sambrix-kpis{display:none!important}
+#superadmin[data-module-view="home"] .sambrix-kpis,#superadmin[data-module-view="analytics"] .sambrix-kpis{display:grid!important}
+#superadmin[data-module-view="analytics"] .sambrix-analytics-grid,#superadmin[data-module-view="analytics"] .sambrix-owner-grid{display:grid!important}
+#superadmin[data-module-view="companies"] #sambrixBusinessPanel{display:block!important}
+#superadmin[data-module-view="companies"] #superadminZeroState:not(.hidden){display:block!important}
+#superadmin[data-module-view="technical"] #maintenanceQuickControl{display:flex!important}
+#superadmin[data-module-view]:not([data-module-view="companies"]) #globalBusinessSearch,#superadmin[data-module-view]:not([data-module-view="companies"]) #createBusinessBtn{display:none!important}
+#superadmin[data-module-view]:not([data-module-view="home"]) .sambrix-topbar{display:none!important}
+#sambrixWorkspace{min-width:0;color:var(--text,#142d40)}
+#sambrixWorkspace h2{margin:0 0 6px;font-size:clamp(22px,4vw,32px);letter-spacing:-.035em}
+#sambrixWorkspace p{margin:0 0 16px;color:var(--muted,#667085)}
+#sambrixWorkspace .workspace-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#sambrixWorkspace .workspace-card{display:flex;align-items:center;gap:12px;text-align:left;min-width:0;min-height:88px;padding:15px;border:1px solid #d8e2eb;border-radius:14px;background:#fff;color:#142d40;cursor:pointer;box-shadow:0 2px 5px #142d4008}
+#sambrixWorkspace .workspace-card:hover,#sambrixWorkspace .workspace-card:focus-visible{border-color:#3788a8;outline:2px solid #3788a8;outline-offset:2px}
+#sambrixWorkspace .workspace-card .workspace-icon{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:10px;background:#e8f2f7;color:#175b78;font-size:14px;font-weight:800}
+#sambrixWorkspace .workspace-card strong,#sambrixWorkspace .workspace-card small{display:block;overflow-wrap:anywhere}
+#sambrixWorkspace .workspace-card strong{font-size:15px}
+#sambrixWorkspace .workspace-card small{font-size:12px;color:#5c6979;margin-top:4px;line-height:1.3}
+#sambrixWorkspace .workspace-search{width:100%;max-width:420px;margin:0 0 15px}
+#sambrixBusinessPanel .workspace-business-tools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+#sambrixBusinessPanel .workspace-business-tools input{flex:1;min-width:0}
+#sambrixBusinessPanel #saasBusinessTable{overflow-x:auto;max-width:100%}
+@media(max-width:850px){#sambrixWorkspace .workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:470px){#sambrixWorkspace .workspace-grid{grid-template-columns:1fr}#sambrixWorkspace .workspace-card{min-height:68px}#sambrixModuleBar{gap:6px}#sambrixModuleBar strong{flex-basis:100%}}
+
+#sambrixWorkspace .workspace-card[hidden]{display:none!important}
+
+#superadmin[data-module-view] .workspace-unverified-mrr{display:none!important}
+#superadmin[data-module-view="analytics"] .sambrix-analytics-grid{grid-template-columns:minmax(0,1fr)}
