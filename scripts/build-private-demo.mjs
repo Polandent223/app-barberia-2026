@@ -50,6 +50,12 @@ repairTree(out);
 const verifyHtml=readFileSync(join(out,"index.html"),"utf8");
 for(const word of ["Español","administración","dueños","Tecnología"])if(!verifyHtml.includes(word))throw Error("Missing corrected text: "+word);
 console.log("DEMO encoding: corrected "+repaired+" static files; changed JavaScript syntax checked.");
+for(const id of ["appModal","modalTag","modalTitle","modalBody","modalCloseBtn","modalCancelBtn","modalSaveBtn"]){
+ if(!verifyHtml.includes('id="'+id+'"'))throw Error("Missing shared modal: "+id);
+}
+if(!verifyHtml.includes('src="js/ui-modal.js?'))throw Error("Shared modal script missing");
+execFileSync(process.execPath,["--check",join(out,"js/ui-modal.js")],{stdio:"inherit"});
+console.log("DEMO appointment UI: shared modal and script verified.");
 scan(out);
 const html=join(out,"index.html");writeFileSync(html,readFileSync(html,"utf8").replace("</body>",'<div style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#742b00;color:white;text-align:center;font:12px sans-serif;padding:4px;pointer-events:none">SAMBRIX DEMO · SOLO DATOS FICTICIOS</div></body>'));
 console.log("SAMBRIX DEMO build: isolated Firebase, static allowlist.");
