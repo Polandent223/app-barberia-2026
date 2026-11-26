@@ -66,7 +66,7 @@ test("SuperAdmin modular navigation, search and responsive directory",{timeout:1
   }
   await page.setViewport({width:1366,height:900});
   await page.type("#sambrixWorkspace input","estadisticas");
-  assert.deepEqual(await page.$eval("#sambrixWorkspace .workspace-card:not([hidden]) strong",els=>els.map(e=>e.textContent)),["Estadísticas"]);
+  assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelectorAll("#sambrixWorkspace .workspace-card:not([hidden]) strong"),e=>e.textContent)),["Estadísticas"]);
   await page.evaluate(()=>{const el=document.querySelector("#sambrixWorkspace input");el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));});
   for(const [area,view,label,id] of areas){
    await clickText(page,"#sambrixWorkspace .workspace-card",area);
