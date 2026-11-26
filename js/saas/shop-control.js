@@ -1,6 +1,6 @@
 import {auth,firestore} from "../firebase/firebase-core.js";
 import {doc,collection,runTransaction,serverTimestamp,getDocFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
-import {checkoutShop,returnShopSale,MAX_LINES,METHODS} from "./shop-core.js?v=2.0.17";
+import {checkoutShop,returnShopSale,MAX_LINES,METHODS} from "./shop-core.js?v=2.0.18";
 const el=(tag,text="",cls="")=>{const x=document.createElement(tag);x.textContent=text;if(cls)x.className=cls;return x;};
 const button=(text,action,cls="secondary")=>{const b=el("button",text,"btn "+cls);b.type="button";b.addEventListener("click",action);return b;};
 function boot(){
