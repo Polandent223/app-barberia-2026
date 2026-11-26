@@ -1,10 +1,11 @@
-import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant,stopSaaSCloud,tenantSyncBlocked,tenantSyncBusy,tenantSyncDraftSaved,awaitTenantWrites,waitForTenantCommit} from "./saas-cloud.js?v=2.0.9";
+import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant,stopSaaSCloud,tenantSyncBlocked,tenantSyncBusy,tenantSyncDraftSaved,awaitTenantWrites,waitForTenantCommit,reviewPendingDrafts} from "./saas-cloud.js?v=2.0.10";
 
 let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve(),sessionGeneration=0,lastObservedUid="";
 const hydrationPromises=new Map(),hydratedTenants=new Set();
 
 function queueCatalogUpload(){catalogPushChain=catalogPushChain.catch(()=>{}).then(()=>uploadBusinessCatalog());return catalogPushChain}
 async function ensureCatalogTenants(){for(const business of SaaS.db.businesses||[]){if(!business?.id)continue;try{await ensureTenantState(business.id)}catch(e){console.error(`[SAMBRIX init tenant:${business.id}]`,e)}}}
+function Atoast(message){window.App?.toast?.(message);}
 function currentBusinessId(){return String(SaaS.getContext?.()?.businessId||SaaS.session?.businessId||"").trim()}
 function tenantHydrating(id=currentBusinessId()){return !!id&&hydrationPromises.has(id)}
 function tenantReady(id=currentBusinessId()){const role=String(SaaS.session?.role||"");return role==="superadmin"||(!tenantSyncBlocked(id)&&!tenantHydrating(id)&&hydratedTenants.has(id))}
@@ -13,7 +14,7 @@ function setHydrationUI(active,id=currentBusinessId()){
   if(typeof document==="undefined")return;
   const app=document.getElementById("adminApp");if(app){app.dataset.cloudHydrating=active?"true":"false";app.setAttribute("aria-busy",active?"true":"false")}
   let overlay=document.getElementById("sambrixCloudHydrationLock");
-  if(active){if(!overlay){overlay=document.createElement("div");overlay.id="sambrixCloudHydrationLock";overlay.setAttribute("role","status");overlay.setAttribute("aria-live","polite");overlay.style.cssText="position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.88);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:inherit";overlay.innerHTML='<div style="max-width:420px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.12)"><strong style="display:block;font-size:18px;margin-bottom:8px">Sincronizando SAMBRIX</strong><span style="color:#667085">Estamos cargando los datos del negocio. Podrás trabajar en unos segundos.</span></div>';document.body.appendChild(overlay)}overlay.dataset.businessId=String(id||"");overlay.hidden=false}else if(overlay){overlay.hidden=true;overlay.dataset.businessId=""}
+  if(active){if(!overlay){overlay=document.createElement("div");overlay.id="sambrixCloudHydrationLock";overlay.setAttribute("role","status");overlay.setAttribute("aria-live","polite");overlay.style.cssText="position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.88);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:inherit";overlay.innerHTML='<div style="max-width:420px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.12)"><strong style="display:block;font-size:18px;margin-bottom:8px">Sincronizando SAMBRIX</strong><span style="color:#667085">Estamos cargando los datos del negocio. Podrás trabajar en unos segundos.</span></div>';document.body.appendChild(overlay)}overlay.dataset.businessId=String(id||"");overlay.hidden=false;overlay.style.display="flex"}else if(overlay){overlay.hidden=true;overlay.style.display="none";overlay.dataset.businessId=""}
 }
 function refreshHydrationUI(){
   const id=currentBusinessId(),role=String(SaaS.session?.role||"");
@@ -28,7 +29,22 @@ function refreshHydrationUI(){
     const text=document.createElement("p");text.textContent=blocked?(tenantSyncDraftSaved(id)?"Los cambios no confirmados quedaron guardados en este navegador. No sigas operando aquí. Contacta a SAMBRIX para revisar el conflicto.":"No se pudo confirmar el cambio ni su copia local. Mantén abierta esta página y contacta a SAMBRIX."):"Esperando una lectura confirmada de Firebase. Si no conecta, contacta a soporte.";
     const exit=document.createElement("button");exit.type="button";exit.className="btn secondary";exit.textContent="Cerrar sesión";exit.addEventListener("click",()=>SaaS.signOutToPortal?.());
     const support=document.createElement('button');support.type='button';support.className='btn primary';support.textContent='Contactar soporte';support.addEventListener('click',()=>SaaS.openSupportTicket?.());
-    box.append(h,text,support,exit);
+    box.append(h,text);
+    if(blocked&&tenantSyncDraftSaved(id)){
+      const review=document.createElement("button");review.type="button";review.className="btn primary";review.textContent="Verificar cambios pendientes";
+      review.addEventListener("click",async()=>{
+        review.disabled=true;
+        try{
+          const results=await reviewPendingDrafts(id);
+          if(currentBusinessId()!==id)return;
+          if(!tenantSyncBlocked(id)){lastSyncKey="";await hydrateTenant(id);Atoast("Cambios confirmados. Sincronización recuperada.");}
+          else Atoast("Hay diferencias con Firebase. No se modificó la información; contacta a soporte.");
+        }catch(e){Atoast(e.message||"No se pudo verificar la copia.");}
+        finally{review.disabled=false;refreshHydrationUI();}
+      });
+      box.append(review);
+    }
+    box.append(support,exit);
   }
 }
 document.addEventListener("sambrix-sync-conflict",refreshHydrationUI);
@@ -78,8 +94,9 @@ async function attemptSync(){
   const uid=String(window.FirebaseBridge?.user?.uid||"");
   if(uid!==lastObservedUid){resetCloudSession();lastObservedUid=uid;retryAfter=0;}
   const role=SaaS.session?.role||"guest",id=String(SaaS.session?.businessId||""),key=uid+":"+role+":"+id;
-  if(!uid||role==="guest"||key===lastSyncKey||attemptInFlight||Date.now()<retryAfter)return;
-  if(role!=="superadmin"&&id&&tenantSyncBlocked(id)){refreshHydrationUI();lastSyncKey=key;return;}
+  if(!uid||role==="guest"||attemptInFlight||Date.now()<retryAfter)return;
+  if(role!=="superadmin"&&id&&tenantSyncBlocked(id)){refreshHydrationUI();return;}
+  if(key===lastSyncKey){refreshHydrationUI();return;}
   attemptInFlight=true;
   try{if(await syncForCurrentSession()&&uid===String(window.FirebaseBridge?.user?.uid||""))lastSyncKey=key;}
   catch(e){console.error("[SaaS Cloud]",e);retryAfter=Date.now()+5000;refreshHydrationUI();}
