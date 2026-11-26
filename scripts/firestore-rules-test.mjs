@@ -56,3 +56,47 @@ test("cashier can append an audited movement but cannot edit or delete history",
 test("professional cannot write finance even with audit",async()=>{
   await assertFails(financeWrite(actor("barber"),"barber",payload,3,"bad-role"));
 });
+
+const publicDoc=(db,id,kind,key)=>path(db,"public_businesses",id,kind,key);
+test("support tickets remain private to the company and requesting employee",async()=>{
+  const db=actor("cashier"),ref=path(db,"support_cases","qa-ticket");
+  await assertSucceeds(setDoc(ref,{businessId:"one",subject:"Consulta de caja",description:"Revisar una operación registrada",priority:"Normal",status:"Abierto",createdBy:"cashier",createdAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(ref));await assertSucceeds(getDoc(path(actor("owner"),"support_cases","qa-ticket")));
+  await assertFails(getDoc(path(actor("barber"),"support_cases","qa-ticket")));
+  await assertFails(getDoc(path(actor("other"),"support_cases","qa-ticket")));
+  await assertFails(updateDoc(ref,{status:"Resuelto",response:"Respuesta falsa",updatedBy:"cashier",updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(path(actor("root"),"support_cases","qa-ticket"),{status:"Resuelto",response:"Revisado",updatedBy:"root",updatedAt:serverTimestamp()}));
+});
+test("operational backup is private and immutable",async()=>{
+  const db=actor("root"),ref=path(db,"tenant_backups","one","snapshots","qa-backup"),part=path(db,"tenant_backups","one","snapshots","qa-backup","parts","finance"),batch=writeBatch(db);
+  batch.set(ref,{businessId:"one",name:"Empresa de prueba",reason:"Prueba de respaldo",createdBy:"root",createdAt:serverTimestamp(),domains:["finance"],schemaVersion:1});
+  batch.set(part,{businessId:"one",domain:"finance",payload,sourceRevision:1,sourceUpdatedAt:null});
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(getDoc(part));
+  await assertFails(getDoc(path(actor("owner"),"tenant_backups","one","snapshots","qa-backup","parts","finance")));
+  await assertFails(updateDoc(part,{payload:{}}));await assertFails(deleteDoc(ref));
+});
+async function seedClient(uid,id="one"){
+  const db=actor(uid);
+  await assertSucceeds(setDoc(publicDoc(db,id,"client_accounts",uid),{clientId:"client_"+uid,name:"Cliente "+uid,phone:"123456789",phoneNormalized:"123456789",status:"Activo",createdAt:serverTimestamp(),points:0,visits:0}));
+}
+function book(uid,reqId,time="10:00",id="one"){
+  const db=actor(uid),date="2099-06-15",barberId="staff1",slotId=barberId+"_"+date+"_"+time,b=writeBatch(db);
+  b.set(publicDoc(db,id,"booking_slots",slotId),{clientUid:uid,clientId:"client_"+uid,bookingRequestId:reqId,barberId,date,time,status:"Pendiente",createdAt:serverTimestamp()});
+  b.set(publicDoc(db,id,"booking_requests",reqId),{name:"Cliente "+uid,phone:"123456789",clientUid:uid,clientId:"client_"+uid,serviceId:"s1",barberId,date,time,note:"",branchId:"branch",status:"Pendiente",slotId,createdAt:serverTimestamp()});
+  return b.commit();
+}
+test("public booking requires a linked slot; two simultaneous clients cannot reserve the same starting time",async()=>{
+  await seedClient("clientA");await seedClient("clientB");
+  const results=await Promise.allSettled([book("clientA","reqA"),book("clientB","reqB")]);
+  if(results.filter(r=>r.status==="fulfilled").length!==1)throw Error("Exactly one request must succeed");
+  const winner=results[0].status==="fulfilled"?"clientA":"clientB",loser=winner==="clientA"?"clientB":"clientA",reqId=winner==="clientA"?"reqA":"reqB";
+  await assertSucceeds(getDoc(publicDoc(actor(winner),"one","booking_requests",reqId)));
+  await assertFails(getDoc(publicDoc(actor(loser),"one","booking_requests",reqId)));
+  await assertFails(updateDoc(publicDoc(actor(winner),"one","booking_requests",reqId),{status:"Aprobada"}));
+  await assertFails(updateDoc(publicDoc(actor("barber"),"one","booking_requests",reqId),{status:"Aprobada"}));
+  await assertFails(deleteDoc(publicDoc(actor("owner"),"one","booking_requests",reqId)));
+  await assertFails(book("clientA","badTime","24:00"));
+  await assertFails(book("clientA","crossTenant","11:00","two"));
+  await assertFails(updateDoc(publicDoc(actor(winner),"one","client_accounts",winner),{points:999}));
+});
