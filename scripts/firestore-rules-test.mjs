@@ -5,6 +5,7 @@ import {doc,collection,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,runTransacti
 import assert from "node:assert/strict";
 import {closeAppointment} from "../js/saas/financial-close-core.js";
 import {applyInventoryOperation} from "../js/saas/inventory-core.js";
+import {checkoutShop} from "../js/saas/shop-core.js";
 import {applyCorrection} from "../js/saas/financial-corrections-core.js";
 import {renewalDate,paymentAmount} from "../js/saas/commercial-core.js";
 let env;
@@ -225,4 +226,30 @@ test("inventory: create at zero, authorized entry, concurrent exits, archive, an
   f=(await getDoc(ref)).data();assert.equal(f.payload.products[0].archived,true);assert.equal(f.payload.products[0].stock,0);assert.equal(f.payload.stockMoves.length,3);
   assert.deepEqual(f.payload.stockMoves.map(m=>[m.stockBefore,m.stockAfter]),[[0,10],[10,3],[3,0]]);
   await assertFails(deleteDoc(path(owner,"businesses",id,"inventory_operations",archived.id)));
+});
+
+test("point of sale: three product lines, correct receipt and cash, stock concurrency, no direct forged checkout",async()=>{
+ const id="qa-lifecycle",owner=actor("qa-owner"),reception=actor("qa-reception"),inv=state(owner,id,"inventory"),fin=state(owner,id,"finance");
+ const io={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",reason:"Productos de prueba",date:"2026-11-26"};
+ for(const [productId,price] of [["sale-a",4],["sale-b",3.25],["sale-c",2.5]]){
+  await applyInventoryOperation({...io,productId,kind:"CREATE",values:{name:productId,category:"Insumo",min:1,cost:1,price}});
+  await applyInventoryOperation({...io,productId,kind:"ENTRY",quantity:10});
+ }
+ const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",method:"Efectivo",date:"2026-11-26",time:"10:30"};
+ const items=[{id:"sale-a",qty:2,price:4},{id:"sale-b",qty:1,price:3.25},{id:"sale-c",qty:2,price:2.5}];
+ await assert.rejects(checkoutShop({...opts,items:[{id:"sale-a",qty:1,price:1}]}));
+ await assert.rejects(checkoutShop({...opts,db:reception,actor:"qa-reception",items}));
+ const sale=await checkoutShop({...opts,items});
+ assert.equal(sale.total,16.25);
+ let f=(await getDoc(fin)).data().payload,i=(await getDoc(inv)).data().payload;
+ assert.equal(f.cash.find(x=>x.saleId===sale.id).amount,16.25);
+ assert.deepEqual(i.products.filter(x=>x.id.startsWith("sale-")).map(x=>x.stock),[8,9,8]);
+ const results=await Promise.allSettled([checkoutShop({...opts,items:[{id:"sale-a",qty:7}]}),checkoutShop({...opts,items:[{id:"sale-a",qty:7}]})]);
+ assert.equal(results.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(results.map(x=>x.status==="rejected"?String(x.reason):x.status)));
+ i=(await getDoc(inv)).data().payload;assert.equal(i.products.find(x=>x.id==="sale-a").stock,1);
+ const op=path(owner,"businesses",id,"shop_operations",sale.shopOperationId);
+ await assertFails(deleteDoc(op));await assertFails(updateDoc(op,{totalCents:1}));
+ const fs=await getDoc(fin);f=fs.data().payload;const rev=fs.data().syncRevision+1;
+ const b=writeBatch(owner);b.update(fin,{payload:{...f,cash:[...f.cash,{id:"forged",type:"Ingreso",amount:1,shopOperationId:"fake"}]},syncRevision:rev,updatedByUid:"qa-owner",updatedAt:serverTimestamp(),auditId:"forged-pos"});
+ b.set(path(owner,"businesses",id,"state_events","forged-pos"),{businessId:id,domain:"finance",revision:rev,actorUid:"qa-owner",createdAt:serverTimestamp()});await assertFails(b.commit());
 });
