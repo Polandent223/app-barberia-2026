@@ -11,17 +11,27 @@ let catalogUnsub=null,stateUnsubs=[];
 const baselines=new Map(), pending=new Map();
 const tenantKey=(id,uid=authUid())=>uid+":"+id;
 const draftKey=key=>"sambrix_sync_pending_v1:"+key;
-function storedDraft(key){try{return !!localStorage.getItem(draftKey(key));}catch{return false;}}
+function draftPaths(key){
+  const prefix=draftKey(key);
+  const result=[];
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k===prefix||k?.startsWith(prefix+":"))result.push(k);}
+  return result;
+}
+function storedDraft(key,exclude=""){try{return draftPaths(key).some(k=>k!==exclude);}catch{return true;}}
+function persistDraft(job,error="pending"){
+  localStorage.setItem(job.storageKey,JSON.stringify({schemaVersion:2,businessId:job.businessId,uid:job.uid,at:new Date().toISOString(),error,parts:job.latest,before:job.before}));
+}
+function clearConfirmedDraft(job){try{localStorage.removeItem(job.storageKey);}catch(e){console.warn("[SAMBRIX draft cleanup]",e);}}
 function keepDraft(key,job,error){
   job.failed=true;
-  try{localStorage.setItem(draftKey(key),JSON.stringify({businessId:job.businessId,at:new Date().toISOString(),error:String(error?.code||error?.message||"sync"),parts:job.latest}));}
+  try{persistDraft(job,String(error?.code||error?.message||"sync"));}
   catch(e){console.error("[SAMBRIX pending draft]",e);}
   if(authUid()===job.uid&&SaaS.getContext?.()?.businessId===job.businessId){
     A()?.toast?.("Cambios pendientes. No continúes en este equipo: contacta a soporte.");
     document.dispatchEvent(new CustomEvent("sambrix-sync-conflict",{detail:{businessId:job.businessId}}));
   }
 }
-export function tenantSyncBlocked(id){const key=tenantKey(id);return !!pending.get(key)?.failed||storedDraft(key);}
+export function tenantSyncBlocked(id){const key=tenantKey(id);const job=pending.get(key);return !!job?.failed||storedDraft(key,job?.storageKey||"");}
 export function tenantSyncDraftSaved(id){return storedDraft(tenantKey(id));}
 export function waitForTenantCommit(id){if(tenantSyncBlocked(id))return Promise.reject(Error('Cambios pendientes de revisión.'));return pending.get(tenantKey(id))?.tail||Promise.resolve(true);}
 export function tenantSyncBusy(id){return !!pending.get(tenantKey(id))?.count;}
@@ -147,8 +157,8 @@ export function uploadCurrentTenant(){
   const entries=changedParts(next,base.logical,base.raw,allowed);
   if(!entries.length)return Promise.resolve(false);
   let job=pending.get(key);
-  if(!job){job={uid,businessId:id,count:0,tail:Promise.resolve(),failed:false,latest:{}};pending.set(key,job);}
-  for(const entry of entries)job.latest[entry.name]=entry.after;
+  if(!job){job={uid,businessId:id,count:0,tail:Promise.resolve(),failed:false,latest:{},before:{},storageKey:draftKey(key)+":"+crypto.randomUUID()};pending.set(key,job);}
+  for(const entry of entries){job.latest[entry.name]=entry.after;if(!Object.hasOwn(job.before,entry.name))job.before[entry.name]=entry.before??null;}
   try{
     for(const entry of entries){
       entry.logicalAfter=entry.after;
@@ -158,6 +168,8 @@ export function uploadCurrentTenant(){
       }
     }
   }catch(error){keepDraft(key,job,error);return Promise.reject(error);}
+  for(const entry of entries)job.latest[entry.name]=entry.after;
+  try{persistDraft(job);}catch(error){keepDraft(key,job,error);return Promise.reject(Error("No se pudo proteger la copia local. No se enviaron los cambios."));}
   for(const entry of entries){base.raw[entry.name]=entry.after;base.logical[entry.name]=entry.logicalAfter;}
   job.count++;
   const valid=()=>sessionCanReadTenant(id,uid)&&SaaS.getContext?.()?.businessId===id;
@@ -185,6 +197,7 @@ export function uploadCurrentTenant(){
   }).catch(error=>{keepDraft(key,job,error);throw error;}).finally(()=>{
     job.count--;
     if(!job.count&&!job.failed){
+      clearConfirmedDraft(job);
       pending.delete(key);
       if(valid())watchCurrentTenant();
     }
