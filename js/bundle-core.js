@@ -1435,7 +1435,14 @@ App.slotAvailable=function(barberId,date,time,duration){
   return !App.db.appointments.some(a=>{if(a.barberId!==barberId||a.date!==date||a.status==="Cancelada")return false;const s=App.db.services.find(x=>x.id===a.serviceId);const as=App.parseTime(a.time),ad=Number(s?.duration||40);return start<as+ad&&start+duration>as});
 };
 App.availableBarbers=(date,time,duration)=>App.db.barbers.filter(b=>App.slotAvailable(b.id,date,time,duration));
-App.openClientApp=()=>{App.show("clientApp");App.renderClientApp()};
+App.openClientApp=()=>{
+  const params=new URLSearchParams(location.search);
+  if(params.get("cliente")==="app"&&params.get("business"))return;
+  const s=window.SaaS?.session,id=String(s?.businessId||"");
+  if(!["owner","admin","manager","reception"].includes(s?.role)||!id||!window.SaaSCloudProduction?.isTenantReady?.(id)||window.SaaS?.getContext?.()?.businessId!==id)return App.toast("Abre el enlace de reservas del negocio o espera la sincronización.");
+  const url=new URL(location.pathname,location.origin);url.searchParams.set("business",id);url.searchParams.set("cliente","app");
+  window.open(url.href,"_blank","noopener,noreferrer");
+};
 App.closeClientApp=()=>App.hide("clientApp");
 App.clientGo=function(page){document.querySelectorAll(".client-page").forEach(x=>x.classList.toggle("active",x.id===page));document.querySelectorAll(".client-bottom button").forEach(x=>x.classList.toggle("active",x.dataset.clientPage===page));if(page==="clientBook")App.renderClientBooking();if(page==="clientShop")App.renderClientShop()};
 App.selectClientService=id=>{App.clientSelection.serviceId=id;App.clientSelection.time="";App.renderClientBooking();const s=App.db.services.find(x=>x.id===id);App.toast(`Servicio seleccionado: ${s?.name||''}`)};
@@ -1485,6 +1492,7 @@ App.renderClientSlots=function(){
   App.byId("clientSlots").innerHTML=slots.length?slots.map(t=>`<button class="slot ${App.clientSelection.time===t?"selected":""}" onclick="App.selectClientTime('${t}')">${t}</button>`).join(""):'<div class="muted">No hay horarios disponibles.</div>';
 };
 App.submitClientReservation=function(){
+  if(App.PRODUCTION_MODE)return App.toast("Utiliza la aplicación pública de reservas. No se creó ninguna cita.");
   const s=App.db.services.find(x=>x.id===App.clientSelection.serviceId),date=App.val("clientBookDate"),time=App.clientSelection.time,name=App.val("clientBookName"),phone=App.val("clientBookPhone");
   if(!s||!date||!time||!name||!phone)return App.toast("Completa servicio, horario y tus datos");
   let barberId=App.clientSelection.barberId;if(!barberId){const list=App.availableBarbers(date,time,s.duration);if(!list.length)return App.toast("Horario no disponible");barberId=list[0].id}
@@ -1526,6 +1534,7 @@ App.renderClientShop=function(){
   App.byId("clientCartTotal").textContent=App.money(total);
 };
 App.clientCheckout=function(){
+  if(App.PRODUCTION_MODE)return App.toast("Compras en línea todavía no disponibles.");
   if(!App.clientCart.length)return;
   const lines=App.clientCart.map(x=>`${x.qty} Ã— ${x.name} = ${App.money(x.qty*x.price)}`).join("\n");
   const total=App.clientCart.reduce((s,x)=>s+x.qty*x.price,0);
