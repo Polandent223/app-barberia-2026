@@ -4,7 +4,7 @@ SaaS.releaseCandidate=SaaS.releaseCandidate||{
   frozen:false,
   frozenAt:null,
   hash:"",
-  projectId:"app-barberia-2026"
+  projectId:"sambrix-demo"
 };
 
 SaaS.loadReleaseCandidate=function(){
