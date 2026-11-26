@@ -6,6 +6,7 @@ const copy=v=>JSON.parse(JSON.stringify(v));
 const cents=v=>{const n=Number(v),c=Math.round(n*100);if(v==null||v===""||!Number.isFinite(n)||n<0||c>999999900||Math.abs(n*100-c)>1e-6)throw Error("Precio inválido.");return c;};
 export function buildShopSale({inventory,finance,config,businessId,actor,operationId,orderId="",items=[],method,date,time}){
  if(!METHODS.includes(method)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time))throw Error("Datos de cobro inválidos.");
+ inventory={...inventory,shopOrders:inventory.shopOrders??[]};
  if(!Array.isArray(inventory.products)||!Array.isArray(inventory.stockMoves)||!Array.isArray(inventory.shopOrders)||!Array.isArray(finance.sales)||!Array.isArray(finance.cash))throw Error("Módulos inválidos.");
  const orderIndex=orderId?inventory.shopOrders.findIndex(o=>o.id===orderId):-1,order=inventory.shopOrders[orderIndex];
  if(orderId&&(!order||!["Pendiente","Reservado"].includes(order.status)||order.businessId&&order.businessId!==businessId||order.saleId))throw Error("Pedido no disponible para cobro.");
@@ -60,7 +61,7 @@ export function buildShopReturn({inventory,finance,businessId,actor,operationId,
  const source=finance.cash.find(c=>c.id===original.cash.id&&c.saleId===sale?.id);
  if(!sale||!source||cents(sale.total)!==original.totalCents||cents(source.amount)!==original.totalCents)throw Error("Recibo y caja no conciliados.");
  const correction=buildCorrection({finance,businessId,sourceId:source.id,kind:"VOID",amount:sale.total,reason,actor,correctionId,date,previousCents});
- const products=copy(inventory.products),stockMoves=[...inventory.stockMoves],shopOrders=copy(inventory.shopOrders),lines=[];
+ const products=copy(inventory.products),stockMoves=[...inventory.stockMoves],shopOrders=copy(inventory.shopOrders??[]),lines=[];
  for(const old of original.lines){
   const index=products.findIndex(p=>p.id===old.productId),p=products[index];
   if(!p||p.archived===true||p.businessId&&p.businessId!==businessId||products.filter(x=>x.id===old.productId).length!==1||!Number.isSafeInteger(p.stock)||p.stock<0||!Number.isSafeInteger(old.qty)||old.qty<=0||p.stock+old.qty>9999999)throw Error("Producto no disponible para reintegro. Consulta soporte.");
