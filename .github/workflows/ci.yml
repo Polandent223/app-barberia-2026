@@ -29,3 +29,17 @@ jobs:
       - run: npm ci || npm install
       - run: npm install --no-save --package-lock=false firebase@12 @firebase/rules-unit-testing@5 firebase-tools@14
       - run: npx firebase emulators:exec --project demo-sambrix-qa --only firestore "node --test scripts/firestore-rules-test.mjs"
+
+  server-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
+      - run: node --check functions/index.js && node --check functions/shop-service.js && node --check functions/shop-core.js
+      - run: node -e "import('./functions/index.js').then(m=>{if(!m.sambrixSellProducts||!m.sambrixReturnProducts)process.exit(1)})"
+        env:
+          GCLOUD_PROJECT: demo-sambrix-qa
+          GOOGLE_CLOUD_PROJECT: demo-sambrix-qa
