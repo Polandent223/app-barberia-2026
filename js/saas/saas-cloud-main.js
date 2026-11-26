@@ -14,7 +14,7 @@ function setHydrationUI(active,id=currentBusinessId()){
   if(typeof document==="undefined")return;
   const app=document.getElementById("adminApp");if(app){app.dataset.cloudHydrating=active?"true":"false";app.setAttribute("aria-busy",active?"true":"false")}
   let overlay=document.getElementById("sambrixCloudHydrationLock");
-  if(active){if(!overlay){overlay=document.createElement("div");overlay.id="sambrixCloudHydrationLock";overlay.setAttribute("role","status");overlay.setAttribute("aria-live","polite");overlay.style.cssText="position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.88);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:inherit";overlay.innerHTML='<div style="max-width:420px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.12)"><strong style="display:block;font-size:18px;margin-bottom:8px">Sincronizando SAMBRIX</strong><span style="color:#667085">Estamos cargando los datos del negocio. Podrás trabajar en unos segundos.</span></div>';document.body.appendChild(overlay)}overlay.dataset.businessId=String(id||"");overlay.hidden=false;overlay.style.display="flex"}else if(overlay){overlay.hidden=true;overlay.style.display="none";overlay.dataset.businessId=""}
+  if(active){if(!overlay){overlay=document.createElement("div");overlay.id="sambrixCloudHydrationLock";overlay.setAttribute("role","status");overlay.setAttribute("aria-live","polite");overlay.style.cssText="position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.88);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:inherit";overlay.innerHTML='<div style="max-width:420px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.12)"><strong style="display:block;font-size:18px;margin-bottom:8px">Sincronizando SAMBRIX</strong><span style="color:#667085">Estamos cargando los datos del negocio. Podrás trabajar en unos segundos.</span></div>';document.body.appendChild(overlay)}overlay.dataset.businessId=String(id||"");overlay.hidden=false;overlay.style.display="flex"}else if(overlay){overlay.hidden=true;overlay.style.display="none";overlay.dataset.businessId="";delete overlay.dataset.renderKey}
 }
 function refreshHydrationUI(){
   const id=currentBusinessId(),role=String(SaaS.session?.role||"");
@@ -23,6 +23,9 @@ function refreshHydrationUI(){
   setHydrationUI(businessRole&&!!id&&(blocked||!hydratedTenants.has(id)||tenantHydrating(id)),id);
   const overlay=document.getElementById("sambrixCloudHydrationLock");
   if(overlay&&!overlay.hidden){
+    const renderKey=id+":"+blocked+":"+tenantSyncDraftSaved(id);
+    if(overlay.dataset.renderKey===renderKey)return;
+    overlay.dataset.renderKey=renderKey;
     const box=overlay.firstElementChild;box.replaceChildren();
     const h=document.createElement("strong");h.style.cssText="display:block;font-size:18px;margin-bottom:8px";
     h.textContent=blocked?"Cambios pendientes de revisión":"Sincronizando SAMBRIX";
