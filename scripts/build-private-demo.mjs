@@ -8,6 +8,33 @@ const forbidden=/app-barberia-2026(?:\.firebaseapp\.com|[^\s"'<>]*\.firebaseio\.
 rmSync(out,{recursive:true,force:true});mkdirSync(out);
 for(const name of ["index.html","js","css"])cpSync(name,join(out,name),{recursive:true});
 function scan(dir){for(const item of readdirSync(dir,{withFileTypes:true})){const p=join(dir,item.name);if(item.isDirectory())scan(p);else if(/\.(js|html|css|json)$/.test(p)&&forbidden.test(readFileSync(p,"utf8")))throw Error("Production reference: "+p);}}
+// Repair only valid UTF-8 sequences misread as Windows-1252.
+const legacy=new TextDecoder("windows-1252");
+const strict=new TextDecoder("utf-8",{fatal:true});
+const byteOf=new Map(Array.from({length:256},(_,b)=>[legacy.decode(Uint8Array.of(b)),b]));
+function repairText(input){
+ for(let pass=0;pass<3;pass++){
+  let out="";
+  for(let i=0;i<input.length;){
+   const b=byteOf.get(input[i]),n=b>=194&&b<=223?2:b>=224&&b<=239?3:b>=240&&b<=244?4:0;
+   if(n&&i+n<=input.length){
+    const bytes=Array.from(input.slice(i,i+n),c=>byteOf.get(c));
+    if(bytes.length===n&&bytes.slice(1).every(v=>v>=128&&v<=191)){
+     try{out+=strict.decode(Uint8Array.from(bytes));i+=n;continue;}catch{}
+    }
+   }
+   out+=input[i++];
+  }
+  if(out===input)return out;
+  input=out;
+ }
+ return input;
+}
+if(repairText("EspaÃ±ol | ConversiÃ³n | â–¦ | Español")!=="Español | Conversión | ▦ | Español")throw Error("Encoding repair self-test failed");
+const htmlPath=join(out,"index.html");
+const originalHtml=readFileSync(htmlPath,"utf8");
+const fixedHtml=repairText(originalHtml);
+if(fixedHtml!==originalHtml)writeFileSync(htmlPath,fixedHtml);
 scan(out);
 const html=join(out,"index.html");writeFileSync(html,readFileSync(html,"utf8").replace("</body>",'<div style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#742b00;color:white;text-align:center;font:12px sans-serif;padding:4px;pointer-events:none">SAMBRIX DEMO · SOLO DATOS FICTICIOS</div></body>'));
 console.log("SAMBRIX DEMO build: isolated Firebase, static allowlist.");
