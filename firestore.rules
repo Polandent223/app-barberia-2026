@@ -335,13 +335,12 @@ service cloud.firestore {
             ((next.cash.size() == old.cash.size() ||
               !next.cash[old.cash.size()].keys().hasAny(['shopOperationId','orderId'])) &&
              (next.sales.size() == old.sales.size() || (!next.sales[old.sales.size()].keys().hasAny(['shopOperationId','orderId']) && next.sales[old.sales.size()].get('source','') != 'Punto de venta')) &&
-             request.resource.data.get('shopOperationId','none') == resource.data.get('shopOperationId','none')) ||
-            linkedShopOperation();
+             request.resource.data.get('shopOperationId','none') == resource.data.get('shopOperationId','none'));
         }
         function validInventoryOperation() {
           let op = request.resource.data.get('inventoryOperationId','none');
           let p = /databases/$(database)/documents/businesses/$(businessId)/inventory_operations/$(op);
-          return stateName != 'inventory' || (request.resource.data.get('shopOperationId','none') != resource.data.get('shopOperationId','none') && linkedShopOperation()) || (
+          return stateName != 'inventory' || (
             canManageBusiness(businessId) && op is string &&
             !exists(p) && existsAfter(p) &&
             getAfter(p).data.revision == request.resource.data.syncRevision &&
@@ -474,8 +473,9 @@ service cloud.firestore {
             ((d.kind == 'SALE' && l.qty <= p.stock && n.stock == p.stock - l.qty &&
               p.price == l.unitCents / 100.0 && item.name == p.name) ||
              (d.kind == 'RETURN' && n.stock == p.stock + l.qty)) &&
-            item.refId == p.id && item.type == 'Producto' &&
+            item.keys().hasOnly(['name','qty','unit','total','type','refId']) && item.refId == p.id && item.type == 'Producto' &&
             item.qty == l.qty && item.unit == l.unitCents / 100.0 && item.total == l.lineCents / 100.0 &&
+            m.keys().hasOnly(['id','productId','type','qty','reason','date','businessId','branchId','createdBy','stockBefore','stockAfter','operationId','productName']) &&
             m.id == ('shopstock_' + operationId + '_' + string(i)) && m.operationId == operationId &&
             m.businessId == businessId && m.productId == p.id && m.productName == p.name &&
             m.type == (d.kind == 'SALE' ? 'Salida' : 'Entrada') && m.qty == l.qty && m.stockBefore == p.stock && m.stockAfter == n.stock &&
@@ -558,7 +558,9 @@ service cloud.firestore {
           let s = d.sale;
           let c = d.cash;
           let cfg = get(st('config')).data.payload;
-          return d.totalCents == total(d) && d.totalCents is int && d.totalCents > 0 && d.totalCents <= 999999900 &&
+          return s.keys().hasOnly(['id','number','date','time','clientName','barberName','currency','total','items','source','orderId','businessId','branchId','paymentMethod','createdBy','shopOperationId']) &&
+            c.keys().hasOnly(['id','type','concept','amount','method','date','currency','saleId','orderId','businessId','branchId','createdBy','shopOperationId']) &&
+            d.totalCents == total(d) && d.totalCents is int && d.totalCents > 0 && d.totalCents <= 999999900 &&
             s.id == ('shop_' + operationId) && c.id == ('shopcash_' + operationId) &&
             s.shopOperationId == operationId && c.shopOperationId == operationId &&
             s.businessId == businessId && c.businessId == businessId && s.createdBy == request.auth.uid && c.createdBy == request.auth.uid &&
