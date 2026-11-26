@@ -9,13 +9,13 @@ const input=(type,placeholder="")=>{const x=el("input");x.type=type;x.placeholde
 const select=()=>el("select");
 const cloud=()=>window.SambrixClientCloud;
 let root,content,nav,header,notice,data=null,mode="home",step=1,service="",professional="",date="",time="",note="",busy=false,requestGeneration=0,authMode="login",bookingId="";
-const money=v=>Number.isFinite(Number(v))?new Intl.NumberFormat("es",{style:"currency",currency:"USD"}).format(Number(v)):"Consultar precio";
+const money=v=>Number.isFinite(Number(v))?"$"+Number(v).toFixed(2):"Consultar precio";
 const message=(s,error=false)=>{notice.textContent=s;notice.classList.toggle("error",error);};
 const allowed=()=>data&&["Activo","Prueba"].includes(data.status);
 function route(next){mode=next;if(next==="book"&&!service)step=1;render();}
 function title(s,p=""){content.append(el("h2",s));if(p)content.append(el("p",p,"client-v2-muted"));}
-function safePhoto(url){try{const u=new URL(String(url),location.href);return u.protocol==="https:"?u.href:/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(url))?String(url):"";}catch{return "";}}
-function choice(name,detail,selected,fn,photo=""){const b=button("",fn,"client-v2-choice");b.setAttribute("aria-pressed",String(selected));if(selected)b.classList.add("chosen");const u=safePhoto(photo);if(u){const img=el("img");img.src=u;img.alt="";img.loading="lazy";b.append(img);}const t=el("span");t.append(el("strong",name),el("small",detail));b.append(t);return b;}
+function safePhoto(url){if(typeof url!=="string"||!url.trim())return "";if(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(url))return url;try{const u=new URL(url);return u.protocol==="https:"?u.href:"";}catch{return "";}}
+function choice(name,detail,selected,fn,photo=""){const b=button("",fn,"client-v2-choice");b.setAttribute("aria-pressed",String(selected));if(selected)b.classList.add("chosen");const u=safePhoto(photo);if(u){const img=el("img");img.src=u;img.alt="";img.loading="lazy";img.addEventListener("error",()=>img.remove(),{once:true});b.append(img);}const t=el("span");t.append(el("strong",name),el("small",detail));b.append(t);return b;}
 function headerRender(){header.replaceChildren();const brand=data?.branding||{},logo=safePhoto(brand.logo);if(/^#[0-9a-f]{6}$/i.test(brand.secondary||""))header.style.background=brand.secondary;else header.style.background="";if(logo){const img=el("img");img.src=logo;img.alt="Logo";header.append(img);}const copy=el("div");copy.append(el("strong",brand.brandName||data?.name||"SAMBRIX"),el("small",data?.branch?.name||"Reservas en línea"));header.append(copy);}
 async function refresh(quiet=false){const gen=++requestGeneration;try{const p=await cloud().verifiedAvailability(id);if(gen!==requestGeneration)return false;data=p;if(!date)date=clock(data.timezone).date;if(!quiet)render();return true;}catch(e){if(gen!==requestGeneration)return false;data=null;render();message(e.message||"No pudimos verificar la agenda.",true);return false;}}
 async function action(btn,fn){if(busy)return;busy=true;btn.disabled=true;try{await fn();}catch(e){message(String(e?.message||"No se pudo completar."),true);}finally{busy=false;if(btn.isConnected)btn.disabled=false;}}
