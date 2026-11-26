@@ -181,3 +181,20 @@ test("only owner or admin can refund; cumulative corrections cannot exceed origi
   next.set(audit,{businessId:id,domain:"finance",revision:rev,actorUid:"qa-reception",createdAt:serverTimestamp()});
   await assertFails(next.commit());
 });
+
+test("manual cash reversal and server-side validation of new entries",async()=>{
+  const id="qa-lifecycle",owner=actor("qa-owner"),ref=state(owner,id,"finance"),snap=await getDoc(ref),finance=snap.data().payload,rev=snap.data().syncRevision+1;
+  const expense={id:"manual-expense",type:"Egreso",amount:20,concept:"Gasto registrado",currency:"$",method:"Efectivo",date:"2026-11-26",businessId:id};
+  const write=(rows,eventId)=>{
+    const b=writeBatch(owner);b.update(ref,{payload:{...finance,cash:[...finance.cash,...rows]},syncRevision:rev,auditId:eventId,updatedByUid:"qa-owner",updatedAt:serverTimestamp()});
+    b.set(path(owner,"businesses",id,"state_events",eventId),{businessId:id,domain:"finance",revision:rev,actorUid:"qa-owner",createdAt:serverTimestamp()});return b.commit();
+  };
+  await assertFails(write([{...expense,amount:-5}],"qa-negative"));
+  await assertFails(write([expense,{...expense,id:"manual-duplicate"}],"qa-bulk"));
+  await assertSucceeds(write([expense],"qa-manual"));
+  const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,sourceId:expense.id,kind:"CASH_REVERSAL",amount:20,reason:"Gasto registrado por error",actor:"qa-owner",date:"2026-11-26"};
+  await assert.rejects(applyCorrection({...opts,amount:1}));
+  const result=await applyCorrection(opts);assert.equal(result.cashEntry.type,"Ingreso");assert.equal(result.cashEntry.amount,20);
+  const final=(await getDoc(ref)).data().payload;
+  assert.deepEqual(final.cash.find(x=>x.id===expense.id),expense);assert.equal(final.cash.find(x=>x.correctionOf===expense.id).amount,20);
+});
