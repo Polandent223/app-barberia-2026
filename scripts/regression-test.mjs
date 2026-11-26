@@ -4,6 +4,7 @@ import {readFileSync,existsSync} from "node:fs";
 import {cents,addMonths,renewalDate,paymentAmount,commercialState} from "../js/saas/commercial-core.js";
 import {available,slots,dayValid} from "../js/saas/client-booking-core.js";
 import {buildCorrection,correctionSummary,refundTotal} from "../js/saas/financial-corrections-core.js";
+import {buildShopSale} from "../js/saas/shop-core.js";
 import {buildInventoryOperation} from "../js/saas/inventory-core.js";
 import {protectHistory} from "../js/saas/protected-history.js";
 import {changedParts,assertUnchanged} from "../js/saas/sync-conflict.js";
@@ -41,4 +42,11 @@ test("stock operation preserves history, rejects overselling and requires zero b
   run("ENTRY","b",{quantity:10});assert.throws(()=>run("EXIT","c",{quantity:11}));assert.throws(()=>run("ARCHIVE","d"));
   run("EXIT","e",{quantity:10});run("ARCHIVE","f");assert.equal(payload.products[0].archived,true);assert.equal(payload.stockMoves.length,2);
   assert.deepEqual(payload.stockMoves.map(m=>[m.stockBefore,m.stockAfter]),[[0,10],[10,0]]);
+});
+
+test("POS computes total from catalog and preserves original inventory on rejected sale",()=>{
+ const inventory={products:[{id:"a",name:"A",stock:5,price:3.25},{id:"b",name:"B",stock:3,price:2}],stockMoves:[],shopOrders:[]},finance={sales:[],cash:[]};
+ const opts={inventory,finance,config:{business:{currency:"$"}},businessId:"qa",actor:"owner",operationId:"sale",method:"Efectivo",date:"2026-11-26",time:"10:00"};
+ assert.throws(()=>buildShopSale({...opts,items:[{id:"a",qty:6}]}));assert.throws(()=>buildShopSale({...opts,items:[{id:"a",qty:1,price:1}]}));assert.throws(()=>buildShopSale({...opts,items:[{id:"a",qty:1},{id:"a",qty:1}]}));
+ const result=buildShopSale({...opts,items:[{id:"a",qty:2},{id:"b",qty:1}]});assert.equal(result.record.totalCents,850);assert.equal(result.finance.cash[0].amount,8.5);assert.equal(result.inventory.products[0].stock,3);assert.equal(inventory.products[0].stock,5);
 });
