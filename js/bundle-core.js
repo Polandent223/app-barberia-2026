@@ -740,10 +740,12 @@ App.editAppointment = function(id){
   if(!App.requireAppointmentAccess())return;
   const a=App.db.appointments.find(x=>x.id===id);if(!a)return;
   if(a.status==="Finalizada")return App.toast("Una cita finalizada queda bloqueada para proteger el cobro y el recibo");
+  const missingClient=!App.db.clients.some(c=>c.id===a.clientId);
   App.openFormModal({
     tag:"CITA",title:"Editar cita",
+    note:missingClient?"Esta cita no tiene un cliente válido. Selecciona expresamente al cliente correcto; no se asignará ninguno automáticamente.":"",
     fields:[
-      {name:"clientId",label:"Cliente",type:"select",value:a.clientId,options:App.db.clients.map(c=>({value:c.id,label:c.name}))},
+      {name:"clientId",label:"Cliente",type:"select",value:missingClient?"":a.clientId,options:[{value:"",label:"Seleccionar cliente"},...App.db.clients.map(c=>({value:c.id,label:c.name}))]},
       {name:"barberId",label:(App.businessVocabulary?.().staffOne||"profesional").replace(/^./,c=>c.toUpperCase()),type:"select",value:a.barberId,options:App.db.barbers.map(b=>({value:b.id,label:b.name}))},
       {name:"serviceId",label:"Servicio",type:"select",value:a.serviceId,options:App.db.services.map(s=>({value:s.id,label:`${s.name} Â· ${App.money(s.price)}`}))},
       {name:"date",label:"Fecha",type:"date",value:a.date},
@@ -752,6 +754,8 @@ App.editAppointment = function(id){
     ],
     onSave:()=>{
       if(!App.requireAppointmentAccess())return;
+      const selectedClient=App.readModal("clientId");
+      if(!App.db.clients.some(c=>c.id===selectedClient))return App.toast("Selecciona un cliente válido antes de guardar.");
       const barberId=App.readModal("barberId"),date=App.readModal("date"),time=App.readModal("time");
       const clash=App.appointmentConflict({...a,barberId,date,time,serviceId:App.readModal("serviceId")},a.id);
       if(clash)return App.toast(`Ese ${App.businessVocabulary?.().staffOne||"profesional"} ya tiene una cita a esa hora`);
