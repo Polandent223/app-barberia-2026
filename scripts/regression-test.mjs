@@ -4,7 +4,7 @@ import {readFileSync,existsSync} from "node:fs";
 import {cents,addMonths,renewalDate,paymentAmount,commercialState} from "../js/saas/commercial-core.js";
 import {available,slots,dayValid} from "../js/saas/client-booking-core.js";
 import {buildCorrection,correctionSummary,refundTotal} from "../js/saas/financial-corrections-core.js";
-import {buildShopSale} from "../js/saas/shop-core.js";
+import {buildShopSale,buildShopReturn} from "../js/saas/shop-core.js";
 import {buildInventoryOperation} from "../js/saas/inventory-core.js";
 import {protectHistory} from "../js/saas/protected-history.js";
 import {changedParts,assertUnchanged} from "../js/saas/sync-conflict.js";
@@ -49,4 +49,15 @@ test("POS computes total from catalog and preserves original inventory on reject
  const opts={inventory,finance,config:{business:{currency:"$"}},businessId:"qa",actor:"owner",operationId:"sale",method:"Efectivo",date:"2026-11-26",time:"10:00"};
  assert.throws(()=>buildShopSale({...opts,items:[{id:"a",qty:6}]}));assert.throws(()=>buildShopSale({...opts,items:[{id:"a",qty:1,price:1}]}));assert.throws(()=>buildShopSale({...opts,items:[{id:"a",qty:1},{id:"a",qty:1}]}));
  const result=buildShopSale({...opts,items:[{id:"a",qty:2},{id:"b",qty:1}]});assert.equal(result.record.totalCents,850);assert.equal(result.finance.cash[0].amount,8.5);assert.equal(result.inventory.products[0].stock,3);assert.equal(inventory.products[0].stock,5);
+});
+
+test("physical return restores original quantities and preserves sale record",()=>{
+ const inventory={products:[{id:"a",name:"A",stock:5,price:3.25},{id:"b",name:"B",stock:3,price:2}],stockMoves:[],shopOrders:[]},finance={sales:[],cash:[]};
+ const opts={inventory,finance,config:{business:{currency:"$"}},businessId:"qa",actor:"owner",operationId:"sale",method:"Efectivo",date:"2026-11-26",time:"10:00"};
+ const sold=buildShopSale({...opts,items:[{id:"a",qty:2},{id:"b",qty:1}]});
+ const args={...opts,inventory:sold.inventory,finance:sold.finance,original:sold.record,operationId:"return",correctionId:"correction",reason:"Mercancía recibida y dinero devuelto"};
+ const result=buildShopReturn(args);
+ assert.equal(result.inventory.products[0].stock,5);assert.equal(result.inventory.products[1].stock,3);
+ assert.deepEqual(result.finance.sales,sold.finance.sales);assert.equal(result.record.cash.amount,8.5);
+ assert.equal(result.record.cash.type,"Egreso");assert.throws(()=>buildShopReturn({...args,previousCents:100}));
 });
