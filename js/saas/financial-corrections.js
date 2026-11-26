@@ -1,6 +1,6 @@
 import {auth,firestore} from "../firebase/firebase-core.js";
 import {doc,collection,runTransaction,serverTimestamp,getDocFromServer,getDocsFromServer,query,orderBy,limit} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
-import {applyCorrection,correctionSummary,moneyCents} from "./financial-corrections-core.js?v=2.0.12";
+import {applyCorrection,correctionSummary,moneyCents} from "./financial-corrections-core.js?v=2.0.13";
 const labels={REFUND:"Devolución parcial",VOID:"Anulación del saldo",DISCOUNT:"Descuento posterior al cobro",CASH_REVERSAL:"Reversión de caja manual"};
 const S=()=>window.SaaS,A=()=>window.App;
 const id=()=>String(S()?.session?.businessId||"");
@@ -62,10 +62,10 @@ async function open(){
 }
 function renderSummary(panel){
  const data=A()?.db;if(!data)return;
- const sales=new Map(),refunds=new Map();
- for(const row of data.sales||[]){try{const key=String(row.currency||"$");sales.set(key,(sales.get(key)||0)+moneyCents(row.total));}catch{}}
- for(const row of data.cash||[]){if(!row.correctionId||!row.originalSaleId||row.type!=="Egreso")continue;try{const key=String(row.currency||"$");refunds.set(key,(refunds.get(key)||0)+moneyCents(row.amount));}catch{}}
- const out=panel.querySelector(".correction-summary");out.replaceChildren(el("strong","Ventas acumuladas y ajustes"));
+ const sales=new Map(),refunds=new Map(),period=panel.dataset.page==="reportes",from=period?(document.getElementById("reportFrom")?.value||"0000-01-01"):"0000-01-01",to=period?(document.getElementById("reportTo")?.value||"9999-12-31"):"9999-12-31";
+ for(const row of data.sales||[]){if(row.date<from||row.date>to)continue;try{const key=String(row.currency||"$");sales.set(key,(sales.get(key)||0)+moneyCents(row.total));}catch{}}
+ for(const row of data.cash||[]){if(!row.correctionId||!row.originalSaleId||row.type!=="Egreso"||row.date<from||row.date>to)continue;try{const key=String(row.currency||"$");refunds.set(key,(refunds.get(key)||0)+moneyCents(row.amount));}catch{}}
+ const out=panel.querySelector(".correction-summary");out.replaceChildren(el("strong",period?"Ventas y ajustes del período":"Ventas acumuladas y ajustes"));
  for(const key of new Set([...sales.keys(),...refunds.keys()])){const gross=sales.get(key)||0,ref=refunds.get(key)||0;out.append(el("p","Bruto "+fmt(gross,key)+" · Devuelto/ajustado "+fmt(ref,key)+" · Neto "+fmt(gross-ref,key)));}
  if(!sales.size&&!refunds.size)out.append(el("p","Sin operaciones."));
 }
@@ -73,8 +73,8 @@ function boot(){
  if(!A()||!S()||document.getElementById("financialCorrectionsDialog"))return;
  dialog=el("dialog","","cloud-support-dialog");dialog.id="financialCorrectionsDialog";body=el("div");dialog.append(el("h2","Correcciones financieras"),btn("Cerrar",()=>{if(!busy)dialog.close();}),body);dialog.addEventListener("cancel",e=>{if(busy)e.preventDefault();});dialog.addEventListener("close",()=>{gen++;body.replaceChildren();});document.body.append(dialog);
  const panels=[];
- for(const page of ["caja","recibos"]){const host=document.getElementById(page);if(!host)continue;const panel=el("div","","panel");panel.hidden=true;panel.append(el("div","","correction-summary"),btn("Correcciones y devoluciones",open));host.prepend(panel);panels.push(panel);}
- const sync=()=>{for(const panel of panels){panel.hidden=!allowed();if(!panel.hidden)renderSummary(panel);}if(dialog.open&&!allowed()&&!busy)dialog.close();};
- const old=A().renderAll;A().renderAll=function(...args){const r=old.apply(this,args);sync();return r;};setInterval(()=>{for(const panel of panels)panel.hidden=!allowed();if(dialog.open&&!allowed()&&!busy)dialog.close();},1000);sync();
+ for(const page of ["caja","recibos","reportes"]){const host=document.getElementById(page);if(!host)continue;const panel=el("div","","panel");panel.hidden=true;panel.dataset.page=page;panel.append(el("div","","correction-summary"));if(page!=="reportes")panel.append(btn("Correcciones y devoluciones",open));host.prepend(panel);panels.push(panel);}
+ const sync=()=>{for(const panel of panels){panel.hidden=!allowed();panel.style.display=panel.hidden?"none":"";if(!panel.hidden)renderSummary(panel);}if(dialog.open&&!allowed()&&!busy)dialog.close();};
+ const old=A().renderAll;A().renderAll=function(...args){const r=old.apply(this,args);sync();return r;};for(const key of ["reportFrom","reportTo"])document.getElementById(key)?.addEventListener("change",sync);setInterval(()=>{for(const panel of panels){panel.hidden=!allowed();panel.style.display=panel.hidden?"none":"";}if(dialog.open&&!allowed()&&!busy)dialog.close();},1000);sync();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
