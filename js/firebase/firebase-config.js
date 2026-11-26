@@ -1,11 +1,10 @@
-export const firebaseConfig = {
-  apiKey: "AIzaSyC2MOa8pZvEyVE2TBCKMEZsaDszYebhoq0",
-  authDomain: "app-barberia-2026.firebaseapp.com",
-  databaseURL: "https://app-barberia-2026-default-rtdb.firebaseio.com",
-  projectId: "app-barberia-2026",
-  storageBucket: "app-barberia-2026.firebasestorage.app",
-  messagingSenderId: "91700900179",
-  appId: "1:91700900179:web:12196c9b9c7f58be3b31a6",
-  measurementId: "G-TW9Y2SHWZV"
-};
+// SAMBRIX DEMO only: never use the production Firebase project here.
+export const firebaseConfig=Object.freeze({
+ apiKey:"AIzaSyBELxYR6ZNFUjX-1IEeuTPYQ-kVGfHXVB8",
+ authDomain:"sambrix-demo.firebaseapp.com",
+ projectId:"sambrix-demo",
+ storageBucket:"sambrix-demo.firebasestorage.app",
+ messagingSenderId:"314866915294",
+ appId:"1:314866915294:web:1b4db294c13b213910ef4f"
+});
 export const FIREBASE_SDK_VERSION="12.16.0";
