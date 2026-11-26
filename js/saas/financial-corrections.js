@@ -5,19 +5,20 @@ const labels={REFUND:"Devolución parcial",VOID:"Anulación del saldo",DISCOUNT:
 const S=()=>window.SaaS,A=()=>window.App;
 const id=()=>String(S()?.session?.businessId||"");
 const role=()=>S()?.session?.role;
-const allowed=()=>["owner","admin"].includes(role())&&!!auth.currentUser&&!!id()&&S()?.pageAllowed?.("caja")&&S()?.featureAllowed?.("caja",S()?.currentBusiness?.());
+const allowed=()=>["owner","admin"].includes(role())&&!!auth.currentUser&&!!id()&&S()?.currentBusiness?.()?.id===id()&&S()?.pageAllowed?.("caja")&&S()?.featureAllowed?.("caja",S()?.currentBusiness?.());
+const identity=()=>String(auth.currentUser?.uid||"")+":"+id();
 const el=(tag,text="",cls="")=>{const n=document.createElement(tag);n.textContent=text;if(cls)n.className=cls;return n;};
 const btn=(text,fn,cls="secondary")=>{const b=el("button",text,"btn "+cls);b.type="button";b.addEventListener("click",fn);return b;};
 const field=(label,control)=>{const l=el("label");l.append(el("span",label),control);return l;};
 const fmt=(n,cur)=>String(cur||"$")+" "+(n/100).toFixed(2);
-let dialog,body,busy=false,gen=0;
+let dialog,body,busy=false,gen=0,dialogIdentity="";
 function dateLocal(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function check(tenant,uid){if(!allowed()||id()!==tenant||auth.currentUser?.uid!==uid)throw Error("La sesión o empresa cambió.");}
 async function open(){
  if(!allowed()||busy)return;
  const tenant=id(),uid=auth.currentUser.uid,cloud=window.SaaSCloudProduction,load=++gen;
  if(!cloud?.isTenantReady?.(tenant))return A()?.toast?.("Primero verifica la sincronización.");
- body.replaceChildren(el("p","Consultando caja en Firebase…"));
+ dialogIdentity=identity();body.replaceChildren(el("p","Consultando caja en Firebase…"));
  if(!dialog.open)dialog.showModal();
  try{
   await cloud.awaitTenantWrites(tenant);check(tenant,uid);
@@ -61,7 +62,7 @@ async function open(){
  }catch(e){if(load===gen&&dialog.open)body.replaceChildren(el("p",e.message||"No se pudo consultar caja."));}
 }
 function renderSummary(panel){
- const data=A()?.db;if(!data)return;
+ const data=A()?.db;if(!data||data.meta?.businessId!==id()||!window.SaaSCloudProduction?.isTenantReady?.(id())){panel.querySelector(".correction-summary").replaceChildren(el("p","Verificando información del negocio…"));return;}
  const sales=new Map(),refunds=new Map(),period=panel.dataset.page==="reportes",from=period?(document.getElementById("reportFrom")?.value||"0000-01-01"):"0000-01-01",to=period?(document.getElementById("reportTo")?.value||"9999-12-31"):"9999-12-31";
  for(const row of data.sales||[]){if(row.date<from||row.date>to)continue;try{const key=String(row.currency||"$");sales.set(key,(sales.get(key)||0)+moneyCents(row.total));}catch{}}
  for(const row of data.cash||[]){if(!row.correctionId||!row.originalSaleId||row.type!=="Egreso"||row.date<from||row.date>to)continue;try{const key=String(row.currency||"$");refunds.set(key,(refunds.get(key)||0)+moneyCents(row.amount));}catch{}}
@@ -71,10 +72,10 @@ function renderSummary(panel){
 }
 function boot(){
  if(!A()||!S()||document.getElementById("financialCorrectionsDialog"))return;
- dialog=el("dialog","","cloud-support-dialog");dialog.id="financialCorrectionsDialog";body=el("div");dialog.append(el("h2","Correcciones financieras"),btn("Cerrar",()=>{if(!busy)dialog.close();}),body);dialog.addEventListener("cancel",e=>{if(busy)e.preventDefault();});dialog.addEventListener("close",()=>{gen++;body.replaceChildren();});document.body.append(dialog);
+ dialog=el("dialog","","cloud-support-dialog");dialog.id="financialCorrectionsDialog";body=el("div");dialog.append(el("h2","Correcciones financieras"),btn("Cerrar",()=>{if(!busy)dialog.close();}),body);dialog.addEventListener("cancel",e=>{if(busy)e.preventDefault();});dialog.addEventListener("close",()=>{if(!dialog.open){gen++;body.replaceChildren();dialogIdentity="";}});document.body.append(dialog);
  const panels=[];
  for(const page of ["caja","recibos","reportes"]){const host=document.getElementById(page);if(!host)continue;const panel=el("div","","panel");panel.hidden=true;panel.dataset.page=page;panel.append(el("div","","correction-summary"));if(page!=="reportes")panel.append(btn("Correcciones y devoluciones",open));host.prepend(panel);panels.push(panel);}
- const sync=()=>{for(const panel of panels){panel.hidden=!allowed();panel.style.display=panel.hidden?"none":"";if(!panel.hidden)renderSummary(panel);}if(dialog.open&&!allowed()&&!busy)dialog.close();};
- const old=A().renderAll;A().renderAll=function(...args){const r=old.apply(this,args);sync();return r;};for(const key of ["reportFrom","reportTo"])document.getElementById(key)?.addEventListener("change",sync);setInterval(()=>{for(const panel of panels){panel.hidden=!allowed();panel.style.display=panel.hidden?"none":"";}if(dialog.open&&!allowed()&&!busy)dialog.close();},1000);sync();
+ const sync=()=>{for(const panel of panels){panel.hidden=!allowed();panel.style.display=panel.hidden?"none":"";if(!panel.hidden)renderSummary(panel);}if(dialog.open&&(!allowed()||dialogIdentity!==identity())){gen++;body.replaceChildren();dialog.close();}};
+ const old=A().renderAll;A().renderAll=function(...args){const r=old.apply(this,args);sync();return r;};for(const key of ["reportFrom","reportTo"])document.getElementById(key)?.addEventListener("change",sync);setInterval(()=>{for(const panel of panels){panel.hidden=!allowed();panel.style.display=panel.hidden?"none":"";}if(dialog.open&&(!allowed()||dialogIdentity!==identity())){gen++;body.replaceChildren();dialog.close();}},1000);sync();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
