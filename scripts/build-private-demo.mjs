@@ -56,6 +56,8 @@ for(const id of ["appModal","modalTag","modalTitle","modalBody","modalCloseBtn",
 if(!verifyHtml.includes('src="js/ui-modal.js?'))throw Error("Shared modal script missing");
 execFileSync(process.execPath,["--check",join(out,"js/ui-modal.js")],{stdio:"inherit"});
 console.log("DEMO appointment UI: shared modal and script verified.");
+for(const name of ["js/saas/public-cloud.js","js/saas/client-public-v2.js","js/saas/booking-resolution.js"])execFileSync(process.execPath,["--check",join(out,name)],{stdio:"inherit"});
+const clientCss=join(out,"css/client-public-v2.css");writeFileSync(clientCss,readFileSync(clientCss,"utf8")+"\nbody[data-sambrix-public-v2=true]{--sambrix-demo-footer-height:24px}\n");
 scan(out);
 const html=join(out,"index.html");writeFileSync(html,readFileSync(html,"utf8").replace("</body>",'<div style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#742b00;color:white;text-align:center;font:12px sans-serif;padding:4px;pointer-events:none">SAMBRIX DEMO · SOLO DATOS FICTICIOS</div></body>'));
 console.log("SAMBRIX DEMO build: isolated Firebase, static allowlist.");
