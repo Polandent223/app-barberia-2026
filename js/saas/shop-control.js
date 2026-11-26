@@ -8,15 +8,16 @@ function boot(){
  const A=window.App,S=window.SaaS;if(!A||!S)return;
  const bid=()=>String(S.session?.businessId||"");
  let enabled=false,checkedIdentity="",lastCheck=0;
- const allowed=()=>enabled&&["owner","admin","manager","cashier"].includes(S.session?.role)&&!!auth.currentUser&&!!bid()&&S.currentBusiness?.()?.id===bid()&&S.pageAllowed?.("caja")&&S.featureAllowed?.("caja",S.currentBusiness?.())&&S.featureAllowed?.("inventario",S.currentBusiness?.());
+ const canAccess=()=>["owner","admin","manager","cashier"].includes(S.session?.role)&&!!auth.currentUser&&!!bid()&&S.currentBusiness?.()?.id===bid()&&S.pageAllowed?.("caja")&&S.featureAllowed?.("caja",S.currentBusiness?.())&&S.featureAllowed?.("inventario",S.currentBusiness?.());
+ const allowed=()=>enabled&&canAccess();
  const canReturn=()=>allowed()&&["owner","admin"].includes(S.session?.role);
  const identity=()=>String(auth.currentUser?.uid||"")+":"+bid();
  let busy=false,gen=0,session="";
  const dialog=el("dialog","","cloud-support-dialog"),body=el("div");dialog.id="sambrixShopDialog";dialog.append(el("h2","Punto de venta"),button("Cerrar",()=>{if(!busy)dialog.close();}),body);document.body.append(dialog);
  dialog.addEventListener("cancel",e=>{if(busy)e.preventDefault();});dialog.addEventListener("close",()=>{if(!dialog.open){gen++;body.replaceChildren();session="";}});
- const cash=document.getElementById("caja"),host=el("div","","panel"),openButton=button("Nueva venta de productos",()=>open(""),"primary");const recent=el("div");host.append(el("h3","Punto de venta"),el("p","Registra cobros recibidos. Caja y existencias se actualizan juntas."),openButton,button("Verificar operación pendiente",()=>resume()),recent);host.hidden=true;cash?.prepend(host);
+ const cash=document.getElementById("caja"),host=el("div","","panel"),openButton=button("Nueva venta de productos",()=>open(""),"primary");const recent=el("div");host.append(el("h3","Punto de venta"),el("p","Registra cobros recibidos. Caja y existencias se actualizan juntas."),openButton,button("Verificar operación pendiente",()=>resolvePending(false)),button("Cancelar solicitud no confirmada",()=>resolvePending(true)),button("Reintentar operación pendiente",()=>resume()),recent);host.hidden=true;cash?.prepend(host);
  const format=(v,cur)=>String(cur||"$")+Number(v||0).toFixed(2);
- const endpoints={SALE:httpsCallable(getFunctions(firebaseApp,"us-central1"),"sambrixSellProducts"),RETURN:httpsCallable(getFunctions(firebaseApp,"us-central1"),"sambrixReturnProducts")};
+ const endpoints=Object.fromEntries(Object.entries({SALE:"sambrixSellProducts",RETURN:"sambrixReturnProducts",STATUS:"sambrixShopStatus",CANCEL:"sambrixCancelShopRequest"}).map(([kind,name])=>[kind,httpsCallable(getFunctions(firebaseApp,"us-central1"),name)]));
  const draftKey=()=>"sambrix-pos-pending:"+identity();
  function pending(){try{return JSON.parse(localStorage.getItem(draftKey())||"null");}catch{throw Error("No se pudo revisar una operación pendiente.");}}
  async function submit(kind,input){
@@ -26,6 +27,24 @@ function boot(){
   localStorage.setItem(key,JSON.stringify(draft));
   try{const response=await endpoints[kind]({...input,requestId:draft.requestId});localStorage.removeItem(key);return response.data;}
   catch(e){throw e;}
+ }
+ async function resolvePending(cancel){
+  if(!canAccess()||busy)return;
+  let d;try{d=pending();}catch(e){return A.toast(e.message);}
+  if(!d)return A.toast("No hay una operación pendiente.");
+  if(cancel&&!confirm("Si el cobro ya se guardó, se conservará. Si no se guardó, se bloqueará definitivamente esta solicitud. No se devuelve dinero. ¿Continuar?"))return;
+  const key=draftKey(),identityAtStart=identity();busy=true;
+  try{
+   const response=await endpoints[cancel?"CANCEL":"STATUS"]({businessId:d.intent.input.businessId,requestId:d.requestId}),v=response.data;
+   if(v.status==="confirmed"||v.status==="cancelled"){
+    const current=localStorage.getItem(key);if(current&&JSON.parse(current).requestId===d.requestId)localStorage.removeItem(key);
+    if(identity()===identityAtStart){
+     await window.SaaSCloudProduction?.refreshTenant?.(bid());
+     A.toast(v.status==="cancelled"?"Solicitud cancelada definitivamente. No se registró ningún cobro.":v.sale?"Venta ya confirmada. Recibo #"+v.sale.number:"Devolución ya confirmada.");
+    }
+   }else if(identity()===identityAtStart)A.toast("Aún no consta una operación. Puedes reintentar o cancelar la solicitud.");
+  }catch(e){if(identity()===identityAtStart)A.toast(e.message||"No se pudo comprobar la solicitud.");}
+  finally{busy=false;}
  }
  async function resume(){
   if(!allowed()||busy)return;
@@ -134,7 +153,7 @@ function boot(){
   }
   if(!box.childElementCount)box.append(el("p","No hay pedidos existentes."));
  };
- let last="";const sync=()=>{void checkFeature();host.hidden=!allowed();host.style.display=host.hidden?"none":"";if(dialog.open&&(!allowed()||identity()!==session)){gen++;body.replaceChildren();dialog.close();}const signature=identity()+":"+allowed()+":"+canReturn()+":"+window.SaaSCloudProduction?.isTenantReady?.(bid())+":"+String(A.db?.meta?.businessId)+":"+(A.db?.sales?.length||0)+":"+(A.db?.cash?.length||0)+":"+(A.db?.shopOrders?.length||0);if(signature!==last){last=signature;drawRecent();A.renderCashShopOrders();}};
+ let last="";const sync=()=>{void checkFeature();let hasDraft=false;try{hasDraft=!!pending();}catch{hasDraft=true;}host.hidden=!allowed()&&!(canAccess()&&hasDraft);host.style.display=host.hidden?"none":"";openButton.disabled=!allowed();if(dialog.open&&(!allowed()||identity()!==session)){gen++;body.replaceChildren();dialog.close();}const signature=identity()+":"+allowed()+":"+canReturn()+":"+window.SaaSCloudProduction?.isTenantReady?.(bid())+":"+String(A.db?.meta?.businessId)+":"+(A.db?.sales?.length||0)+":"+(A.db?.cash?.length||0)+":"+(A.db?.shopOrders?.length||0);if(signature!==last){last=signature;drawRecent();A.renderCashShopOrders();}};
  const old=A.renderAll;A.renderAll=function(...args){const r=old.apply(this,args);sync();return r;};setInterval(sync,1000);sync();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
