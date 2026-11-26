@@ -537,7 +537,7 @@ service cloud.firestore {
             b.products.removeAll(old).size() == b.products.size() - d.lines.size() &&
             b.products.removeAll(old) == a.products.removeAll(next) &&
             a.stockMoves == b.stockMoves.concat(lineMoves(d)) &&
-            ((d.orderId == '' && d.orderIndex == -1 && a.shopOrders == b.shopOrders) ||
+            ((d.orderId == '' && d.orderIndex == -1 && a.get('shopOrders',[]) == b.get('shopOrders',[])) ||
              (d.orderId != '' && d.orderIndex >= 0 && d.orderIndex < b.shopOrders.size() && (d.kind == 'SALE' ? validOrder(d,b,a) : validReturnedOrder(d,b,a))));
         }
         function validFinance(d) {
