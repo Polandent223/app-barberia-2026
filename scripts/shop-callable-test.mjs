@@ -19,7 +19,7 @@ async function client(name,register=true){
  const auth=getAuth(app);connectAuthEmulator(auth,"http://"+process.env.FIREBASE_AUTH_EMULATOR_HOST,{disableWarnings:true});
  const f=getFunctions(app,"us-central1");connectFunctionsEmulator(f,"127.0.0.1",5001);
  const user=register?(await createUserWithEmailAndPassword(auth,name+"-"+randomUUID()+"@example.test","QA-password-12345")).user:null;
- return {auth,uid:user?.uid,sell:async data=>(await httpsCallable(f,"sambrixSellProducts")(data)).data,refund:async data=>(await httpsCallable(f,"sambrixReturnProducts")(data)).data};
+ return {auth,uid:user?.uid,sell:async data=>(await httpsCallable(f,"sambrixSellProducts")(data)).data,refund:async data=>(await httpsCallable(f,"sambrixReturnProducts")(data)).data,status:async data=>(await httpsCallable(f,"sambrixShopStatus")(data)).data,cancel:async data=>(await httpsCallable(f,"sambrixCancelShopRequest")(data)).data};
 }
 test("callable POS uses actual emulator Auth tokens and commits exactly once",{timeout:90000},async()=>{
  const owner=await client("owner"),cashier=await client("cashier"),other=await client("other"),anon=await client("anon",false);
@@ -56,6 +56,22 @@ test("callable POS uses actual emulator Auth tokens and commits exactly once",{t
  await company.update({accessSuspended:true});
  await assert.rejects(cashier.sell({...request,requestId:randomUUID()}),e=>e.code==="functions/permission-denied");
  await company.update({accessSuspended:false});
+ const lookup={businessId:id,requestId:request.requestId};
+ assert.equal((await cashier.status(lookup)).status,"confirmed");
+ assert.equal((await cashier.cancel(lookup)).sale.id,result.sale.id);
+ await assert.rejects(other.status(lookup),e=>e.code==="functions/permission-denied");
+ const absent={businessId:id,requestId:randomUUID()};
+ assert.equal((await cashier.status(absent)).status,"not-found");
+ assert.equal((await cashier.cancel(absent)).status,"cancelled");
+ await assert.rejects(cashier.sell({...request,...absent}));
+ assert.equal((await cashier.status(absent)).status,"cancelled");
+ const race={...request,requestId:randomUUID(),items:[{id:"p2",qty:1,price:3}]};
+ const raced=await Promise.allSettled([cashier.sell(race),cashier.cancel({businessId:id,requestId:race.requestId})]);
+ const status=await cashier.status({businessId:id,requestId:race.requestId});
+ assert(["confirmed","cancelled"].includes(status.status));
+ assert.equal(raced[1].status,"fulfilled");
+ const final=(await st("finance").get()).data().payload;
+ assert.equal(final.sales.length,status.status==="confirmed"?2:1);
  await signOut(cashier.auth);
  await assert.rejects(cashier.sell({...request,requestId:randomUUID()}),e=>e.code==="functions/unauthenticated");
  console.log("POS CALLABLE QA: Auth real del emulador, roles, bloqueo, idempotencia, venta y devolución aprobados.");
