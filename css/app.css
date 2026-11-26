@@ -919,3 +919,8 @@ select:disabled{
   background:#fff!important;
   color:#181716!important;
 }
+
+/* DEMO: keep all inventory actions visible on narrow cards. */
+#productList .product-card{min-width:0;}
+#productList .product-card .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;justify-content:stretch;}
+#productList .product-card .actions .btn{min-width:0;width:100%;padding:9px 5px;font-size:12px;line-height:1.25;white-space:normal;overflow-wrap:anywhere;}
