@@ -57,11 +57,18 @@ function renderBook(){
       const n=el("textarea");n.value=note;n.maxLength=500;n.placeholder="Nota opcional";n.addEventListener("input",()=>note=n.value);content.append(field("Nota",n));
       const send=button("Enviar solicitud",()=>action(send,async()=>{
         if(!available(data,service,professional,date,time))throw Error("Ese horario ya no está disponible.");
-        const r=await cloud().createBooking({serviceId:service,barberId:professional,date,time,note,branchId:data.branch?.id||""});bookingId=r.id;note="";service="";professional="";time="";step=1;route("appointments");message("Solicitud recibida. Espera la confirmación del negocio.");
+        const r=await cloud().createBooking({serviceId:service,barberId:professional,date,time,note,branchId:data.branch?.id||""});bookingId=r.id;note="";service="";professional="";time="";step=1;route("appointments");syncBookingNotice();
       }),"primary");content.append(send);
     }
   }
   if(step>1)content.append(button("Paso anterior",()=>{step--;render();}));
+}
+function syncBookingNotice(){
+  if(!bookingId||!cloud()?.currentClient())return;
+  const r=cloud().bookings().find(x=>x.id===bookingId);
+  if(!r)return message("Solicitud recibida. Espera la confirmación del negocio.");
+  const labels={Pendiente:"Solicitud recibida. Espera la confirmación del negocio.",Aprobada:"Tu cita está confirmada.",Finalizada:"Tu servicio ha finalizado.",Cancelada:"Tu cita fue cancelada.",Rechazada:"El negocio rechazó la solicitud."};
+  message(labels[r.status]||"Consulta el estado en Mis citas.");
 }
 function renderAppointments(){
   title("Mis citas","Aquí puedes consultar el estado de tus solicitudes.");
@@ -90,7 +97,7 @@ async function boot(){
   for(const [v,label] of [["home","Inicio"],["book","Reservar"],["appointments","Mis citas"],["profile","Mi cuenta"]]){const b=button(label,()=>route(v));b.dataset.view=v;nav.append(b);}root.append(header,notice,content,nav);document.body.append(root);title("Cargando negocio…");
   for(let i=0;i<100&&!cloud();i++)await new Promise(r=>setTimeout(r,100));
   if(!cloud()){message("No se pudo iniciar el servicio de cuentas. Recarga la página.",true);return;}
-  document.addEventListener("sambrix-client-cloud-change",()=>{if(!busy&&(mode==="appointments"||mode==="profile"||mode==="book"&&step===4))render();});
+  document.addEventListener("sambrix-client-cloud-change",()=>{if(!busy){if(bookingId&&!notice.classList.contains("error")&&(notice.textContent.startsWith("Solicitud recibida")||notice.textContent.startsWith("Tu cita")||notice.textContent.startsWith("Tu servicio")||notice.textContent.startsWith("El negocio")))syncBookingNotice();if(mode==="appointments"||mode==="profile"||mode==="book"&&step===4)render();}});
   await refresh();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
