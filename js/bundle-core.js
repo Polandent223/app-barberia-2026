@@ -2107,7 +2107,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   App.byId("auditSearch").addEventListener("input",App.renderAudit);
   App.bindSearch("appointmentSearch","appointments",App.renderAppointments);
   App.bindSearch("clientSearch","clients",App.renderClients);
-  App.bindSearch("productSearch","products",App.renderInventory);
+  App.bindSearch("productSearch","products",()=>App.renderInventory());
   App.bindSearch("serviceSearch","services",App.renderServices);
   App.byId("receiptFrom").value=App.today();App.byId("receiptTo").value=App.today();App.byId("receiptFrom").addEventListener("change",App.renderReceipts);App.byId("receiptTo").addEventListener("change",App.renderReceipts);
   // Production never trusts a legacy localStorage session to open the admin panel.
