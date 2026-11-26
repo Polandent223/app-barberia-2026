@@ -40,6 +40,49 @@ test("authenticated SuperAdmin can access modular administration",{timeout:90000
  console.log("QA UI SUPERADMIN: login autenticado, directorio modular y catálogo de empresas.");
  }finally{await context.close();}
 });
+
+test("SuperAdmin modular navigation, search and responsive directory",{timeout:180000},async()=>{
+ const {page,context}=await openPage();
+ const areas=[
+  ["Empresas y usuarios","companies","Directorio comercial","saasCRM"],
+  ["Planes y suscripciones","plans","Planes y mensualidades","saasPlans"],
+  ["Finanzas","finance","Cobros, suscripciones y comprobantes","billingOperationsCenter"],
+  ["Soporte y avisos","support","Tickets y soporte empresarial","supportCenter"],
+  ["Estadísticas","analytics","Métricas SaaS","saasMetricsCenter"],
+  ["Seguridad y auditoría","security","Auditoría","saasAudit"],
+  ["Respaldos","backup","Copias de seguridad","backupCenter"],
+  ["Configuración","settings","Configuración general","platformSettings"],
+  ["Herramientas avanzadas","technical","Salud del sistema","systemHealth"]
+ ];
+ try{
+  await login(page,"superadmin");await state(page,"superadmin","");
+  await page.waitForSelector("#sambrixWorkspace",{visible:true});
+  for(const width of [1366,768,390]){
+   await page.setViewport({width,height:900});
+   await page.waitForFunction(()=>document.querySelectorAll("#sambrixWorkspace .workspace-card").length===9);
+   const layout=await page.evaluate(()=>{const grid=document.querySelector("#sambrixWorkspace .workspace-grid");const r=grid.getBoundingClientRect();return {columns:getComputedStyle(grid).gridTemplateColumns.split(" ").length,left:r.left,right:r.right,viewport:innerWidth};});
+   assert.equal(layout.columns,width>850?3:width>470?2:1);
+   assert.ok(layout.left>=-1&&layout.right<=layout.viewport+1,JSON.stringify(layout));
+  }
+  await page.setViewport({width:1366,height:900});
+  await page.type("#sambrixWorkspace input","estadisticas");
+  assert.deepEqual(await page.$eval("#sambrixWorkspace .workspace-card:not([hidden]) strong",els=>els.map(e=>e.textContent)),["Estadísticas"]);
+  await page.evaluate(()=>{const el=document.querySelector("#sambrixWorkspace input");el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));});
+  for(const [area,view,label,id] of areas){
+   await clickText(page,"#sambrixWorkspace .workspace-card",area);
+   await page.waitForFunction(v=>document.getElementById("superadmin").dataset.moduleView===v,{},view);
+   await clickText(page,"#sambrixWorkspace .workspace-card",label);
+   await page.waitForFunction(p=>document.querySelector("#adminApp .page.active")?.id===p,{timeout:15000},id);
+   await page.waitForSelector("#sambrixModuleBar [data-return-area]",{visible:true});
+   await page.click("#sambrixModuleBar [data-return-area]");
+   await page.waitForFunction(v=>document.querySelector("#adminApp .page.active")?.id==="superadmin"&&document.getElementById("superadmin").dataset.moduleView===v,{},view);
+   await page.click("#sambrixModuleBar [data-return-home]");
+   await page.waitForFunction(()=>document.getElementById("superadmin").dataset.moduleView==="home");
+  }
+  console.log("QA UI SUPERADMIN: 9 areas, module navigation, search and responsive directory at three widths.");
+ }finally{await context.close();}
+});
+
 for(const role of ["owner","admin","manager","reception","cashier","barber","other"]){
  test("authenticated "+role+" sees only its business and allowed tools",{timeout:90000},async()=>{
  const {page,context}=await openPage(role==="cashier"?390:1366,role==="cashier"?844:900);
