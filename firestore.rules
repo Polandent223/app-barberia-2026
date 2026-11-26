@@ -47,6 +47,10 @@ service cloud.firestore {
         role(businessId) in ['owner','admin','manager','reception','barber']);
     }
 
+    function canCorrectFinance(businessId) {
+      return isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
+    }
+
     function canResolveBooking(businessId) {
       return isSuperAdmin() || (isBusinessMember(businessId) &&
         role(businessId) in ['owner','admin','manager','reception']);
@@ -275,6 +279,42 @@ service cloud.firestore {
             getAfter(auditPath).data.createdAt == request.time
           );
         }
+        function appendAtMostOne(field) {
+          let old = resource.data.payload.get(field, []);
+          let next = request.resource.data.payload.get(field, []);
+          return old is list && next is list && (next == old ||
+            (next.size() == old.size() + 1 && next == old.concat([next[old.size()]])));
+        }
+        function validCashAppend() {
+          let old = resource.data.payload.get('cash', []);
+          let next = request.resource.data.payload.get('cash', []);
+          return next == old || (validCashRow(next[old.size()]) &&
+            (!next[old.size()].keys().hasAny(['correctionId','correctionOf','correctionKind','originalSaleId']) ||
+              linkedCorrection(next[old.size()])));
+        }
+        function validCashRow(row) {
+          return row is map && row.id is string && row.id.size() > 0 &&
+            row.type in ['Ingreso','Egreso'] &&
+            (row.amount is int || row.amount is float) && row.amount >= 0 && row.amount <= 9999999 &&
+            row.get('businessId', businessId) == businessId;
+        }
+        function linkedCorrection(row) {
+          let cid = row.get('correctionId', 'none');
+          let p = /databases/$(database)/documents/businesses/$(businessId)/financial_corrections/$(cid);
+          return canCorrectFinance(businessId) && cid is string && !exists(p) && existsAfter(p) &&
+            getAfter(p).data.cashEntry == row && getAfter(p).data.actorUid == request.auth.uid;
+        }
+        function validSaleAppend() {
+          let old = resource.data.payload.get('sales', []);
+          let next = request.resource.data.payload.get('sales', []);
+          return next == old || (next[old.size()] is map && next[old.size()].id is string &&
+            (next[old.size()].total is int || next[old.size()].total is float) &&
+            next[old.size()].total >= 0 && next[old.size()].total <= 9999999 &&
+            next[old.size()].get('businessId', businessId) == businessId);
+        }
+        function validFinanceAppend() {
+          return stateName != 'finance' || (appendAtMostOne('cash') && appendAtMostOne('sales') && validCashAppend() && validSaleAppend());
+        }
         function validStateWrite() {
           return stateName in ['config','crm','schedule','finance','inventory','staff','attendance','history'] &&
             request.resource.data.businessId == businessId &&
@@ -287,12 +327,90 @@ service cloud.firestore {
         allow create: if canWriteState() && validStateWrite() &&
           (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
           request.resource.data.syncRevision == 1 && hasWriteAudit();
-        allow update: if canWriteState() && validStateWrite() && preservesLedger() && hasWriteAudit() &&
+        allow update: if canWriteState() && validStateWrite() && preservesLedger() && validFinanceAppend() && hasWriteAudit() &&
           request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId'
           ]);
         // A whole module cannot be deleted from a browser.
+        allow delete: if false;
+      }
+
+      // A correction is an immutable document, a compensating cash row and a
+      // per-source cumulative total committed together; original rows never change.
+      match /financial_corrections/{correctionId} {
+        function financePath() {
+          return /databases/$(database)/documents/businesses/$(businessId)/state/finance;
+        }
+        function totalPath(sourceId) {
+          return /databases/$(database)/documents/businesses/$(businessId)/correction_totals/$(sourceId);
+        }
+        function validOriginal(d, source, row) {
+          return source.id == d.sourceId && !('correctionId' in source) &&
+            source.type in ['Ingreso','Egreso'] && (source.amount is int || source.amount is float) &&
+            source.get('businessId', businessId) == businessId &&
+            d.saleId == source.get('saleId','') && d.cumulativeCents / 100.0 <= source.amount &&
+            row.type == (source.type == 'Ingreso' ? 'Egreso' : 'Ingreso') &&
+            row.get('originalSaleId','') == d.saleId &&
+            row.currency == source.get('currency','$') && row.method == source.get('method','No especificado') &&
+            ((d.kind == 'CASH_REVERSAL' && d.saleId == '' && d.cumulativeCents / 100.0 == source.amount) ||
+             (d.kind in ['REFUND','VOID','DISCOUNT'] && source.type == 'Ingreso' && d.saleId != '' &&
+              (d.kind != 'VOID' || d.cumulativeCents / 100.0 == source.amount)));
+        }
+        function validRow(d, row) {
+          return row is map && row.keys().hasAll(['id','type','concept','amount','method','date','currency','businessId','branchId','correctionId','correctionOf','correctionKind','createdBy']) &&
+            row.keys().hasOnly(['id','type','concept','amount','method','date','currency','businessId','branchId','correctionId','correctionOf','correctionKind','createdBy','originalSaleId']) &&
+            row.id == ('adj_' + correctionId) && row.businessId == businessId &&
+            row.correctionId == correctionId && row.correctionOf == d.sourceId && row.correctionKind == d.kind &&
+            row.createdBy == request.auth.uid && row.amount == d.amountCents / 100.0 &&
+            row.date is string && row.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+            row.concept is string && row.concept.size() <= 250 && row.branchId is string;
+        }
+        function validCorrection(d) {
+          let before = get(financePath()).data.payload;
+          let after = getAfter(financePath()).data.payload;
+          let t = totalPath(d.sourceId);
+          return d.sourceIndex >= 0 && d.sourceIndex < before.cash.size() &&
+            validOriginal(d, before.cash[d.sourceIndex], d.cashEntry) && validRow(d,d.cashEntry) &&
+            after.cash == before.cash.concat([d.cashEntry]) && after.sales == before.sales &&
+            getAfter(financePath()).data.updatedAt == request.time &&
+            d.previousCents == (exists(t) ? get(t).data.cents : 0) &&
+            existsAfter(t) && getAfter(t).data.cents == d.cumulativeCents &&
+            getAfter(t).data.lastCorrectionId == correctionId &&
+            getAfter(t).data.updatedAt == request.time;
+        }
+        allow read: if canManageBusiness(businessId);
+        allow create: if canCorrectFinance(businessId) &&
+          request.resource.data.keys().hasAll(['businessId','sourceId','sourceIndex','kind','amountCents','previousCents','cumulativeCents','saleId','reason','actorUid','cashEntry','createdAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','sourceId','sourceIndex','kind','amountCents','previousCents','cumulativeCents','saleId','reason','actorUid','cashEntry','createdAt']) &&
+          request.resource.data.businessId == businessId && request.resource.data.sourceId is string &&
+          request.resource.data.sourceId.size() > 0 && request.resource.data.sourceId.size() <= 180 &&
+          request.resource.data.sourceIndex is int && request.resource.data.saleId is string &&
+          request.resource.data.kind in ['REFUND','VOID','DISCOUNT','CASH_REVERSAL'] &&
+          request.resource.data.amountCents is int && request.resource.data.amountCents > 0 &&
+          request.resource.data.previousCents is int && request.resource.data.previousCents >= 0 &&
+          request.resource.data.cumulativeCents == request.resource.data.previousCents + request.resource.data.amountCents &&
+          request.resource.data.reason is string && request.resource.data.reason.size() >= 5 && request.resource.data.reason.size() <= 500 &&
+          request.resource.data.actorUid == request.auth.uid && request.resource.data.createdAt == request.time &&
+          validCorrection(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      match /correction_totals/{sourceId} {
+        function linkedTotal(d) {
+          let p = /databases/$(database)/documents/businesses/$(businessId)/financial_corrections/$(d.lastCorrectionId);
+          return !exists(p) && existsAfter(p) && getAfter(p).data.sourceId == sourceId &&
+            getAfter(p).data.cumulativeCents == d.cents && getAfter(p).data.actorUid == request.auth.uid &&
+            getAfter(p).data.createdAt == request.time;
+        }
+        allow read: if canManageBusiness(businessId);
+        allow create, update: if canCorrectFinance(businessId) &&
+          request.resource.data.keys().hasAll(['businessId','sourceId','cents','lastCorrectionId','actorUid','updatedAt']) &&
+          request.resource.data.keys().hasOnly(['businessId','sourceId','cents','lastCorrectionId','actorUid','updatedAt']) &&
+          request.resource.data.businessId == businessId && request.resource.data.sourceId == sourceId &&
+          request.resource.data.cents is int && request.resource.data.cents > 0 &&
+          request.resource.data.lastCorrectionId is string && request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.updatedAt == request.time && linkedTotal(request.resource.data);
         allow delete: if false;
       }
 
