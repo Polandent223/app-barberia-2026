@@ -3801,7 +3801,7 @@ SaaS.renderAll=function(){
 
 /* ---- js/saas/sambrix-deployment.js ---- */
 SaaS.deploymentConfig=SaaS.deploymentConfig||{
-  projectId:"app-barberia-2026",
+  projectId:"sambrix-demo",
   publicDir:".",
   spaRewrite:true
 };
@@ -3892,7 +3892,7 @@ SaaS.releaseCandidate=SaaS.releaseCandidate||{
   frozen:false,
   frozenAt:null,
   hash:"",
-  projectId:"app-barberia-2026"
+  projectId:"sambrix-demo"
 };
 
 SaaS.loadReleaseCandidate=function(){
