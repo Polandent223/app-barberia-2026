@@ -118,6 +118,49 @@ for(const role of ["owner","admin","manager","reception","cashier","barber","oth
  }finally{await context.close();}
  });
 }
+
+test("support ticket travels from company to SuperAdmin and back with audit",{timeout:180000},async()=>{
+ const subject="QA soporte de acceso",response="QA respuesta verificada";
+ let ticketId;
+ const staff=await openPage();
+ try{
+  await login(staff.page,"owner");await state(staff.page,"owner",BUSINESS);
+  await staff.page.evaluate(()=>SaaS.openSupportTicket());
+  const dialog="dialog.cloud-support-dialog[open]";
+  await staff.page.waitForSelector(dialog+" textarea",{visible:true});
+  await staff.page.type(dialog+" input",subject);
+  await staff.page.type(dialog+" textarea","Solicitud ficticia para verificar el circuito de soporte.");
+  await clickText(staff.page,dialog+" button","Enviar a SAMBRIX");
+  await staff.page.waitForFunction(s=>Array.from(document.querySelectorAll("dialog[open] .cloud-ticket strong")).some(e=>e.textContent===s),{timeout:30000},subject);
+  const records=await seed.db.collection("support_cases").where("businessId","==",BUSINESS).get();
+  const ticket=records.docs.find(d=>d.data().subject===subject);
+  assert.ok(ticket);ticketId=ticket.id;assert.equal(ticket.data().createdBy,seed.users.owner.uid);assert.equal(ticket.data().status,"Abierto");
+ }finally{await staff.context.close();}
+ const superuser=await openPage();
+ try{
+  await login(superuser.page,"superadmin");await state(superuser.page,"superadmin","");
+  await superuser.page.evaluate(()=>App.go("supportCenter"));
+  await superuser.page.waitForFunction(s=>Array.from(document.querySelectorAll("#cloudSupportCases .cloud-ticket strong")).some(e=>e.textContent===s),{timeout:30000},subject);
+  await clickText(superuser.page,"#cloudSupportCases button","Atender / responder");
+  const dialog="dialog.cloud-support-dialog[open]";
+  await superuser.page.waitForSelector(dialog+" textarea",{visible:true});
+  await superuser.page.select(dialog+" select","Resuelto");
+  await superuser.page.type(dialog+" textarea",response);
+  await clickText(superuser.page,dialog+" button","Guardar respuesta");
+  await superuser.page.waitForFunction(()=>!document.querySelector("dialog.cloud-support-dialog[open]"),{timeout:30000});
+  const ticket=(await seed.db.collection("support_cases").doc(ticketId).get()).data();
+  assert.equal(ticket.status,"Resuelto");assert.equal(ticket.response,response);assert.equal(ticket.updatedBy,seed.users.superadmin.uid);
+  const events=await seed.db.collection("support_access_events").where("businessId","==",BUSINESS).get();
+  assert.ok(events.docs.some(d=>d.data().caseId===ticketId&&d.data().action==="CASE_UPDATE"&&d.data().actorUid===seed.users.superadmin.uid));
+ }finally{await superuser.context.close();}
+ const again=await openPage(390,844);
+ try{
+  await login(again.page,"owner");await state(again.page,"owner",BUSINESS);
+  await again.page.evaluate(()=>SaaS.openSupportTicket());
+  await again.page.waitForFunction(r=>Array.from(document.querySelectorAll("dialog[open] .cloud-reply")).some(e=>e.textContent.includes(r)),{timeout:30000},response);
+ }finally{await again.context.close();}
+});
+
 test("suspended business cannot enter authenticated workspace",{timeout:90000},async()=>{
  const {page,context}=await openPage();
  try{await login(page,"suspended");await page.waitForFunction(()=>!document.getElementById("loginBtn").disabled&&SaaS.session.role==="guest",{timeout:45000});assert.equal(await page.evaluate(()=>document.getElementById("adminApp").classList.contains("hidden")),true);console.log("QA UI: empresa suspendida bloqueada.");}finally{await context.close();}
