@@ -57,6 +57,17 @@ for(const role of ["owner","admin","manager","reception","cashier","barber","oth
     await page.waitForFunction(()=>document.querySelector("#caja")?.classList.contains("active"),{timeout:15000});
     await page.waitForFunction(()=>Array.from(document.querySelectorAll("#caja button")).some(b=>b.textContent==="Nueva venta de productos"&&b.getBoundingClientRect().width>0&&!b.disabled),{timeout:40000});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await clickText(page,"#caja button","Nueva venta de productos");
+    await page.waitForSelector("#sambrixShopDialog select",{visible:true,timeout:30000});
+    await page.select("#sambrixShopDialog select","product1");
+    await clickText(page,"#sambrixShopDialog button","Agregar");
+    const onConfirm=dialog=>dialog.type()==="confirm"?dialog.accept():dialog.dismiss();
+    page.on("dialog",onConfirm);
+    try{await clickText(page,"#sambrixShopDialog button","Confirmar cobro recibido");await page.waitForFunction(()=>!document.getElementById("sambrixShopDialog").open&&App.db.sales.some(s=>s.shopOperationId&&s.total===8),{timeout:45000});}
+    finally{page.off("dialog",onConfirm);}
+    const [finance,inventory]=await Promise.all(["finance","inventory"].map(n=>seed.db.doc("businesses/"+BUSINESS+"/state/"+n).get()));
+    const sale=finance.data().payload.sales[0];assert.equal(sale.total,8);assert.equal(sale.createdBy,seed.users.cashier.uid);assert.equal(finance.data().payload.cash[0].saleId,sale.id);assert.equal(inventory.data().payload.products[0].stock,9);
+    console.log("QA UI POS: venta desde caja móvil, comprobante, caja e inventario de servidor verificados.");
   }
   await page.evaluate(()=>SaaS.signOutToPortal());
   await page.waitForFunction(()=>SaaS.session.role==="guest"&&document.getElementById("adminApp").classList.contains("hidden"),{timeout:15000});
