@@ -17,7 +17,7 @@ const sdk={
 const execute=createShopService({db,sdk});
 const known=new Set(["unauthenticated","permission-denied","invalid-argument","failed-precondition"]);
 const handler=kind=>onCall({region:"us-central1",timeoutSeconds:60,maxInstances:10},async request=>{
- try{const result=await execute(kind,request.auth,request.data);return kind==="SALE"?{sale:result}:{saleId:result.sale.id,amount:result.cash.amount};}
+ try{const result=await execute(kind,request.auth,request.data);return kind==="SALE"?{sale:result}:kind==="RETURN"?{saleId:result.sale.id,amount:result.cash.amount}:result;}
  catch(error){
   if(known.has(error?.code))throw new HttpsError(error.code,error.message);
   if(typeof error?.code==="number"||error?.code){console.error("POS transaction failed",error.code);throw new HttpsError("internal","No se pudo confirmar la operación. Reintenta con la misma solicitud.");}
@@ -26,3 +26,6 @@ const handler=kind=>onCall({region:"us-central1",timeoutSeconds:60,maxInstances:
 });
 export const sambrixSellProducts=handler("SALE");
 export const sambrixReturnProducts=handler("RETURN");
+
+export const sambrixShopStatus=handler("STATUS");
+export const sambrixCancelShopRequest=handler("CANCEL");
