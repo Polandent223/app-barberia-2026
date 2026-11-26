@@ -69,6 +69,7 @@ async function resolve(requestId,kind,approve,reason=""){
       const service=config.services?.find(x=>x.id===booking.serviceId);
       if(!service||!durationOf(service)||!Number.isFinite(Number(service.price))||Number(service.price)<0)throw Error("El servicio no tiene precio o duración válidos.");
       if(!available(availability(config,staff,schedule),booking.serviceId,booking.barberId,booking.date,booking.time))throw Error("El horario ya no está disponible.");
+      if(typeof booking.clientUid!=="string"||!booking.clientUid||booking.clientId!=="client_"+booking.clientUid||typeof booking.name!=="string"||booking.name.trim().length<2||typeof booking.phone!=="string"||booking.phone.replace(/\D/g,"").length<7)throw Error("La solicitud no tiene una identidad de cliente válida. Contacta a soporte.");
       let client=crm.clients.find(c=>c.firebaseUid===booking.clientUid);
       const clientId=booking.clientId||"client_"+booking.clientUid;
       if(!client){const same=crm.clients.find(c=>c.id===clientId);if(same)throw Error("Identidad de cliente en conflicto. Contacta a soporte.");client={id:clientId,firebaseUid:booking.clientUid,name:booking.name||"Cliente",phone:booking.phone||"",email:"",businessId:id,branchId:booking.branchId||config.meta?.branchId||""};crm.clients.push(client);writeState(tx,crmRef,cs,crm,id,actor);}
