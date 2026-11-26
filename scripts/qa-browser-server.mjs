@@ -12,10 +12,11 @@ export function assertLocalEmulators(){
  const local=/^(localhost|127\.0\.0\.1):\d+$/;
  if(process.env.GCLOUD_PROJECT!==PROJECT||!local.test(process.env.FIRESTORE_EMULATOR_HOST||"")||!local.test(process.env.FIREBASE_AUTH_EMULATOR_HOST||""))throw Error("QA solo puede ejecutarse en proyecto demo con emuladores locales.");
 }
-export async function createQaServer(){
+export async function createQaServer({port=0}={}){
  assertLocalEmulators();
  const sdkDir=await mkdtemp(join(tmpdir(),"sambrix-sdk-"));
  await build({entryPoints:["app","auth","firestore","functions"].map(n=>({in:"qa-sdk:"+n,out:"firebase-"+n})),plugins:[{name:"qa-sdk",setup(b){b.onResolve({filter:/^qa-sdk:/},args=>({path:args.path.slice(7),namespace:"qa-sdk"}));b.onLoad({filter:/.*/,namespace:"qa-sdk"},args=>({contents:"export * from "+JSON.stringify("firebase/"+args.path)+";",loader:"js",resolveDir:root}));}}],outdir:sdkDir,bundle:true,splitting:true,format:"esm",platform:"browser",logLevel:"warning"});
+ await Promise.all([["chart","import Chart from 'chart.js/auto';window.Chart=Chart;"],["qrcode","import * as QRCode from 'qrcode';window.QRCode=QRCode;"]].map(([name,contents])=>build({stdin:{contents,resolveDir:root,loader:"js"},outfile:join(sdkDir,name+".js"),bundle:true,format:"iife",platform:"browser",logLevel:"warning"})));
  const authHost=process.env.FIREBASE_AUTH_EMULATOR_HOST,fireHost=process.env.FIRESTORE_EMULATOR_HOST.split(":");
  const authConnect=(expr)=>"connectAuthEmulator("+expr+","+JSON.stringify("http://"+authHost)+",{disableWarnings:true});";
  const fsConnect=(expr)=>"connectFirestoreEmulator("+expr+","+JSON.stringify(fireHost[0])+","+Number(fireHost[1])+");";
@@ -47,13 +48,13 @@ export async function createQaServer(){
     }
    }
    if(path==="/index.html"){
-    data=String(data).replace(/<script[^>]+src="https:\/\/cdn\.jsdelivr\.net\/npm\/[^"]+"[^>]*><\/script>/g,"").replace("<body",'<body');
+    data=String(data).replace(/<script[^>]+src="https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode[^"]+"[^>]*><\/script>/g,'<script defer src="/qa-sdk/qrcode.js"></script>').replace(/<script[^>]+src="https:\/\/cdn\.jsdelivr\.net\/npm\/chart\.js[^"]*"[^>]*><\/script>/g,'<script defer src="/qa-sdk/chart.js"></script>');
     data=data.replace("</body>",'<div style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#742b00;color:white;text-align:center;font:12px sans-serif;padding:4px;pointer-events:none">SAMBRIX QA · ENTORNO LOCAL · DATOS FICTICIOS</div></body>');
    }
    res.writeHead(200,{"content-type":mime[extname(path)]||"application/octet-stream","cache-control":"no-store","content-security-policy":"default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; frame-src 'self' http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'self'"});
    res.end(data);
   }catch(e){res.writeHead(404);res.end("QA: recurso no disponible");}
  });
- await new Promise(r=>server.listen(0,"127.0.0.1",r));
+ await new Promise(r=>server.listen(port,"127.0.0.1",r));
  return {url:"http://127.0.0.1:"+server.address().port,close:async()=>{await new Promise(r=>server.close(r));await rm(sdkDir,{recursive:true,force:true});}};
 }
