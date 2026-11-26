@@ -336,6 +336,7 @@ service cloud.firestore {
         }
         allow read: if isSuperAdmin() || isBusinessMember(businessId);
         allow create: if canWriteState() && validStateWrite() &&
+          (stateName != 'inventory' || isSuperAdmin()) &&
           (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
           request.resource.data.syncRevision == 1 && hasWriteAudit();
         allow update: if canWriteState() && validStateWrite() && preservesLedger() && validFinanceAppend() && validInventoryOperation() && hasWriteAudit() &&
