@@ -35,7 +35,7 @@ function accountForm(){
   if(authMode==="login")content.append(el("p","Si olvidaste tu PIN, contacta directamente al negocio. La recuperación automática aún no está disponible.","client-v2-muted"));
 }
 function renderHome(){
-  const brand=data.branding||{};title(brand.heroTitle||"Reserva tu próxima cita",brand.heroSubtitle||"Elige un servicio y encuentra un horario disponible.");
+  const brand=data.branding||{},cover=safePhoto(brand.background);if(cover){const img=el("img");img.src=cover;img.alt="Portada del negocio";img.style.cssText="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:12px";content.append(img);}title(brand.heroTitle||"Reserva tu próxima cita",brand.heroSubtitle||"Elige un servicio y encuentra un horario disponible.");
   content.append(button("Reservar ahora",()=>{step=1;route("book");},"primary"));
   const g=el("div","","client-v2-grid");for(const s of data.services||[])g.append(choice(s.name||"Servicio",String(s.duration||"")+" min · "+money(s.price),false,()=>{service=s.id;professional="";time="";step=2;route("book");},s.photo));content.append(el("h3","Servicios"),g);
   const phone=String(data.branch?.whatsapp||brand.whatsapp||"").replace(/\D/g,"");if(phone.length>=8&&phone.length<=15){const a=el("a","Contactar por WhatsApp","btn secondary");a.href="https://wa.me/"+phone;a.rel="noopener noreferrer";a.target="_blank";content.append(a);}
@@ -81,7 +81,7 @@ function renderAppointments(){
 }
 function renderProfile(){
   title("Mi cuenta");if(!cloud()?.isReady()){content.append(el("p","Verificando cuenta…"));return;}
-  const c=cloud().currentClient();if(!c){accountForm();return;}content.append(el("strong",c.name),el("p",c.phone));const out=button("Cerrar sesión",()=>action(out,async()=>{await cloud().logout();bookingId="";route("home");message("Sesión cerrada.");}));content.append(out);
+  const c=cloud().currentClient();if(!c){accountForm();return;}content.append(el("strong",c.name),el("p",c.phone),el("p",`${c.points||0} puntos · ${c.visits||0} visitas`));const out=button("Cerrar sesión",()=>action(out,async()=>{await cloud().logout();bookingId="";route("home");message("Sesión cerrada.");}));content.append(out);
 }
 function render(){if(!root||!root.isConnected)return;headerRender();content.replaceChildren();for(const b of nav.children)b.setAttribute("aria-current",String(b.dataset.view===mode));if(!allowed()){title("Reservas no disponibles","Contacta directamente con el negocio o vuelve a intentar.");content.append(button("Reintentar",()=>refresh()));return;}if(mode==="home")renderHome();else if(mode==="book")renderBook();else if(mode==="appointments")renderAppointments();else renderProfile();}
 async function boot(){
