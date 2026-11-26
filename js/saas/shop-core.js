@@ -45,6 +45,7 @@ export async function checkoutShop({db,sdk,businessId,actor,email="",check=()=>{
   const result=buildShopSale({...args,businessId,actor,operationId:op.id,inventory:snaps[0].data().payload,finance:snaps[1].data().payload,config:snaps[2].data().payload});
   check();const rev=snaps.slice(0,2).map(s=>Number(s.data().syncRevision||0)+1);
   tx.set(op,{...result.record,inventoryRevision:rev[0],financeRevision:rev[1],createdAt:serverTimestamp()});
+  result.record.lines.forEach((_,index)=>tx.set(doc(db,"businesses",businessId,"shop_operations",op.id,"lines",String(index)),{index}));
   for(const [i,domain] of ["inventory","finance"].entries()){
    tx.set(events[i],{businessId,domain,revision:rev[i],actorUid:actor,createdAt:serverTimestamp()});
    tx.update(refs[i],{businessId,payload:result[domain],updatedByUid:actor,updatedBy:email,updatedAt:serverTimestamp(),syncRevision:rev[i],auditId:events[i].id,shopOperationId:op.id});
@@ -88,6 +89,7 @@ export async function returnShopSale({db,sdk,businessId,actor,email="",check=()=
   tx.set(correction,{...result.correction,createdAt:serverTimestamp()});
   tx.set(total,{businessId,sourceId,cents:result.correction.cumulativeCents,lastCorrectionId:correction.id,actorUid:actor,updatedAt:serverTimestamp()});
   tx.set(op,{...result.record,inventoryRevision:rev[0],financeRevision:rev[1],createdAt:serverTimestamp()});
+  result.record.lines.forEach((_,index)=>tx.set(doc(db,"businesses",businessId,"shop_operations",op.id,"lines",String(index)),{index}));
   for(const [j,domain] of ["inventory","finance"].entries()){
    tx.set(events[j],{businessId,domain,revision:rev[j],actorUid:actor,createdAt:serverTimestamp()});
    tx.update(refs[j],{businessId,payload:result[domain],updatedByUid:actor,updatedBy:email,updatedAt:serverTimestamp(),syncRevision:rev[j],auditId:events[j].id,shopOperationId:op.id});
