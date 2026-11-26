@@ -27,7 +27,7 @@ export function buildCorrection({finance,businessId,sourceId,kind,amount,reason,
     if(kind==="VOID"&&cents!==remaining)throw Error("La anulación debe cubrir todo el importe restante.");
   }
   if(!correctionId||finance.cash.some(x=>x.id==="adj_"+correctionId))throw Error("Corrección duplicada.");
-  const cashEntry={id:"adj_"+correctionId,type:source.type==="Ingreso"?"Egreso":"Ingreso",concept:"Corrección "+kind+" · "+sourceId,amount:cents/100,method:String(source.method||"No especificado"),date,currency:String(source.currency||"$"),businessId,branchId:String(source.branchId||""),correctionId,correctionOf:sourceId,correctionKind:kind,createdBy:actor};
+  const cashEntry={id:"adj_"+correctionId,type:source.type==="Ingreso"?"Egreso":"Ingreso",concept:({REFUND:"Devolución",VOID:"Anulación de saldo",DISCOUNT:"Descuento posterior",CASH_REVERSAL:"Reversión de caja"})[kind],amount:cents/100,method:String(source.method||"No especificado"),date,currency:String(source.currency||"$"),businessId,branchId:String(source.branchId||""),correctionId,correctionOf:sourceId,correctionKind:kind,createdBy:actor};
   if(saleId)cashEntry.originalSaleId=saleId;
   return {businessId,sourceId,sourceIndex:finance.cash.indexOf(source),kind,amountCents:cents,previousCents,cumulativeCents:corrected+cents,saleId,reason:why,actorUid:actor,cashEntry,originalCents:original};
 }
