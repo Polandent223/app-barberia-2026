@@ -1,17 +1,18 @@
 import {auth,firestore} from "../firebase/firebase-core.js";
 import {doc,collection,runTransaction,serverTimestamp,getDocFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
-import {checkoutShop,MAX_LINES,METHODS} from "./shop-core.js?v=2.0.16";
+import {checkoutShop,returnShopSale,MAX_LINES,METHODS} from "./shop-core.js?v=2.0.17";
 const el=(tag,text="",cls="")=>{const x=document.createElement(tag);x.textContent=text;if(cls)x.className=cls;return x;};
 const button=(text,action,cls="secondary")=>{const b=el("button",text,"btn "+cls);b.type="button";b.addEventListener("click",action);return b;};
 function boot(){
  const A=window.App,S=window.SaaS;if(!A||!S)return;
  const bid=()=>String(S.session?.businessId||"");
  const allowed=()=>["owner","admin","manager","cashier"].includes(S.session?.role)&&!!auth.currentUser&&!!bid()&&S.currentBusiness?.()?.id===bid()&&S.pageAllowed?.("caja")&&S.featureAllowed?.("caja",S.currentBusiness?.())&&S.featureAllowed?.("inventario",S.currentBusiness?.());
+ const canReturn=()=>allowed()&&["owner","admin"].includes(S.session?.role);
  const identity=()=>String(auth.currentUser?.uid||"")+":"+bid();
  let busy=false,gen=0,session="";
  const dialog=el("dialog","","cloud-support-dialog"),body=el("div");dialog.id="sambrixShopDialog";dialog.append(el("h2","Punto de venta"),button("Cerrar",()=>{if(!busy)dialog.close();}),body);document.body.append(dialog);
  dialog.addEventListener("cancel",e=>{if(busy)e.preventDefault();});dialog.addEventListener("close",()=>{if(!dialog.open){gen++;body.replaceChildren();session="";}});
- const cash=document.getElementById("caja"),host=el("div","","panel"),openButton=button("Nueva venta de productos",()=>open(""),"primary");host.append(el("h3","Punto de venta"),el("p","Registra cobros recibidos. Caja y existencias se actualizan juntas."),openButton);host.hidden=true;cash?.prepend(host);
+ const cash=document.getElementById("caja"),host=el("div","","panel"),openButton=button("Nueva venta de productos",()=>open(""),"primary");const recent=el("div");host.append(el("h3","Punto de venta"),el("p","Registra cobros recibidos. Caja y existencias se actualizan juntas."),openButton,recent);host.hidden=true;cash?.prepend(host);
  const format=(v,cur)=>String(cur||"$")+Number(v||0).toFixed(2);
  const localClock=()=>{const d=new Date(),p=v=>String(v).padStart(2,"0");return {date:d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()),time:p(d.getHours())+":"+p(d.getMinutes())};};
  async function open(orderId){
@@ -58,7 +59,35 @@ function boot(){
   }catch(e){if(load===gen&&dialog.open)body.replaceChildren(el("p",e.message||"No se pudo verificar la venta."));}
  }
  A.canCheckoutOrder=allowed;A.checkoutAndDeliverOrder=id=>open(String(id||""));
- A.returnShopOrder=()=>A.toast("Devolución de mercancía en revisión. No se alteraron las existencias.");
+ async function returnSale(sale){
+  if(!canReturn()||busy||!sale?.shopOperationId)return A.toast("Devolución no disponible.");
+  const businessId=bid(),actor=auth.currentUser.uid,cloud=window.SaaSCloudProduction;
+  if(!cloud?.isTenantReady?.(businessId))return A.toast("Verifica la sincronización.");
+  const check=()=>{if(!canReturn()||bid()!==businessId||auth.currentUser?.uid!==actor)throw Error("Cambió la sesión.");};
+  const reason=prompt("Motivo de devolución integral (productos recibidos en buen estado y dinero devuelto)","");if(reason===null)return;
+  if(reason.trim().length<5)return A.toast("Escribe el motivo.");
+  if(!confirm("¿Confirmas que recibiste todos los productos y devolviste "+format(sale.total,sale.currency)+"? Se reintegrarán las existencias y se registrará el egreso. No se transfiere dinero."))return;
+  busy=true;const lock=el("dialog","","cloud-support-dialog");lock.textContent="Verificando devolución…";document.body.append(lock);lock.addEventListener("cancel",e=>e.preventDefault());lock.showModal();
+  try{
+   await cloud.awaitTenantWrites(businessId);check();
+   await returnShopSale({db:firestore,sdk:{doc,collection,runTransaction,serverTimestamp},businessId,actor,email:auth.currentUser?.email||"",check,originalOperationId:sale.shopOperationId,reason,...localClock()});
+   if(bid()===businessId&&auth.currentUser?.uid===actor){try{await cloud.refreshTenant(businessId);await window.NexoPublicCloud?.publishCurrentBusiness?.();}catch(e){console.warn("[SAMBRIX return refresh]",e);}A.toast("Devolución integral confirmada en Firebase.");}
+  }catch(e){A.toast(e?.code==="permission-denied"?"Firebase no autorizó la devolución.":e.message||"No se confirmó la devolución.");}
+  finally{busy=false;lock.close();lock.remove();}
+ }
+ A.returnShopOrder=key=>{const order=A.db.shopOrders?.find(x=>x.id===key),sale=A.db.sales?.find(x=>x.id===order?.saleId);return returnSale(sale);};
+ function drawRecent(){
+  recent.replaceChildren();
+  if(!allowed()||A.db?.meta?.businessId!==bid()||!window.SaaSCloudProduction?.isTenantReady?.(bid()))return;
+  recent.append(el("h3","Últimas ventas de productos"));
+  for(const s of (A.db.sales||[]).filter(x=>x.shopOperationId).slice(-30).reverse()){
+   const source=(A.db.cash||[]).find(x=>x.saleId===s.id&&x.type==="Ingreso");
+   const adjusted=(A.db.cash||[]).some(x=>x.correctionOf===source?.id&&!!x.correctionId);
+   const row=el("div","","row"),info=el("div");info.append(el("strong","Recibo #"+s.number+" · "+format(s.total,s.currency)),el("small",String(s.date)+" · "+(adjusted?"Con ajuste registrado":"Cobrado")));row.append(info);
+   if(canReturn()&&source&&!adjusted)row.append(button("Devolución integral",()=>returnSale(s)));
+   recent.append(row);
+  }
+ }
  // The public shop order workflow has not been rebuilt. Existing server orders
  // can be collected, but legacy local-only creation and state changes must stop.
  A.createShopOrder=()=>A.toast("Los pedidos en línea todavía no están habilitados.");
@@ -74,7 +103,7 @@ function boot(){
   }
   if(!box.childElementCount)box.append(el("p","No hay pedidos existentes."));
  };
- const sync=()=>{host.hidden=!allowed();host.style.display=host.hidden?"none":"";if(dialog.open&&(!allowed()||identity()!==session)){gen++;body.replaceChildren();dialog.close();}};
+ let last="";const sync=()=>{host.hidden=!allowed();host.style.display=host.hidden?"none":"";if(dialog.open&&(!allowed()||identity()!==session)){gen++;body.replaceChildren();dialog.close();}const signature=identity()+":"+allowed()+":"+canReturn()+":"+window.SaaSCloudProduction?.isTenantReady?.(bid())+":"+String(A.db?.meta?.businessId)+":"+(A.db?.sales?.length||0)+":"+(A.db?.cash?.length||0)+":"+(A.db?.shopOrders?.length||0);if(signature!==last){last=signature;drawRecent();A.renderCashShopOrders();}};
  const old=A.renderAll;A.renderAll=function(...args){const r=old.apply(this,args);sync();return r;};setInterval(sync,1000);sync();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
