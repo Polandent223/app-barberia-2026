@@ -293,7 +293,7 @@ service cloud.firestore {
               linkedCorrection(next[old.size()])));
         }
         function validCashRow(row) {
-          return row is map && row.id is string && row.id.size() > 0 &&
+          return row is map && !row.keys().hasAny(['shopOperationId','orderId']) && row.id is string && row.id.size() > 0 &&
             row.type in ['Ingreso','Egreso'] &&
             (row.amount is int || row.amount is float) && row.amount >= 0 && row.amount <= 9999999 &&
             row.get('businessId', businessId) == businessId;
@@ -307,7 +307,7 @@ service cloud.firestore {
         function validSaleAppend() {
           let old = resource.data.payload.get('sales', []);
           let next = request.resource.data.payload.get('sales', []);
-          return next == old || (next[old.size()] is map && next[old.size()].id is string &&
+          return next == old || (next[old.size()] is map && !next[old.size()].keys().hasAny(['shopOperationId','orderId']) && next[old.size()].get('source','') != 'Punto de venta' && next[old.size()].id is string &&
             (next[old.size()].total is int || next[old.size()].total is float) &&
             next[old.size()].total >= 0 && next[old.size()].total <= 9999999 &&
             next[old.size()].get('businessId', businessId) == businessId);
