@@ -284,3 +284,14 @@ test("full physical return restores products and records one financial reversal"
  assert.equal(after.shopOrders[0].status,"Devuelto");assert.deepEqual(f.sales,finance.sales);
  assert.equal(f.cash.length,finance.cash.length+1);assert.equal(returned.cash.type,"Egreso");assert.equal(returned.cash.amount,6.5);
 });
+
+test("three-line physical return restores all stock exactly once",async()=>{
+ const id="qa-lifecycle",owner=actor("qa-owner"),fin=state(owner,id,"finance"),inv=state(owner,id,"inventory");
+ const before=(await getDoc(inv)).data().payload,finance=(await getDoc(fin)).data().payload,sale=finance.sales.find(x=>x.shopOperationId&&x.items.length===3);
+ const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",originalOperationId:sale.shopOperationId,reason:"Mercancía completa reintegrada",date:"2026-11-26",time:"12:30"};
+ const results=await Promise.allSettled([returnShopSale(opts),returnShopSale(opts)]);
+ assert.equal(results.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(results.map(x=>x.status==="rejected"?String(x.reason):x.status)));
+ const after=(await getDoc(inv)).data().payload,f=(await getDoc(fin)).data().payload;
+ for(const item of sale.items)assert.equal(after.products.find(x=>x.id===item.refId).stock,before.products.find(x=>x.id===item.refId).stock+item.qty);
+ assert.deepEqual(f.sales,finance.sales);assert.equal(f.cash.length,finance.cash.length+1);
+});
