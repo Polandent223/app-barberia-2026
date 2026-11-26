@@ -46,9 +46,36 @@ function publicSnapshot(){
   };
 }
 
+// Publish bounded thumbnails, never tenant-private records or original uploads.
+async function serviceThumbnail(source){
+  if(typeof source!=="string"||!source)return "";
+  if(/^https:\/\//i.test(source))return source.length<=2048?source:"";
+  if(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(source))return "";
+  return await new Promise(resolve=>{
+    const img=new Image();let done=false;
+    const finish=value=>{if(done)return;done=true;clearTimeout(timer);resolve(value);};
+    const timer=setTimeout(()=>finish(""),3000);
+    img.onerror=()=>finish("");
+    img.onload=()=>{try{
+      const ratio=Math.min(1,240/Math.max(img.naturalWidth,img.naturalHeight));
+      const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));
+      const ctx=canvas.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      const value=canvas.toDataURL("image/jpeg",.65);finish(value.length<=35000?value:"");
+    }catch{finish("");}};
+    img.src=source;
+  });
+}
 export async function publishCurrentBusiness(){
   const b=SaaS.currentBusiness();if(!b)throw new Error("No hay negocio activo");
-  const snap=publicSnapshot();
+  const snap=publicSnapshot(),actor=window.FirebaseBridge?.user?.uid;
+  const source=new Map((window.App.db.services||[]).map(s=>[s.id,s.photo]));
+  let remaining=Math.max(0,Math.min(180000,750000-new TextEncoder().encode(JSON.stringify(snap)).length));
+  for(const service of snap.services){
+    if(remaining<2048)break;
+    const photo=await serviceThumbnail(source.get(service.id));
+    if(photo&&photo.length<=remaining){service.photo=photo;remaining-=photo.length;}
+  }
+  if(SaaS.currentBusiness()?.id!==b.id||window.FirebaseBridge?.user?.uid!==actor)throw Error("La sesión o empresa cambió durante la publicación.");
   await setDoc(doc(firestore,"public_businesses",b.id),{...snap,serverUpdatedAt:serverTimestamp()},{merge:true});
   await publishCurrentAvailability();
   return snap;
