@@ -4,6 +4,7 @@ import {initializeTestEnvironment,assertSucceeds,assertFails} from "@firebase/ru
 import {doc,collection,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,runTransaction,serverTimestamp} from "firebase/firestore";
 import assert from "node:assert/strict";
 import {closeAppointment} from "../js/saas/financial-close-core.js";
+import {applyInventoryOperation} from "../js/saas/inventory-core.js";
 import {applyCorrection} from "../js/saas/financial-corrections-core.js";
 import {renewalDate,paymentAmount} from "../js/saas/commercial-core.js";
 let env;
@@ -197,4 +198,31 @@ test("manual cash reversal and server-side validation of new entries",async()=>{
   const result=await applyCorrection(opts);assert.equal(result.cashEntry.type,"Ingreso");assert.equal(result.cashEntry.amount,20);
   const final=(await getDoc(ref)).data().payload;
   assert.deepEqual(final.cash.find(x=>x.id===expense.id),expense);assert.equal(final.cash.find(x=>x.correctionOf===expense.id).amount,20);
+});
+
+test("inventory: create at zero, authorized entry, concurrent exits, archive, and reject direct changes",async()=>{
+  const id="qa-lifecycle",owner=actor("qa-owner"),reception=actor("qa-reception"),ref=state(owner,id,"inventory");
+  const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",productId:"qa-product",reason:"Movimiento de prueba",date:"2026-11-26"};
+  const values={name:"Producto QA",category:"Insumo",stock:999,min:1,cost:2,price:4};
+  await applyInventoryOperation({...opts,kind:"CREATE",values});
+  let f=(await getDoc(ref)).data();
+  assert.equal(f.payload.products[0].stock,0);
+  await assert.rejects(applyInventoryOperation({...opts,db:reception,actor:"qa-reception",kind:"ENTRY",quantity:10}));
+  await applyInventoryOperation({...opts,kind:"ENTRY",quantity:10});
+  await assert.rejects(applyInventoryOperation({...opts,kind:"ARCHIVE"}));
+  await assert.rejects(applyInventoryOperation({...opts,kind:"EXIT",quantity:11}));
+  const results=await Promise.allSettled([applyInventoryOperation({...opts,kind:"EXIT",quantity:7}),applyInventoryOperation({...opts,kind:"EXIT",quantity:7})]);
+  assert.equal(results.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(results.map(x=>x.status==="rejected"?String(x.reason):x.status)));
+  f=(await getDoc(ref)).data();assert.equal(f.payload.products[0].stock,3);
+  const forged=writeBatch(owner),rev=f.syncRevision+1;
+  forged.update(ref,{payload:{...f.payload,products:[{...f.payload.products[0],stock:100}]},syncRevision:rev,updatedByUid:"qa-owner",updatedAt:serverTimestamp(),auditId:"forged-stock"});
+  forged.set(path(owner,"businesses",id,"state_events","forged-stock"),{businessId:id,domain:"inventory",revision:rev,actorUid:"qa-owner",createdAt:serverTimestamp()});
+  await assertFails(forged.commit());
+  await applyInventoryOperation({...opts,kind:"EDIT",values:{...values,name:"Producto actualizado"}});
+  assert.equal((await getDoc(ref)).data().payload.products[0].stock,3);
+  await applyInventoryOperation({...opts,kind:"EXIT",quantity:3});
+  const archived=await applyInventoryOperation({...opts,kind:"ARCHIVE"});
+  f=(await getDoc(ref)).data();assert.equal(f.payload.products[0].archived,true);assert.equal(f.payload.products[0].stock,0);assert.equal(f.payload.stockMoves.length,3);
+  assert.deepEqual(f.payload.stockMoves.map(m=>[m.stockBefore,m.stockAfter]),[[0,10],[10,3],[3,0]]);
+  await assertFails(deleteDoc(path(owner,"businesses",id,"inventory_operations",archived.id)));
 });
