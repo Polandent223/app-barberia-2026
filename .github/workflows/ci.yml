@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21' }
       - run: npm ci || npm install
-      - run: npm install --no-save --package-lock=false firebase@12 firebase-tools@14 esbuild puppeteer
+      - run: npm install --no-save --package-lock=false firebase@12 firebase-tools@14 esbuild puppeteer chart.js qrcode
       - run: npm install --prefix functions --ignore-scripts --no-audit --no-fund
       - run: npx firebase emulators:exec --config firebase.shop.json --project demo-sambrix-qa --only auth,firestore,functions "node --test scripts/authenticated-browser-test.mjs"
         env:
