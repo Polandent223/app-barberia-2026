@@ -4,6 +4,7 @@ import {readFileSync,existsSync} from "node:fs";
 import {cents,addMonths,renewalDate,paymentAmount,commercialState} from "../js/saas/commercial-core.js";
 import {available,slots,dayValid} from "../js/saas/client-booking-core.js";
 import {buildCorrection,correctionSummary,refundTotal} from "../js/saas/financial-corrections-core.js";
+import {buildInventoryOperation} from "../js/saas/inventory-core.js";
 import {protectHistory} from "../js/saas/protected-history.js";
 import {changedParts,assertUnchanged} from "../js/saas/sync-conflict.js";
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
@@ -31,4 +32,13 @@ test("correction preserves original sale and limits accumulated refunds",()=>{
  assert.throws(()=>buildCorrection({...opts,correctionId:"b",previousCents:500,kind:"VOID",amount:1}));
  const second=buildCorrection({...opts,correctionId:"b",previousCents:500,kind:"VOID",amount:7});finance.cash.push(second.cashEntry);
  assert.equal(refundTotal(finance.cash),12);assert.equal(finance.sales[0].total,12);
+});
+
+test("stock operation preserves history, rejects overselling and requires zero before archive",()=>{
+  let payload={products:[],stockMoves:[],shopOrders:[]};const opts={businessId:"qa",actor:"owner",productId:"p",reason:"Motivo comprobado",date:"2026-11-26"};
+  const run=(kind,operationId,extra={})=>{const r=buildInventoryOperation({...opts,payload,kind,operationId,...extra});payload=r.payload;return r;};
+  run("CREATE","a",{values:{name:"Producto",category:"Insumo",stock:99,min:1,cost:2,price:4}});assert.equal(payload.products[0].stock,0);
+  run("ENTRY","b",{quantity:10});assert.throws(()=>run("EXIT","c",{quantity:11}));assert.throws(()=>run("ARCHIVE","d"));
+  run("EXIT","e",{quantity:10});run("ARCHIVE","f");assert.equal(payload.products[0].archived,true);assert.equal(payload.stockMoves.length,2);
+  assert.deepEqual(payload.stockMoves.map(m=>[m.stockBefore,m.stockAfter]),[[0,10],[10,0]]);
 });
