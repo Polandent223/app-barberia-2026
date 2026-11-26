@@ -231,11 +231,13 @@ test("inventory: create at zero, authorized entry, concurrent exits, archive, an
 
 
 const shopId="qa-lifecycle";
-function serverShop(kind,uid,data){
- return env.withSecurityRulesDisabled(async context=>{
+async function serverShop(kind,uid,data){
+ let result;
+ await env.withSecurityRulesDisabled(async context=>{
   const service=createShopService({db:context.firestore(),sdk:{doc,collection,runTransaction,serverTimestamp},now:()=>new Date("2026-11-26T15:00:00Z")});
-  return service(kind,uid?{uid}:null,{businessId:shopId,requestId:randomUUID(),...data});
+  result=await service(kind,uid?{uid}:null,{businessId:shopId,requestId:randomUUID(),...data});
  });
+ return result;
 }
 test("server POS: permission, feature flag, prices, three lines, idempotency and stock race",async()=>{
  const owner=actor("qa-owner"),root=actor("root"),reception=actor("qa-reception"),inv=state(owner,shopId,"inventory"),fin=state(owner,shopId,"finance");
