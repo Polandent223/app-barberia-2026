@@ -45,8 +45,8 @@ async function ensureSuperAdminProfile(){
 async function createAuthUser(email,password){
   const app=initializeApp(firebaseConfig,"secondary-"+Date.now()+"-"+Math.random().toString(36).slice(2));
   const auth=getAuth(app);
-  const credential=await createUserWithEmailAndPassword(auth,email,password);
-  return {app,auth,user:credential.user};
+  try{const credential=await createUserWithEmailAndPassword(auth,email,password);return {app,auth,user:credential.user};}
+  catch(error){try{await deleteApp(app);}catch{}throw error;}
 }
 
 async function createBusinessMember({businessId,name,email,password,role}){
