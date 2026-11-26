@@ -4,6 +4,7 @@ import {initializeTestEnvironment,assertSucceeds,assertFails} from "@firebase/ru
 import {doc,collection,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,runTransaction,serverTimestamp} from "firebase/firestore";
 import assert from "node:assert/strict";
 import {closeAppointment} from "../js/saas/financial-close-core.js";
+import {applyCorrection} from "../js/saas/financial-corrections-core.js";
 import {renewalDate,paymentAmount} from "../js/saas/commercial-core.js";
 let env;
 const path=(db,...s)=>doc(db,...s);
@@ -154,4 +155,29 @@ test("commercial lifecycle: new company, plan, staff, subscription, booking, ato
   assert.equal((await getDoc(publicDoc(owner,id,"booking_slots",slot))).exists(),false);
   assert.equal((await getDoc(state(owner,id,"crm"))).data().payload.clients[0].visits,1);
   await assertSucceeds(getDoc(path(owner,"businesses",id,"state_events",f.auditId)));
+});
+
+test("only owner or admin can refund; cumulative corrections cannot exceed original receipt",async()=>{
+  const id="qa-lifecycle",owner=actor("qa-owner"),reception=actor("qa-reception");
+  const initial=(await getDoc(state(owner,id,"finance"))).data().payload,original=initial.cash[0];
+  const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,sourceId:original.id,kind:"REFUND",amount:5,reason:"Devolución confirmada",actor:"qa-owner",date:"2026-11-26"};
+  await assert.rejects(applyCorrection({...opts,db:reception,actor:"qa-reception"}));
+  await assert.rejects(applyCorrection({...opts,amount:13}));
+  const first=await applyCorrection(opts);
+  assert.equal(first.cumulativeCents,500);
+  const races=await Promise.allSettled([applyCorrection({...opts,kind:"VOID",amount:7}),applyCorrection({...opts,kind:"VOID",amount:7})]);
+  assert.equal(races.filter(x=>x.status==="fulfilled").length,1,JSON.stringify(races.map(x=>x.status==="rejected"?String(x.reason):x.status)));
+  const f=(await getDoc(state(owner,id,"finance"))).data().payload;
+  assert.deepEqual(f.sales,initial.sales);assert.deepEqual(f.cash[0],original);assert.equal(f.cash.length,3);
+  assert.equal(f.cash.slice(1).reduce((s,x)=>s+x.amount,0),12);
+  const total=path(owner,"businesses",id,"correction_totals",original.id);
+  assert.equal((await getDoc(total)).data().cents,1200);
+  await assertFails(updateDoc(total,{cents:0}));
+  const record=path(owner,"businesses",id,"financial_corrections",first.id);
+  await assertFails(deleteDoc(record));await assertFails(updateDoc(record,{amountCents:1}));
+  const next=writeBatch(reception),finance=state(reception,id,"finance"),audit=path(reception,"businesses",id,"state_events","forged-correction");
+  const rev=(await getDoc(finance)).data().syncRevision+1;
+  next.update(finance,{payload:{...f,cash:[...f.cash,{...f.cash[1],id:"fake"}]},syncRevision:rev,auditId:"forged-correction",updatedByUid:"qa-reception",updatedAt:serverTimestamp()});
+  next.set(audit,{businessId:id,domain:"finance",revision:rev,actorUid:"qa-reception",createdAt:serverTimestamp()});
+  await assertFails(next.commit());
 });
