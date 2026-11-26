@@ -889,11 +889,11 @@ App.stockMove = function(id,type){
   });
 };
 App.renderInventory = function(){
-  App.byId("invCount").textContent=App.db.products.length;
-  App.byId("invLow").textContent=App.db.products.filter(p=>p.stock<=p.min).length;
+  App.byId("invCount").textContent=App.db.products.filter(p=>!p.archived).length;
+  App.byId("invLow").textContent=App.db.products.filter(p=>!p.archived&&p.stock<=p.min).length;
   App.byId("invValue").textContent=App.money(App.db.products.reduce((s,p)=>s+p.stock*p.cost,0));
   App.byId("invMoves").textContent=App.db.stockMoves.length;
-  const q=App.filters.products||"";const filtered=App.db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q));
+  const q=App.filters.products||"";const filtered=App.db.products.filter(p=>!p.archived&&(!q||p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q)));
   App.byId("productList").innerHTML=filtered.map(p=>`<article class="card product-card">${p.photo?`<img class="catalog-card-photo" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.category}</div><div class="big">${p.stock} u.</div><div class="muted">MÃ­n. ${p.min} Â· Precio ${App.money(p.price)}</div><div class="actions"><button class="btn secondary" onclick="App.stockMove('${p.id}','Entrada')">+ Entrada</button><button class="btn secondary" onclick="App.stockMove('${p.id}','Salida')">- Salida</button></div><div class="manage-actions"><button class="btn edit" onclick="App.editProduct('${p.id}')">Editar</button><button class="btn danger" onclick="App.deleteProduct('${p.id}')">${App.deleteButtonLabel()}</button></div></article>`).join("");
   App.byId("stockMoveList").innerHTML=App.db.stockMoves.slice().reverse().map(m=>`<div class="row"><div><strong>${App.db.products.find(p=>p.id===m.productId)?.name||"Producto"}</strong><small>${m.date} Â· ${m.type}${m.reason?` Â· ${m.reason}`:""}</small></div><strong>${m.qty}</strong></div>`).join("")||'<div class="muted">Sin movimientos.</div>';
 };
@@ -1493,7 +1493,7 @@ App.submitClientReservation=function(){
 };
 App.lookupClientAppointments=function(){const phone=App.val("clientLookupPhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);App.byId("clientAppointmentsList").innerHTML=c?App.db.appointments.filter(a=>a.clientId===c.id).map(a=>`<div class="row"><strong>${a.date} ${a.time}</strong><small>${App.serviceName(a.serviceId)} Â· ${App.barberName(a.barberId)}</small></div>`).join(""):'<div class="muted">No encontrado.</div>'};
 App.lookupClientProfile=function(){const phone=App.val("clientProfilePhone").replace(/\D/g,""),c=App.db.clients.find(x=>(x.phone||"").replace(/\D/g,"")===phone);App.byId("clientProfileData").innerHTML=c?`<div class="stats"><article><span>Visitas</span><b>${c.visits||0}</b></article><article><span>Puntos</span><b>${c.points||0}</b></article></div>`:'<div class="muted">No encontrado.</div>'};
-App.renderClientShop=function(){App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>`<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.stock} disponibles</div><div class="big">${App.money(p.price)}</div></article>`).join("")||'<div class="muted">No hay productos disponibles.</div>'};
+App.renderClientShop=function(){App.byId("clientShopList").innerHTML=App.db.products.filter(p=>!p.archived&&p.stock>0&&p.price>0).map(p=>`<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<h3>${p.name}</h3><div class="muted">${p.stock} disponibles</div><div class="big">${App.money(p.price)}</div></article>`).join("")||'<div class="muted">No hay productos disponibles.</div>'};
 
 
 App.renderClientBookingSummary=function(){
@@ -1516,7 +1516,7 @@ App.addShopItem=function(id){
   App.renderClientShop();
 };
 App.renderClientShop=function(){
-  App.byId("clientShopList").innerHTML=App.db.products.filter(p=>p.stock>0&&p.price>0).map(p=>{
+  App.byId("clientShopList").innerHTML=App.db.products.filter(p=>!p.archived&&p.stock>0&&p.price>0).map(p=>{
     const item=App.clientCart.find(x=>x.id===p.id);
     return `<article class="shop-card">${p.photo?`<img class="client-catalog-photo product" src="${p.photo}" alt="${p.name}">`:""}<span class="qty-badge">${p.stock} disp.</span><h3>${p.name}</h3><div class="muted">${p.category}</div><div class="big">${App.money(p.price)}</div><button class="btn primary" onclick="App.addShopItem('${p.id}')">${item?`Agregar otro (${item.qty})`:"Agregar"}</button></article>`;
   }).join("")||'<div class="muted">No hay productos disponibles.</div>';
@@ -2070,7 +2070,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   App.byId("toggleClientForm").addEventListener("click",()=>App.show("clientForm"));App.byId("cancelClientForm").addEventListener("click",()=>App.hide("clientForm"));App.byId("saveClientBtn").addEventListener("click",App.saveClient);
   App.byId("toggleBarberForm").addEventListener("click",()=>App.show("barberForm"));App.byId("cancelBarberForm").addEventListener("click",()=>App.hide("barberForm"));App.byId("saveBarberBtn").addEventListener("click",App.saveBarber);
   App.byId("toggleCashForm").addEventListener("click",()=>App.show("cashForm"));App.byId("cancelCashForm").addEventListener("click",()=>App.hide("cashForm"));App.byId("saveCashBtn").addEventListener("click",App.saveCash);
-  App.byId("toggleProductForm").addEventListener("click",()=>App.show("productForm"));App.byId("cancelProductForm").addEventListener("click",()=>App.hide("productForm"));App.byId("saveProductBtn").addEventListener("click",App.saveProduct);
+  App.byId("toggleProductForm").addEventListener("click",()=>App.show("productForm"));App.byId("cancelProductForm").addEventListener("click",()=>App.hide("productForm"));App.byId("saveProductBtn").addEventListener("click",()=>App.saveProduct());
   App.byId("toggleServiceForm").addEventListener("click",()=>App.show("serviceForm"));App.byId("cancelServiceForm").addEventListener("click",()=>App.hide("serviceForm"));App.byId("saveServiceBtn").addEventListener("click",App.saveService);
   App.byId("toggleUserForm").addEventListener("click",()=>{App.show("userForm");App.renderRolePreview()});App.byId("cancelUserForm").addEventListener("click",()=>App.hide("userForm"));App.byId("saveUserBtn").addEventListener("click",App.saveUser);App.byId("userRole").addEventListener("change",App.renderRolePreview);
   App.byId("clientBookDate").addEventListener("change",App.renderClientSlots);App.byId("submitClientReservation").addEventListener("click",App.submitClientReservation);App.byId("lookupAppointmentsBtn").addEventListener("click",App.lookupClientAppointments);App.byId("lookupProfileBtn").addEventListener("click",App.lookupClientProfile);
