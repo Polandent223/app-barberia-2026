@@ -56,7 +56,7 @@ function resetCloudSession(){sessionGeneration++;lastSyncKey="";hydratedTenants.
 function hydrateTenant(id,{createIfMissing=false}={}){
   id=String(id||"").trim();if(!id)return Promise.resolve(false);if(hydrationPromises.has(id))return hydrationPromises.get(id);
   const generation=sessionGeneration,uid=String(window.FirebaseBridge?.user?.uid||"");let task;
-  task=(async()=>{const got=await downloadTenant(id);if(generation!==sessionGeneration||uid!==String(window.FirebaseBridge?.user?.uid||""))return false;if(!got)throw new Error("No hay datos inicializados en Firebase. Solicita al SuperAdmin que inicialice la empresa.");if(generation!==sessionGeneration||uid!==String(window.FirebaseBridge?.user?.uid||""))return false;hydratedTenants.add(id);if(currentBusinessId()===id)watchCurrentTenant();return got})().finally(()=>{if(hydrationPromises.get(id)===task)hydrationPromises.delete(id);refreshHydrationUI()});
+  task=(async()=>{const got=await downloadTenant(id);if(generation!==sessionGeneration||uid!==String(window.FirebaseBridge?.user?.uid||""))return false;if(!got)throw new Error("No hay datos inicializados en Firebase. Solicita al SuperAdmin que inicialice la empresa.");if(generation!==sessionGeneration||uid!==String(window.FirebaseBridge?.user?.uid||""))return false;hydratedTenants.add(id);if(currentBusinessId()===id)watchCurrentTenant();return got})().finally(()=>{if(hydrationPromises.get(id)===task)hydrationPromises.delete(id);refreshHydrationUI();if(currentBusinessId()===id&&tenantReady(id))window.App?.renderInventory?.()});
   // Registrar la hidratación antes de actualizar la interfaz elimina la ventana en que el usuario podía tocar datos.
   hydrationPromises.set(id,task);refreshHydrationUI();return task;
 }
