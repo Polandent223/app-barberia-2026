@@ -5,7 +5,7 @@ import {doc,collection,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,runTransacti
 import assert from "node:assert/strict";
 import {closeAppointment} from "../js/saas/financial-close-core.js";
 import {applyInventoryOperation} from "../js/saas/inventory-core.js";
-import {checkoutShop} from "../js/saas/shop-core.js";
+import {checkoutShop,returnShopSale} from "../js/saas/shop-core.js";
 import {applyCorrection} from "../js/saas/financial-corrections-core.js";
 import {renewalDate,paymentAmount} from "../js/saas/commercial-core.js";
 let env;
@@ -269,4 +269,18 @@ test("cashier can collect an existing order once, without authority to change st
  await assert.rejects(checkoutShop(opts));
  const i=(await getDoc(state(owner,id,"inventory"))).data().payload;
  assert.equal(i.shopOrders[0].status,"Pagado/Entregado");assert.equal(i.shopOrders[0].saleId,sale.id);assert.equal(i.products.find(x=>x.id==="sale-b").stock,7);
+});
+
+test("full physical return restores products and records one financial reversal",async()=>{
+ const id="qa-lifecycle",owner=actor("qa-owner"),cashier=actor("qa-shop-cashier"),fin=state(owner,id,"finance"),inv=state(owner,id,"inventory");
+ const before=(await getDoc(inv)).data().payload,finance=(await getDoc(fin)).data().payload;
+ const sale=finance.sales.find(x=>x.orderId==="existing-order"),originalOperationId=sale.shopOperationId;
+ const opts={db:owner,sdk:{doc,collection,runTransaction,serverTimestamp},businessId:id,actor:"qa-owner",originalOperationId,reason:"Mercancía recibida y dinero devuelto",date:"2026-11-26",time:"12:00"};
+ await assert.rejects(returnShopSale({...opts,db:cashier,actor:"qa-shop-cashier"}));
+ const returned=await returnShopSale(opts);
+ await assert.rejects(returnShopSale(opts));
+ const after=(await getDoc(inv)).data().payload,f=(await getDoc(fin)).data().payload;
+ assert.equal(after.products.find(x=>x.id==="sale-b").stock,before.products.find(x=>x.id==="sale-b").stock+2);
+ assert.equal(after.shopOrders[0].status,"Devuelto");assert.deepEqual(f.sales,finance.sales);
+ assert.equal(f.cash.length,finance.cash.length+1);assert.equal(returned.cash.type,"Egreso");assert.equal(returned.cash.amount,6.5);
 });
