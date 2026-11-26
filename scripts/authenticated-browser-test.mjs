@@ -69,15 +69,25 @@ test("SuperAdmin modular navigation, search and responsive directory",{timeout:1
   assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelectorAll("#sambrixWorkspace .workspace-card:not([hidden]) strong"),e=>e.textContent)),["Estadísticas"]);
   await page.evaluate(()=>{const el=document.querySelector("#sambrixWorkspace input");el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));});
   for(const [area,view,label,id] of areas){
-   await clickText(page,"#sambrixWorkspace .workspace-card",area);
-   await page.waitForFunction(v=>document.getElementById("superadmin").dataset.moduleView===v,{},view);
-   await clickText(page,"#sambrixWorkspace .workspace-card",label);
-   await page.waitForFunction(p=>document.querySelector("#adminApp .page.active")?.id===p,{timeout:15000},id);
-   await page.waitForSelector("#sambrixModuleBar [data-return-area]",{visible:true});
-   await page.click("#sambrixModuleBar [data-return-area]");
-   await page.waitForFunction(v=>document.querySelector("#adminApp .page.active")?.id==="superadmin"&&document.getElementById("superadmin").dataset.moduleView===v,{},view);
-   await page.click("#sambrixModuleBar [data-return-home]");
-   await page.waitForFunction(()=>document.getElementById("superadmin").dataset.moduleView==="home");
+   let stage="abrir área";
+   try{
+    console.log("QA UI AREA: "+view+" -> "+id);
+    await clickText(page,"#sambrixWorkspace .workspace-card",area);
+    await page.waitForFunction(v=>document.getElementById("superadmin").dataset.moduleView===v,{},view);
+    stage="abrir herramienta";
+    await clickText(page,"#sambrixWorkspace .workspace-card",label);
+    await page.waitForFunction(p=>document.querySelector("#adminApp .page.active")?.id===p,{timeout:15000},id);
+    stage="regresar al área";
+    await page.waitForSelector("#sambrixModuleBar [data-return-area]",{visible:true});
+    await page.click("#sambrixModuleBar [data-return-area]");
+    await page.waitForFunction(v=>document.querySelector("#adminApp .page.active")?.id==="superadmin"&&document.getElementById("superadmin").dataset.moduleView===v,{},view);
+    stage="regresar al inicio";
+    await page.click("#sambrixModuleBar [data-return-home]");
+    await page.waitForFunction(()=>document.getElementById("superadmin").dataset.moduleView==="home");
+   }catch(error){
+    const snapshot=await page.evaluate(()=>({active:document.querySelector("#adminApp .page.active")?.id,view:document.getElementById("superadmin")?.dataset.moduleView,role:window.SaaS?.session?.role}));
+    throw new Error("QA área "+view+" / "+id+" / "+stage+": "+JSON.stringify(snapshot),{cause:error});
+   }
   }
   console.log("QA UI SUPERADMIN: 9 areas, module navigation, search and responsive directory at three widths.");
  }finally{await context.close();}
