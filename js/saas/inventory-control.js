@@ -53,6 +53,29 @@ function boot(){
  // Legacy shop writes bypassed the atomic ledger. Keep disabled until checkout/return is rebuilt.
  A.checkoutAndDeliverOrder=()=>A.toast("Cobro de pedidos en revisión. No se descontó inventario.");
  A.returnShopOrder=()=>A.toast("Devolución de tienda en revisión. No se modificó caja ni inventario.");
+ const el=(tag,text="",cls="")=>{const x=document.createElement(tag);x.textContent=text;if(cls)x.className=cls;return x;};
+ const button=(label,action,cls="secondary")=>{const b=el("button",label,"btn "+cls);b.type="button";b.addEventListener("click",action);return b;};
+ A.renderInventory=()=>{
+  const data=A.db,list=A.byId("productList"),history=A.byId("stockMoveList");if(!list||!history||!data)return;
+  if(data.meta?.businessId!==id()||!window.SaaSCloudProduction?.isTenantReady?.(id())){list.replaceChildren(el("p","Verificando inventario…"));history.replaceChildren();return;}
+  const products=(data.products||[]).filter(p=>!p.archived),moves=data.stockMoves||[],q=String(A.filters?.products||"").toLowerCase();
+  for(const [key,value] of [["invCount",products.length],["invLow",products.filter(p=>Number(p.stock)<=Number(p.min)).length],["invValue",A.money(products.reduce((s,p)=>s+Number(p.stock||0)*Number(p.cost||0),0))],["invMoves",moves.length]]){const x=A.byId(key);if(x)x.textContent=String(value);}
+  const cards=document.createDocumentFragment();
+  for(const p of products.filter(p=>!q||String(p.name||"").toLowerCase().includes(q)||String(p.category||"").toLowerCase().includes(q))){
+   const card=el("article","","card product-card");
+   if(/^https:\/\//.test(p.photo||"")||/^data:image\/(jpeg|png|webp);base64,/.test(p.photo||"")){const img=el("img","","catalog-card-photo");img.src=p.photo;img.alt=String(p.name||"Producto");img.loading="lazy";card.append(img);}
+   card.append(el("h3",String(p.name||"Producto")),el("div",String(p.category||""),"muted"),el("div",String(p.stock)+" u.","big"),el("div","Mín. "+p.min+" · Precio "+A.money(p.price),"muted"));
+   if(allowed()){const actions=el("div","","actions");actions.append(button("+ Entrada",()=>A.stockMove(p.id,"Entrada")),button("- Salida",()=>A.stockMove(p.id,"Salida")),button("Editar",()=>A.editProduct(p.id)),button("Archivar",()=>A.deleteProduct(p.id),"danger"));card.append(actions);}
+   cards.append(card);
+  }
+  list.replaceChildren(cards);if(!list.childElementCount)list.append(el("p","No hay productos activos."));
+  const rows=document.createDocumentFragment();
+  for(const m of moves.slice().reverse().slice(0,200)){const row=el("div","","row"),copy=el("div");copy.append(el("strong",String(m.productName||data.products?.find(p=>p.id===m.productId)?.name||"Producto")),el("small",[m.date,m.type,m.reason].filter(Boolean).join(" · ")));
+   if(Number.isFinite(m.stockBefore)&&Number.isFinite(m.stockAfter))copy.append(el("small","Stock: "+m.stockBefore+" → "+m.stockAfter+" · Usuario: "+String(m.createdBy||"")));
+   row.append(copy,el("strong",(m.type==="Entrada"?"+":"−")+String(m.qty)));rows.append(row);}
+  history.replaceChildren(rows);if(!history.childElementCount)history.append(el("p","Sin movimientos."));
+  const add=A.byId("toggleProductForm");if(add)add.hidden=!allowed();
+ };
  const input=A.byId("productStock");if(input){input.readOnly=true;input.placeholder="Existencias por movimientos";}
  const panel=document.createElement("p");panel.className="muted";panel.textContent="El inventario se actualiza por movimientos confirmados. Solo administración autorizada puede modificar existencias. Los productos se archivan sin borrar su historial.";
  document.getElementById("inventario")?.prepend(panel);
