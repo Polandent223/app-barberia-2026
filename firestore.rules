@@ -47,6 +47,10 @@ service cloud.firestore {
         role(businessId) in ['owner','admin','manager','reception','barber']);
     }
 
+    function canSellProducts(businessId) {
+      return isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin','manager','cashier']);
+    }
+
     function canCorrectFinance(businessId) {
       return isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin']);
     }
@@ -315,10 +319,29 @@ service cloud.firestore {
         function validFinanceAppend() {
           return stateName != 'finance' || (appendAtMostOne('cash') && appendAtMostOne('sales') && validCashAppend() && validSaleAppend());
         }
+        function linkedShopOperation() {
+          let id = request.resource.data.get('shopOperationId','none');
+          let p = /databases/$(database)/documents/businesses/$(businessId)/shop_operations/$(id);
+          let d = getAfter(p).data;
+          return canSellProducts(businessId) && id != resource.data.get('shopOperationId','none') &&
+            !exists(p) && existsAfter(p) && d.kind == 'SALE' && d.actorUid == request.auth.uid &&
+            d.createdAt == request.time && request.resource.data.syncRevision ==
+              (stateName == 'inventory' ? d.inventoryRevision : d.financeRevision);
+        }
+        function validShopFinance() {
+          let old = resource.data.payload;
+          let next = request.resource.data.payload;
+          return stateName != 'finance' ||
+            ((!next.cash.hasAll(old.cash) || next.cash.size() == old.cash.size() ||
+              !next.cash[old.cash.size()].keys().hasAny(['shopOperationId'])) &&
+             (next.sales.size() == old.sales.size() || !next.sales[old.sales.size()].keys().hasAny(['shopOperationId'])) &&
+             request.resource.data.get('shopOperationId','none') == resource.data.get('shopOperationId','none')) ||
+            linkedShopOperation();
+        }
         function validInventoryOperation() {
           let op = request.resource.data.get('inventoryOperationId','none');
           let p = /databases/$(database)/documents/businesses/$(businessId)/inventory_operations/$(op);
-          return stateName != 'inventory' || (
+          return stateName != 'inventory' || linkedShopOperation() || (
             canManageBusiness(businessId) && op is string &&
             !exists(p) && existsAfter(p) &&
             getAfter(p).data.revision == request.resource.data.syncRevision &&
@@ -339,10 +362,10 @@ service cloud.firestore {
           (stateName != 'inventory' || isSuperAdmin()) &&
           (isSuperAdmin() || exists(/databases/$(database)/documents/businesses/$(businessId)/state/config)) &&
           request.resource.data.syncRevision == 1 && hasWriteAudit();
-        allow update: if canWriteState() && validStateWrite() && preservesLedger() && validFinanceAppend() && validInventoryOperation() && hasWriteAudit() &&
+        allow update: if canWriteState() && validStateWrite() && preservesLedger() && validFinanceAppend() && validShopFinance() && validInventoryOperation() && hasWriteAudit() &&
           request.resource.data.syncRevision == resource.data.get('syncRevision', 0) + 1 &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId','inventoryOperationId'
+            'businessId','payload','updatedAt','updatedBy','updatedByUid','syncRevision','auditId','inventoryOperationId','shopOperationId'
           ]);
         // A whole module cannot be deleted from a browser.
         allow delete: if false;
@@ -424,6 +447,123 @@ service cloud.firestore {
           request.resource.data.lastCorrectionId is string && request.resource.data.actorUid == request.auth.uid &&
           request.resource.data.updatedAt == request.time && linkedTotal(request.resource.data);
         allow delete: if false;
+      }
+
+      match /shop_operations/{operationId} {
+        function st(name) { return /databases/$(database)/documents/businesses/$(businessId)/state/$(name); }
+        function validLine(d,i,b,a) {
+          let l = d.lines[i];
+          let p = b.products[l.index];
+          let n = a.products[l.index];
+          let m = l.movement;
+          let item = l.item;
+          return l.index is int && l.index >= 0 && l.index < b.products.size() &&
+            l.productId == p.id && n.id == p.id && p.get('businessId',businessId) == businessId &&
+            p.get('archived',false) == false && p.stock is int && n.stock is int &&
+            l.qty is int && l.qty > 0 && l.qty <= p.stock && n.stock == p.stock - l.qty &&
+            n.diff(p).affectedKeys().hasOnly(['stock']) &&
+            l.unitCents is int && l.unitCents > 0 && p.price == l.unitCents / 100.0 &&
+            l.lineCents == l.unitCents * l.qty &&
+            item.refId == p.id && item.name == p.name && item.type == 'Producto' &&
+            item.qty == l.qty && item.unit == p.price && item.total == l.lineCents / 100.0 &&
+            m.id == ('shopstock_' + operationId + '_' + string(i)) && m.operationId == operationId &&
+            m.businessId == businessId && m.productId == p.id && m.productName == p.name &&
+            m.type == 'Salida' && m.qty == l.qty && m.stockBefore == p.stock && m.stockAfter == n.stock &&
+            m.createdBy == request.auth.uid && m.date == d.date && m.reason == 'Venta de productos' &&
+            m.branchId == p.get('branchId','');
+        }
+        function oldProducts(d,b) {
+          return d.lines.size() == 1 ? [b.products[d.lines[0].index]] :
+            d.lines.size() == 2 ? [b.products[d.lines[0].index],b.products[d.lines[1].index]] :
+            [b.products[d.lines[0].index],b.products[d.lines[1].index],b.products[d.lines[2].index]];
+        }
+        function lineMoves(d) {
+          return d.lines.size() == 1 ? [d.lines[0].movement] :
+            d.lines.size() == 2 ? [d.lines[0].movement,d.lines[1].movement] :
+            [d.lines[0].movement,d.lines[1].movement,d.lines[2].movement];
+        }
+        function lineItems(d) {
+          return d.lines.size() == 1 ? [d.lines[0].item] :
+            d.lines.size() == 2 ? [d.lines[0].item,d.lines[1].item] :
+            [d.lines[0].item,d.lines[1].item,d.lines[2].item];
+        }
+        function total(d) {
+          return d.lines[0].lineCents + (d.lines.size() >= 2 ? d.lines[1].lineCents : 0) +
+            (d.lines.size() == 3 ? d.lines[2].lineCents : 0);
+        }
+        function validOrderLine(d,o,i) {
+          return o.items[i].id == d.lines[i].productId && o.items[i].qty == d.lines[i].qty &&
+            o.items[i].get('price',d.lines[i].item.unit) == d.lines[i].item.unit;
+        }
+        function validOrder(d,b,a) {
+          let o = b.shopOrders[d.orderIndex];
+          let n = a.shopOrders[d.orderIndex];
+          return o.id == d.orderId && o.get('businessId',businessId) == businessId &&
+            o.status in ['Pendiente','Reservado'] && o.get('saleId','') == '' &&
+            o.total == d.totalCents / 100.0 && o.currency == d.sale.currency &&
+            o.items.size() == d.lines.size() && validOrderLine(d,o,0) &&
+            (d.lines.size() < 2 || validOrderLine(d,o,1)) && (d.lines.size() < 3 || validOrderLine(d,o,2)) &&
+            n.status == 'Pagado/Entregado' && n.saleId == d.sale.id && n.paymentMethod == d.method &&
+            n.paidAt == (d.date + 'T' + d.time) && n.deliveredAt == n.paidAt &&
+            n.diff(o).affectedKeys().hasOnly(['status','saleId','paymentMethod','paidAt','deliveredAt']) &&
+            a.shopOrders.size() == b.shopOrders.size() &&
+            b.shopOrders.removeAll([o]).size() == b.shopOrders.size() - 1 &&
+            b.shopOrders.removeAll([o]) == a.shopOrders.removeAll([n]);
+        }
+        function validInventory(d) {
+          let b = get(st('inventory')).data.payload;
+          let a = getAfter(st('inventory')).data.payload;
+          let old = oldProducts(d,b);
+          let next = oldProducts(d,a);
+          return a.diff(b).affectedKeys().hasOnly(['products','stockMoves','shopOrders']) &&
+            validLine(d,0,b,a) &&
+            (d.lines.size() < 2 || (d.lines[1].productId != d.lines[0].productId && validLine(d,1,b,a))) &&
+            (d.lines.size() < 3 || (d.lines[2].productId != d.lines[0].productId && d.lines[2].productId != d.lines[1].productId && validLine(d,2,b,a))) &&
+            b.products.size() == a.products.size() &&
+            b.products.removeAll(old).size() == b.products.size() - d.lines.size() &&
+            b.products.removeAll(old) == a.products.removeAll(next) &&
+            a.stockMoves == b.stockMoves.concat(lineMoves(d)) &&
+            ((d.orderId == '' && d.orderIndex == -1 && a.shopOrders == b.shopOrders) ||
+             (d.orderId != '' && d.orderIndex >= 0 && d.orderIndex < b.shopOrders.size() && validOrder(d,b,a)));
+        }
+        function validFinance(d) {
+          let b = get(st('finance')).data.payload;
+          let a = getAfter(st('finance')).data.payload;
+          let s = d.sale;
+          let c = d.cash;
+          let cfg = get(st('config')).data.payload;
+          return d.totalCents == total(d) && d.totalCents is int && d.totalCents > 0 && d.totalCents <= 999999900 &&
+            s.id == ('shop_' + operationId) && c.id == ('shopcash_' + operationId) &&
+            s.shopOperationId == operationId && c.shopOperationId == operationId &&
+            s.businessId == businessId && c.businessId == businessId && s.createdBy == request.auth.uid && c.createdBy == request.auth.uid &&
+            s.source == 'Punto de venta' && s.orderId == d.orderId && c.orderId == d.orderId &&
+            s.items == lineItems(d) && s.total == d.totalCents / 100.0 && c.amount == s.total &&
+            c.type == 'Ingreso' && c.saleId == s.id && s.paymentMethod == d.method && c.method == d.method &&
+            s.currency == cfg.business.get('currency','$') && c.currency == s.currency &&
+            s.date == d.date && s.time == d.time && c.date == d.date &&
+            a.diff(b).affectedKeys().hasOnly(['sales','cash']) &&
+            a.sales == b.sales.concat([s]) && a.cash == b.cash.concat([c]);
+        }
+        function linkedStates(d) {
+          let i = getAfter(st('inventory')).data;
+          let f = getAfter(st('finance')).data;
+          return i.shopOperationId == operationId && f.shopOperationId == operationId &&
+            i.syncRevision == d.inventoryRevision && f.syncRevision == d.financeRevision &&
+            i.updatedAt == request.time && f.updatedAt == request.time &&
+            i.updatedByUid == request.auth.uid && f.updatedByUid == request.auth.uid;
+        }
+        allow read: if canSellProducts(businessId);
+        allow create: if canSellProducts(businessId) &&
+          request.resource.data.keys().hasOnly(['businessId','actorUid','kind','orderId','orderIndex','lines','totalCents','sale','cash','date','time','method','inventoryRevision','financeRevision','createdAt']) &&
+          request.resource.data.businessId == businessId && request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.kind == 'SALE' && request.resource.data.createdAt == request.time &&
+          request.resource.data.orderId is string && request.resource.data.orderIndex is int &&
+          request.resource.data.lines is list && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 3 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+          request.resource.data.method in ['Efectivo','Pago móvil','Transferencia','Divisa','Tarjeta','Otro'] &&
+          linkedStates(request.resource.data) && validInventory(request.resource.data) && validFinance(request.resource.data);
+        allow update, delete: if false;
       }
 
       match /inventory_operations/{operationId} {
