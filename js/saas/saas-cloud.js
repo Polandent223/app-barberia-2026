@@ -1,7 +1,7 @@
 import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js?v=1.0.18";
 
 import {runTransaction,getDocFromServer,collection} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
-import {cloneJSON,changedParts,assertUnchanged} from "./sync-conflict.js?v=2.0.3";
+import {cloneJSON,changedParts,assertUnchanged,fingerprint} from "./sync-conflict.js?v=2.0.3";
 
 import {protectHistory,protectedLists} from "./protected-history.js?v=2.0.9";
 
@@ -33,6 +33,29 @@ function keepDraft(key,job,error){
 }
 export function tenantSyncBlocked(id){const key=tenantKey(id);const job=pending.get(key);return !!job?.failed||storedDraft(key,job?.storageKey||"");}
 export function tenantSyncDraftSaved(id){return storedDraft(tenantKey(id));}
+export async function reviewPendingDrafts(id){
+  const uid=authUid(),key=tenantKey(id),job=pending.get(key);
+  if(!sessionCanReadTenant(id,uid)||SaaS.getContext?.()?.businessId!==id||job?.count)throw Error("Espera a que terminen las escrituras o verifica la sesión.");
+  const names=new Set(["config","crm","schedule","finance","inventory","staff","attendance","history"]);
+  const result=[];
+  for(const k of draftPaths(key)){
+    const raw=localStorage.getItem(k);if(!raw)continue;
+    let draft;
+    try{draft=JSON.parse(raw);}catch{result.push({matched:false,domains:[],reason:"Copia local ilegible"});continue;}
+    if(draft.businessId!==id||(draft.uid&&draft.uid!==uid)||!draft.parts||typeof draft.parts!=="object"||Array.isArray(draft.parts)){result.push({matched:false,domains:[],reason:"Identidad o contenido inválido"});continue;}
+    const parts=Object.entries(draft.parts);
+    if(!parts.length||parts.some(([n,p])=>!names.has(n)||!p||typeof p!=="object"||Array.isArray(p))){result.push({matched:false,domains:[],reason:"Módulos inválidos"});continue;}
+    const snaps=await Promise.all(parts.map(([n])=>getDocFromServer(doc(firestore,BUSINESSES,id,"state",n))));
+    if(!sessionCanReadTenant(id,uid)||SaaS.getContext?.()?.businessId!==id)throw Error("Cambió la sesión.");
+    const domains=parts.map(([n,p],i)=>({name:n,matched:snaps[i].exists()&&snaps[i].data().businessId===id&&fingerprint(snaps[i].data().payload)===fingerprint(p)}));
+    const matched=domains.every(d=>d.matched);
+    // Remove only an unchanged local copy whose complete payload is confirmed in Firestore.
+    if(matched&&localStorage.getItem(k)===raw){localStorage.removeItem(k);if(job?.storageKey===k&&job.failed&&!job.count)pending.delete(key);}
+    result.push({matched,domains});
+  }
+  return result;
+}
+
 export function waitForTenantCommit(id){if(tenantSyncBlocked(id))return Promise.reject(Error('Cambios pendientes de revisión.'));return pending.get(tenantKey(id))?.tail||Promise.resolve(true);}
 export function tenantSyncBusy(id){return !!pending.get(tenantKey(id))?.count;}
 export async function awaitTenantWrites(id){
