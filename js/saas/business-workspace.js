@@ -9,7 +9,7 @@
     {id:"stock",number:"05",title:"Inventario",description:"Productos y existencias",pages:[["inventario","Productos y stock","Gestionar inventario"]]},
     {id:"team",number:"06",title:"Personal",description:"Empleados, horarios y asistencia",pages:[["personal","Empleados","Gestionar el equipo"],["asistencia","Asistencia","Registro de asistencia"],["horariosPersonal","Horarios","Horarios del personal"],["rendimientoPersonal","Rendimiento","Indicadores del equipo"],["historialPersonal","Historial","Historial del personal"],["ausenciasPersonal","Ausencias","Permisos y ausencias"],["nominaPersonal","Nómina","Control de nómina"],["usuarios","Usuarios y permisos","Crear accesos, asignar cargos y suspender usuarios"]]},
     {id:"reports",number:"07",title:"Reportes",description:"Indicadores e historial del negocio",pages:[["reportes","Reportes","Consultar resultados"],["auditoria","Auditoría","Consultar historial"]]},
-    {id:"settings",number:"08",title:"Configuración",description:"Datos, sucursales y aplicación de clientes",pages:[["configuracion","Datos del negocio","Preferencias y datos"],["branches","Sucursales","Gestionar sucursales"],["clienteConfig","Aplicación de clientes","Personalizar experiencia"]]},
+    {id:"settings",number:"08",title:"Configuración",description:"Datos, sucursales y aplicación de clientes",pages:[["configuracion","Datos del negocio","Preferencias y datos"],["branches","Sucursales","Gestionar sucursales"],["clienteConfig","Aplicación de clientes","Personalizar experiencia"],["ownerSubscription","Mi suscripción","Plan, vencimiento y comprobantes"]]},
     {id:"support",number:"09",title:"Soporte y avisos",description:"Contacta a SAMBRIX",pages:[["notificationsHub","Avisos","Consultar notificaciones"]]}
   ];
   const roles=new Set(["owner","admin","manager","reception","cashier","barber"]);
@@ -21,6 +21,7 @@
   const token=()=>String(window.FirebaseBridge?.user?.uid||"")+":"+String(S()?.session?.businessId||"")+":"+role();
   const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   function permitted(id){
+    if(id==="ownerSubscription")return valid()&&role()==="owner";
     if(id==="usuarios")return valid()&&["owner","admin"].includes(role())&&S()?.featureAllowed?.(id,biz())===true;
     if(!valid()||!$(id)||!S()?.pageAllowed?.(id))return false;
     // Support is independent of the commercial feature matrix. For every operational
@@ -41,6 +42,7 @@
     draw();window.scrollTo({top:0,behavior:"auto"});
   }
   function go(id){
+    if(id==="ownerSubscription"&&permitted(id)){window.SambrixSubscription?.open?.();return;}
     if(id==="usuarios"&&permitted(id)){openMemberWorkspace();return;}
     if(!permitted(id)){window.App?.toast?.("Esta herramienta no está disponible para tu cargo o plan.");return;}
     window.App?.go?.(id);
@@ -116,6 +118,7 @@
     context.textContent=(biz()?.name||"Mi negocio")+" · "+(names[role()]||"");
     nav.querySelector("[data-business-home]").hidden=mode==="menu"&&!g;
     nav.querySelector("[data-business-area]").hidden=mode==="menu"||!g;
+    nav.querySelector("[data-owner-subscription]").hidden=!permitted("ownerSubscription");
     nav.querySelector("[data-business-summary]").hidden=!permitted("inicio")||mode==="page"&&page()==="inicio";
   }
   function draw(){
@@ -165,7 +168,8 @@
     context=e("strong");const home=button("Menú",()=>showMenu());home.dataset.businessHome="";
     const back=button("Volver al área",()=>showMenu(group));back.dataset.businessArea="";
     const overview=button("Resumen",()=>go("inicio"));overview.dataset.businessSummary="";
-    nav.append(context,home,back,overview,button("Soporte",support));
+    const subscription=button("Mi suscripción",()=>go("ownerSubscription"));subscription.dataset.ownerSubscription="";subscription.hidden=true;
+    nav.append(context,home,back,overview,subscription,button("Soporte",support));
     root=e("section","","business-workspace");root.id="businessWorkspace";root.hidden=true;
     headline=e("h1");desc=e("p");search=e("input");search.type="search";search.addEventListener("input",filter);
     grid=e("div","","business-workspace-grid");summary=e("p");summary.setAttribute("role","status");
