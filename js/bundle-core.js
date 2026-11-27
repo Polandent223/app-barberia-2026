@@ -1054,50 +1054,30 @@ App.setBarberPhoto=function(id,file){
   App.compressImageLocal(file,520,.78).then(data=>{App.db.business.clientApp.barberPhotos[id]=data;App.renderBarberPhotoEditor();localStorage.setItem(App.KEY,JSON.stringify(App.db));window.FirebaseBridge?.scheduleImagePush?.();App.toast("Foto actualizada")}).catch(()=>App.toast("No se pudo procesar la foto"));
 };
 
-App.saveClientCustomization=function(){
-  const c=App.db.business.clientApp=App.db.business.clientApp||{};
-  const business=window.SaaS?.currentBusiness?.();
-  const canTheme=window.SaaS?.planCapability?.("customTheme",business)??false;
-  const canCover=window.SaaS?.planCapability?.("coverImage",business)??true;
-
-  c.brandName=App.val("clientBrandName");
-  c.tagline=App.val("clientTagline");
-  c.contactPhone=App.val("clientContactPhone");
-  c.heroTitle=App.val("clientHeroTitle");
-  c.heroSubtitle=App.val("clientHeroSubtitle");
-
-  if(canTheme){
-    c.theme=App.val("clientThemeMode")||"light";
-    c.primary=App.val("clientPrimaryColor")||"#c89a4b";
-    c.secondary=App.val("clientSecondaryColor")||"#111111";
-  }else{
-    c.theme="light";
-  }
-
-  c.whatsapp=App.val("clientWhatsappLink");
-  c.instagram=App.val("clientInstagramLink");
-  c.tiktok=App.val("clientTiktokLink");
-  c.facebook=App.val("clientFacebookLink");
-
-  const logo=App.byId("clientLogoFile")?.files?.[0];
-  const bg=canCover?App.byId("clientBackgroundFile")?.files?.[0]:null;
-
-  const persist=()=>{
-    App.logAction("App Cliente personalizada","App Cliente","DiseÃ±o actualizado");
-    localStorage.setItem(App.KEY,JSON.stringify(App.db));
-    window.SaaS?.saveTenantState?.(window.SaaS?.getContext?.().businessId,App.db);
-    window.FirebaseBridge?.scheduleImagePush?.();
-    App.applyClientCustomization();
-    window.SaaS?.renderBrandingPlanAccess?.();
-    App.renderAll();
-    App.toast("App Cliente actualizada");
-  };
-
-  const jobs=[];
-  if(logo)jobs.push(App.compressImageLocal(logo,420,.80).then(d=>{c.logo=d}));
-  if(bg)jobs.push(App.compressImageLocal(bg,900,.72).then(d=>{c.background=d}));
-
-  Promise.allSettled(jobs).then(persist);
+App.saveClientCustomization=async function(){
+  const S=window.SaaS,C=window.SaaSCloudProduction,role=S?.session?.role,id=S?.session?.businessId,uid=window.FirebaseBridge?.user?.uid;
+  if(!id||!uid||!["owner","admin","manager"].includes(role)||!S.canWriteDomain?.("config")||!C?.isTenantReady?.(id))return App.toast("Primero verifica la conexión y los permisos del negocio.");
+  const current=()=>S.session?.businessId===id&&window.FirebaseBridge?.user?.uid===uid&&C.isTenantReady(id);
+  const btn=App.byId("saveClientCustomizationBtn");if(btn?.disabled)return;if(btn)btn.disabled=true;
+  try{
+    await C.awaitTenantWrites(id);if(!current())throw Error("Cambió la sesión.");
+    const existing=App.db.business?.clientApp||{},draft=App.clone(existing),business=S.currentBusiness?.();
+    const canTheme=S.planCapability?.("customTheme",business)??false,canCover=S.planCapability?.("coverImage",business)??true;
+    for(const [k,field] of [["brandName","clientBrandName"],["tagline","clientTagline"],["contactPhone","clientContactPhone"],["heroTitle","clientHeroTitle"],["heroSubtitle","clientHeroSubtitle"],["whatsapp","clientWhatsappLink"],["instagram","clientInstagramLink"],["tiktok","clientTiktokLink"],["facebook","clientFacebookLink"]])draft[k]=String(App.val(field)||"").trim().slice(0,500);
+    if(canTheme){draft.theme=["light","dark","soft"].includes(App.val("clientThemeMode"))?App.val("clientThemeMode"):"light";for(const [key,field,fallback] of [["primary","clientPrimaryColor","#c89a4b"],["secondary","clientSecondaryColor","#111111"]])draft[key]=/^#[0-9a-f]{6}$/i.test(App.val(field))?App.val(field):fallback;}
+    else{draft.theme="light";draft.primary="#c89a4b";draft.secondary="#111111";}
+    const logo=App.byId("clientLogoFile")?.files?.[0],bg=canCover?App.byId("clientBackgroundFile")?.files?.[0]:null;
+    if(logo)draft.logo=await App.compressImageLocal(logo,320,.72);
+    if(bg)draft.background=await App.compressImageLocal(bg,800,.65);
+    if(!current()||App.db.business.clientApp!==existing)throw Error("La empresa cambió durante la edición. Vuelve a guardar.");
+    App.db.business.clientApp=draft;
+    App.logAction("App Cliente personalizada","App Cliente","Diseño actualizado");
+    if(App.persist()===false){App.db.business.clientApp=existing;throw Error("No se pudo guardar el diseño.");}
+    await C.awaitTenantWrites(id);if(!current())throw Error("No se confirmó el guardado.");
+    await window.NexoPublicCloud.publishCurrentBusiness();if(!current())return;
+    App.applyClientCustomization();App.toast("Diseño guardado y publicado en Firebase.");
+  }catch(e){if(current())App.toast(e.message||"No se pudo publicar el diseño.");}
+  finally{if(btn)btn.disabled=false;}
 };
 
 App.applyClientCustomization=function(){
