@@ -1,4 +1,4 @@
-import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant,stopSaaSCloud,tenantSyncBlocked,tenantSyncBusy,tenantSyncDraftSaved,awaitTenantWrites,waitForTenantCommit,reviewPendingDrafts} from "./saas-cloud.js?v=2.0.11";
+import {cloudBootstrapPlatform,uploadBusinessCatalog,downloadBusinessCatalog,uploadCurrentTenant,uploadTenantState,ensureTenantState,downloadTenant,watchCatalog,watchCurrentTenant,stopSaaSCloud,tenantSyncBlocked,tenantSyncBusy,tenantSyncDraftSaved,awaitTenantWrites,waitForTenantCommit,reviewPendingDrafts} from "./saas-cloud.js?v=2.0.12";
 
 let hooked=false,lastSyncKey="",catalogPushChain=Promise.resolve(),sessionGeneration=0,lastObservedUid="";
 const hydrationPromises=new Map(),hydratedTenants=new Set();
