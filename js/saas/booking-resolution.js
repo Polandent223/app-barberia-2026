@@ -1,6 +1,7 @@
 /* Atomic public booking resolution, using cloud state rather than the browser's copy. */
 import {auth,firestore} from "../firebase/firebase-core.js";
 import {doc,runTransaction,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {safePublicIdentity} from "./client-identity-core.js?v=1";
 import {available,durationOf} from "./client-booking-core.js?v=2.0.8";
 const S=()=>window.SaaS,A=()=>window.App;
 const permitted=()=>["owner","admin","manager","reception"].includes(S()?.session?.role)&&!!auth.currentUser&&S()?.pageAllowed?.("bookingInbox");
@@ -69,7 +70,7 @@ async function resolve(requestId,kind,approve,reason=""){
       const service=config.services?.find(x=>x.id===booking.serviceId);
       if(!service||!durationOf(service)||!Number.isFinite(Number(service.price))||Number(service.price)<0)throw Error("El servicio no tiene precio o duración válidos.");
       if(!available(availability(config,staff,schedule),booking.serviceId,booking.barberId,booking.date,booking.time))throw Error("El horario ya no está disponible.");
-      if(typeof booking.clientUid!=="string"||!booking.clientUid||booking.clientId!=="client_"+booking.clientUid||typeof booking.name!=="string"||booking.name.trim().length<2||typeof booking.phone!=="string"||booking.phone.replace(/\D/g,"").length<7)throw Error("La solicitud no tiene una identidad de cliente válida. Contacta a soporte.");
+      if(typeof booking.clientUid!=="string"||!/^[A-Za-z0-9_-]{1,128}$/.test(booking.clientUid)||booking.clientId!=="client_"+booking.clientUid||!safePublicIdentity(booking.name,booking.phone))throw Error("La solicitud no tiene una identidad de cliente válida. Contacta a soporte.");
       let client=crm.clients.find(c=>c.firebaseUid===booking.clientUid);
       const clientId=booking.clientId||"client_"+booking.clientUid;
       const phone=String(booking.phone).replace(/\D/g,"");
