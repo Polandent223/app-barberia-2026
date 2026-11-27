@@ -33,6 +33,12 @@ service cloud.firestore {
     }
 
     function role(businessId) { return memberDoc(businessId).data.role; }
+    function subscriptionOwner(businessId) {
+      return isBusinessMember(businessId) && role(businessId) == 'owner';
+    }
+    function canReadSubscriptionTerms() {
+      return profileActive() && subscriptionOwner(get(/databases/$(database)/documents/platform_users/$(request.auth.uid)).data.businessId);
+    }
 
     function canManageBusiness(businessId) {
       return isSuperAdmin() || (isBusinessMember(businessId) && role(businessId) in ['owner','admin','manager']);
@@ -193,6 +199,7 @@ service cloud.firestore {
       // All other platform documents remain SuperAdmin-only.
       allow read: if documentId == 'config' && signedIn();
       allow read: if documentId != 'config' && isSuperAdmin();
+      allow get: if documentId == 'subscription_terms' && canReadSubscriptionTerms();
       allow write: if isSuperAdmin();
     }
 
@@ -228,6 +235,23 @@ service cloud.firestore {
           'name','type','branches','brand','updatedAt'
         ]));
       allow delete: if isSuperAdmin();
+
+      // Customer copy of immutable central receipts. No internal notes or operator IDs.
+      match /subscription_receipts/{paymentId} {
+        function validCustomerReceipt(p) {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['businessId','businessName','planId','planName','amountCents','currency','months','paidAt','previousDue','nextDue','method','reference']) &&
+            d.businessId == businessId && d.businessId == p.businessId &&
+            d.businessName == p.businessName && d.planId == p.planId && d.planName == p.planName &&
+            d.amountCents == p.amountCents && d.currency == p.currency && d.months == p.months &&
+            d.paidAt == p.paidAt && d.previousDue == p.previousDue && d.nextDue == p.nextDue &&
+            d.method == p.method && d.reference == p.reference;
+        }
+        allow read: if isSuperAdmin() || subscriptionOwner(businessId);
+        allow create: if isSuperAdmin() && paymentId.matches('^[a-f0-9]{64}$') &&
+          validCustomerReceipt(get(/databases/$(database)/documents/commercial_payments/$(paymentId)).data);
+        allow update, delete: if false;
+      }
 
       match /members/{uid} {
         allow read: if isSuperAdmin() || (signedIn() && request.auth.uid == uid) || canManageBusiness(businessId);
