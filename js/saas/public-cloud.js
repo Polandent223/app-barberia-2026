@@ -25,6 +25,7 @@ function publicSnapshot(){
     branding:{
       brandName:client.brandName||b.name,
       tagline:client.tagline||"",
+      clientHistory:SaaS.planCapability?.("clientHistory",b)===true,
       contactPhone:client.contactPhone||"",
       heroTitle:client.heroTitle||"",
       heroSubtitle:client.heroSubtitle||"",
