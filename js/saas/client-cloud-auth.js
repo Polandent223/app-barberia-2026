@@ -5,7 +5,7 @@ import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,create
 import {getFirestore,doc,getDoc,getDocFromServer,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 import {available,dayValid,minute} from "./client-booking-core.js?v=2.0.8";
-import {activationCode} from "./client-identity-core.js?v=1";
+import {activationCode,safePublicIdentity} from "./client-identity-core.js?v=1";
 
 const appName="sambrix-client-auth";
 const clientApp=getApps().find(a=>a.name===appName)||initializeApp(firebaseConfig,appName);
@@ -72,7 +72,8 @@ function rerender(){
 async function register(name,phone,pin){
   const businessId=bid(),p=normPhone(phone);
   if(!businessId)throw new Error("Negocio no identificado");
-  if(name?.trim().length<2||name.trim().length>120||p.length<7||p.length>20||String(phone||"").trim().length>30)throw new Error("Escribe nombre y WhatsApp válido");
+  name=String(name||"").trim().replace(/\x27/g,"’");phone=String(phone||"").trim();
+  if(!safePublicIdentity(name,phone))throw new Error("Escribe un nombre y WhatsApp válidos.");
   if(!/^\d{8}$/.test(pin))throw new Error("Por seguridad, el PIN nuevo debe tener 8 números");
   const c=await createUserWithEmailAndPassword(auth,authEmail(businessId,p),pin);
   const clientId=`client_${c.user.uid}`;
