@@ -147,7 +147,7 @@ async function openStaff(){
   const subject=node("input");subject.maxLength=120;
   const description=node("textarea");description.maxLength=2000;description.rows=4;
   const priority=select(["Normal","Alta","Urgente"],"Normal");
-  body.append(node("p","","Envía una solicitud a SAMBRIX. No incluyas contraseñas ni datos sensibles de clientes."),field("Asunto",subject),field("Descripción",description),field("Prioridad",priority));
+  body.append(node("p","","Envía una solicitud a SAMBRIX mediante Firebase. Solo se considera enviada cuando aparece la confirmación del servidor. No incluyas contraseñas ni datos sensibles de clientes."),field("Asunto",subject),field("Descripción",description),field("Prioridad",priority));
   const history=node("div","cloud-detail");
   const reload=async()=>{history.replaceChildren();message(history,"Consultando solicitudes…");try{const rows=await listCases(id);if(uid()!==owner||businessId()!==id||!staffDialog.d.open)return;history.replaceChildren();history.append(node("h3","",["owner","admin","manager"].includes(window.SaaS?.session?.role)?"Solicitudes de tu empresa":"Tus solicitudes"));for(const t of rows)history.append(ticketCard(t));if(!rows.length)message(history,"Todavía no hay solicitudes.");}catch(e){if(uid()!==owner||businessId()!==id)return;history.replaceChildren();message(history,"No se pudieron consultar las solicitudes.","error");}};
   const send=button("Enviar a SAMBRIX",()=>busy(send,async()=>{if(uid()!==owner||businessId()!==id||admin())return;const s=subject.value.trim(),d=description.value.trim();if(s.length<3||d.length<10){toast("Completa el asunto y la descripción.");return;}await addDoc(collection(firestore,"support_cases"),{businessId:id,subject:s,description:d,priority:priority.value,status:"Abierto",createdBy:owner,createdAt:serverTimestamp()});if(uid()!==owner||businessId()!==id)return;subject.value="";description.value="";toast("Solicitud recibida en Firebase.");await reload();}),"primary");
@@ -169,15 +169,24 @@ function boot(){
   layout.append(left,right);root.append(layout);message(root,"Los tickets antiguos guardados únicamente en el navegador no se importan automáticamente.");
   const S=window.SaaS;
   // Replace the old local-only submission and unsafe legacy support entries.
-  S.openSupportTicket=()=>admin()?goSupport():openStaff();
-  S.createSupportTicket=()=>openStaff();
+  const open=()=>{if(!auth.currentUser||!S.session||S.session.role==="guest"){toast("Inicia sesión antes de consultar soporte.");return;}return admin()?goSupport():openStaff();};
+  window.SambrixCloudSupport={open};
+  S.openSupportTicket=open;
+  S.createSupportTicket=open;
   S.startSupport=id=>{if(admin())openCompany(id);};
   S.enterSupportMode=id=>{if(admin())openCompany(id);};
   // Legacy suspension controls were local-only. Route all manual access changes through the audited cloud control.
   for(const name of ["suspendBusiness","toggleBusinessStatus","suspendBilling","reactivateBilling"]){
     S[name]=id=>{if(admin()){toast("Usa el control de acceso de la ficha de empresa.");openCompany(id);}};
   }
-  const top=$("openSupportTicketBtn");top?.addEventListener("click",e=>{e.preventDefault();e.stopImmediatePropagation();S.openSupportTicket();},true);
+  document.addEventListener("click",e=>{
+    const b=e.target.closest?.("#openSupportTicketBtn,#newSupportTicketBtn,#saveSupportTicket,#saveSupportTicketBtn,#refreshSupportBtn");
+    if(!b)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(b.id==="refreshSupportBtn"&&admin())return refreshAdmin();
+    if(b.id==="saveSupportTicket"||b.id==="saveSupportTicketBtn"){toast("El formulario anterior no envía solicitudes. Usa el formulario de Soporte SAMBRIX.");return;}
+    open();
+  },true);
   // Add a company detail action after each existing table refresh.
   const table=$("saasBusinessTable");
   if(table){const addLinks=()=>{if(!admin())return;for(const row of table.querySelectorAll("tbody tr")){if(row.querySelector("[data-cloud-ficha]"))continue;const old=row.querySelector('button[onclick*="SaaS.openMembers"]');const id=old?.getAttribute("onclick")?.match(/openMembers\('([^']+)'\)/)?.[1];if(!id)continue;const b=button("Ficha",()=>openCompany(id));b.dataset.cloudFicha="1";old.parentElement.append(b);}};new MutationObserver(addLinks).observe(table,{childList:true,subtree:true});addLinks();}
