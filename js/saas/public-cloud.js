@@ -2,6 +2,8 @@
 import {firestore,doc,getDoc,setDoc,onSnapshot,serverTimestamp} from "../firebase/firebase-core.js";
 import {updateDoc,deleteDoc,collection,addDoc} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
+import {designOptions} from "./client-design.js?v=1";
+
 function publicProfessionals(A){
   return (A.db.barbers||[]).map(x=>{
     const employee=(A.db.employees||[]).find(e=>e.barberId===x.id);
@@ -23,6 +25,7 @@ function publicSnapshot(){
     timezone:b.timezone||"",
     branch:{id:br?.id||"",name:br?.name||"",city:br?.city||"",address:br?.address||"",whatsapp:br?.whatsapp||""},
     branding:{
+      ...designOptions(client,canTheme),
       brandName:client.brandName||b.name,
       tagline:client.tagline||"",
       clientHistory:SaaS.planCapability?.("clientHistory",b)===true,
