@@ -16,11 +16,22 @@ function route(next){mode=next;if(next==="book"&&!service)step=1;render();}
 function title(s,p=""){content.append(el("h2",s));if(p)content.append(el("p",p,"client-v2-muted"));}
 function safePhoto(url){if(typeof url!=="string"||!url.trim())return "";if(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(url))return url;try{const u=new URL(url);return u.protocol==="https:"?u.href:"";}catch{return "";}}
 function choice(name,detail,selected,fn,photo=""){const b=button("",fn,"client-v2-choice");b.setAttribute("aria-pressed",String(selected));if(selected)b.classList.add("chosen");const u=safePhoto(photo);if(u){const img=el("img");img.src=u;img.alt="";img.loading="lazy";img.addEventListener("error",()=>img.remove(),{once:true});b.append(img);}const t=el("span");t.append(el("strong",name),el("small",detail));b.append(t);return b;}
-function headerRender(){header.replaceChildren();const brand=data?.branding||{},logo=safePhoto(brand.logo);if(/^#[0-9a-f]{6}$/i.test(brand.secondary||""))header.style.background=brand.secondary;else header.style.background="";if(logo){const img=el("img");img.src=logo;img.alt="Logo";header.append(img);}const copy=el("div");copy.append(el("strong",brand.brandName||data?.name||"SAMBRIX"),el("small",data?.branch?.name||"Reservas en línea"));header.append(copy);}
+function color(value,fallback){return /^#[0-9a-f]{6}$/i.test(value||"")?value:fallback;}
+function ink(hex){const values=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);const luminance=.2126*values[0]+.7152*values[1]+.0722*values[2];return luminance>.179?"#111111":"#ffffff";}
+function headerRender(){
+ header.replaceChildren();const brand=data?.branding||{},logo=safePhoto(brand.logo),primary=color(brand.primary,"#c89a4b"),secondary=color(brand.secondary,"#142d40");
+ document.body.dataset.clientTheme=["light","dark","soft"].includes(brand.theme)?brand.theme:"light";
+ for(const [key,val] of Object.entries({"--client-v2-primary":primary,"--client-v2-primary-ink":ink(primary),"--client-v2-secondary":secondary,"--client-v2-secondary-ink":ink(secondary)}))document.body.style.setProperty(key,val);
+ if(logo){const img=el("img");img.src=logo;img.alt="Logo";header.append(img);}
+ const copy=el("div");copy.append(el("strong",brand.brandName||data?.name||"SAMBRIX"),el("small",brand.tagline||data?.branch?.name||"Reservas en línea"));header.append(copy);
+}
+function socialLink(value,hosts){
+ try{const u=new URL(value);return u.protocol==="https:"&&!u.username&&!u.password&&hosts.some(h=>u.hostname===h||u.hostname.endsWith("."+h))?u.href:"";}catch{return "";}
+}
 async function refresh(quiet=false){const gen=++requestGeneration;try{const p=await cloud().verifiedAvailability(id);if(gen!==requestGeneration)return false;data=p;if(!date)date=clock(data.timezone).date;if(!quiet)render();return true;}catch(e){if(gen!==requestGeneration)return false;data=null;render();message(e.message||"No pudimos verificar la agenda.",true);return false;}}
 async function action(btn,fn){if(busy)return;busy=true;btn.disabled=true;try{await fn();}catch(e){message(String(e?.message||"No se pudo completar."),true);}finally{busy=false;if(btn.isConnected)btn.disabled=false;}}
 function accountForm(){
-  title(authMode==="login"?"Entra a tu cuenta":"Crea tu cuenta","Usa tu número de WhatsApp y un PIN. No se envía un código SMS.");
+  title(authMode==="login"?"Entra a tu cuenta":"Activa tu cuenta","Usa tu número de WhatsApp y un PIN de 8 números. Si ya tienes una ficha en el negocio, solicita su vinculación después de registrarte. No se envía un SMS.");
   const form=el("form"),phone=input("tel","Ej. +58 412 1234567"),pin=input("password","PIN"),name=input("text","Nombre completo"),repeat=input("password","Repite el PIN");
   phone.autocomplete="tel";phone.required=true;pin.required=true;pin.inputMode="numeric";pin.autocomplete=authMode==="login"?"current-password":"new-password";pin.maxLength=8;
   if(authMode!=="login"){name.required=true;name.maxLength=120;name.autocomplete="name";form.append(field("Nombre",name));}
@@ -38,7 +49,13 @@ function renderHome(){
   const brand=data.branding||{},cover=safePhoto(brand.background);if(cover){const img=el("img");img.src=cover;img.alt="Portada del negocio";img.style.cssText="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:12px";content.append(img);}title(brand.heroTitle||"Reserva tu próxima cita",brand.heroSubtitle||"Elige un servicio y encuentra un horario disponible.");
   content.append(button("Reservar ahora",()=>{step=1;route("book");},"primary"));
   const g=el("div","","client-v2-grid");for(const s of data.services||[])g.append(choice(s.name||"Servicio",String(s.duration||"")+" min · "+money(s.price),false,()=>{service=s.id;professional="";time="";step=2;route("book");},s.photo));content.append(el("h3","Servicios"),g);
-  const phone=String(data.branch?.whatsapp||brand.whatsapp||"").replace(/\D/g,"");if(phone.length>=8&&phone.length<=15){const a=el("a","Contactar por WhatsApp","btn secondary");a.href="https://wa.me/"+phone;a.rel="noopener noreferrer";a.target="_blank";content.append(a);}
+  const promotions=Array.isArray(brand.promotions)?brand.promotions.slice(0,20):[];
+  if(promotions.length){content.append(el("h3","Promociones"));const grid=el("div","","client-v2-grid");for(const p of promotions){if(!p||typeof p!=="object")continue;const card=el("article","","client-v2-record client-v2-promotion");card.append(el("strong",String(p.title||"Promoción")),el("p",String(p.text||"")));grid.append(card);}content.append(grid);}
+  const raw=String(brand.contactPhone||data.branch?.whatsapp||"").trim(),phone=raw.replace(/\D/g,"");
+  const whatsapp=socialLink(brand.whatsapp,["wa.me","whatsapp.com"])||(/^[+\d\s().-]+$/.test(raw)&&phone.length>=8&&phone.length<=15?"https://wa.me/"+phone:"");
+  const social=el("div","","client-v2-social");
+  for(const [label,url] of [["WhatsApp",whatsapp],["Instagram",socialLink(brand.instagram,["instagram.com"])],["TikTok",socialLink(brand.tiktok,["tiktok.com"])],["Facebook",socialLink(brand.facebook,["facebook.com","fb.com"])]]){if(!url)continue;const a=el("a",label,"btn secondary");a.href=url;a.rel="noopener noreferrer";a.target="_blank";social.append(a);}
+  if(social.children.length){content.append(el("h3","Contacto y redes"),social);}
 }
 function renderBook(){
   const s=data.services?.find(x=>x.id===service),p=data.barbers?.find(x=>x.id===professional);
@@ -88,7 +105,13 @@ function renderAppointments(){
 }
 function renderProfile(){
   title("Mi cuenta");if(!cloud()?.isReady()){content.append(el("p","Verificando cuenta…"));return;}
-  const c=cloud().currentClient();if(!c){accountForm();return;}content.append(el("strong",c.name),el("p",c.phone),el("p",`${c.points||0} puntos · ${c.visits||0} visitas`));const out=button("Cerrar sesión",()=>action(out,async()=>{await cloud().logout();bookingId="";route("home");message("Sesión cerrada.");}));content.append(out);
+  const c=cloud().currentClient();if(!c){accountForm();return;}
+  const profile=el("article","","client-v2-record client-v2-profile");profile.append(el("strong",c.name),el("p",c.phone),el("strong",(c.points||0)+" puntos · "+(c.visits||0)+" visitas"));if(c.lastVisit)profile.append(el("p","Última visita: "+c.lastVisit));content.append(profile);
+  if(!c.linkVerified){const box=el("article","","client-v2-record");box.append(el("strong","Vincular historial anterior"),el("p","Si ya tenías una ficha en este negocio, confirma tu identidad con el personal y muéstrale este código. No compartas tu PIN."),el("strong",c.activationCode||""));content.append(box);}
+  content.append(el("h3","Historial de servicios"));
+  for(const h of c.serviceHistory||[]){const card=el("article","","client-v2-record");card.append(el("strong",h.service||"Servicio"),el("p",[h.date,h.time,h.professional].filter(Boolean).join(" · ")));content.append(card);}
+  if(!c.serviceHistory?.length)content.append(el("p","Todavía no tienes servicios sincronizados.","client-v2-muted"));
+  const out=button("Cerrar sesión",()=>action(out,async()=>{await cloud().logout();bookingId="";route("home");message("Sesión cerrada.");}));content.append(out);
 }
 function render(){if(!root||!root.isConnected)return;headerRender();content.replaceChildren();for(const b of nav.children)b.setAttribute("aria-current",String(b.dataset.view===mode));if(!allowed()){title("Reservas no disponibles","Contacta directamente con el negocio o vuelve a intentar.");content.append(button("Reintentar",()=>refresh()));return;}if(mode==="home")renderHome();else if(mode==="book")renderBook();else if(mode==="appointments")renderAppointments();else renderProfile();}
 async function boot(){
