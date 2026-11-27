@@ -2152,7 +2152,7 @@ SaaS.planTier=function(subject){
 SaaS.licenseFor=function(b){
  const plan=SaaS.getPlan(b.planId),tier=SaaS.planTier(plan),limits=SaaS.PLAN_LIMITS[tier];
  const state=SaaS.billingState?.(b)||"Activa";
- const blocked=["Vencida","Suspendida"].includes(state);
+ const blocked=b.accessSuspended===true||["suspendido","suspended","inactivo","inactive","bloqueado","blocked"].includes(String(b.status||"").toLowerCase());
  const tenant=SaaS.loadTenantState?.(b.id)||{};
  const branches=(b.branches||[]).length;
  const staff=(tenant.employees||tenant.barbers||[]).length;
