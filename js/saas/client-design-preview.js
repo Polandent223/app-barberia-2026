@@ -9,7 +9,7 @@ function snapshot(){
  for(const [k,id] of [["brandName","clientBrandName"],["tagline","clientTagline"],["contactPhone","clientContactPhone"],["heroTitle","clientHeroTitle"],["heroSubtitle","clientHeroSubtitle"],["whatsapp","clientWhatsappLink"],["instagram","clientInstagramLink"],["tiktok","clientTiktokLink"],["facebook","clientFacebookLink"]])branding[k]=val(id);
  branding.theme=advanced?val("clientThemeMode"):"light";branding.primary=advanced?val("clientPrimaryColor"):"#c89a4b";branding.secondary=advanced?val("clientSecondaryColor"):"#111111";
  branding.logo=c.logo||"";branding.background=c.background||"";
- branding.promotions=s.planCapability?.("promotions",b)?(c.promotions||[]).map(p=>({title:p.title,text:p.text})):[];
+ branding.promotions=s.planCapability?.("promotions",b)?(a.clientDesignPromotions?.()||c.promotions||[]).map(p=>({title:p.title,text:p.text})):[];
  return {name:b.name,branch:s.currentBranch?.(),branding,services:(a.db.services||[]).map(({id,name,price,duration,description,photo})=>({id,name,price,duration,description,photo})),barbers:(a.db.barbers||[]).map(({id,name})=>({id,name}))};
 }
 function btn(label,fn){const x=el("button",label,"btn secondary");x.type="button";x.onclick=fn;return x;}
