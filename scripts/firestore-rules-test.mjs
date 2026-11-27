@@ -40,6 +40,9 @@ test("tenant cannot access another business or a suspended business",async()=>{
 test("tenant cannot change commercial plan or lift suspension",async()=>{
   await assertFails(updateDoc(path(actor("owner"),"businesses","one"),{planId:"plan-premium"}));
   await assertFails(updateDoc(path(actor("locked"),"businesses","blocked"),{accessSuspended:false}));
+  await assertFails(setDoc(path(actor("owner"),"platform","commercial_policy"),{graceDays:30,autoSuspend:false}));
+  await assertFails(getDoc(path(actor("owner"),"platform","commercial_contact_one")));
+  await assertFails(updateDoc(path(actor("owner"),"businesses","one"),{commercialHold:false,commercialAutoEligible:true}));
 });
 test("admin cannot promote another user to admin",async()=>{
   await assertFails(updateDoc(member(actor("admin"),"one","cashier"),{role:"admin"}));
