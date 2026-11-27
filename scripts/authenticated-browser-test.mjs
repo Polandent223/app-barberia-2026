@@ -322,4 +322,21 @@ test("commercial center: grace policy, reminder, verified payment, suspension an
   assert.deepEqual((await seed.db.doc("businesses/"+SECOND+"/state/crm").get()).data().payload,crmBefore);assert.deepEqual((await seed.db.doc("businesses/"+BUSINESS).get()).data(),firstBefore);
  }finally{page.off("dialog",accept);await context.close();}
 });
+test("scheduled collection review remains off by default, rechecks eligibility and is idempotent",{timeout:60000},async()=>{
+ const {createRequire}=await import("node:module"),require=createRequire(new URL("../functions/package.json",import.meta.url));
+ const {FieldValue}=require("firebase-admin/firestore"),{suspendOverdueBusinesses}=await import("../functions/commercial-suspension.js");
+ const db=seed.db,at=new Date("2026-11-28T12:00:00Z"),cfg=db.doc("platform/config"),policy=db.doc("platform/commercial_policy"),catalog=db.doc("platform/business_catalog");
+ const [cs,ps,ls]=await Promise.all([cfg.get(),policy.get(),catalog.get()]);
+ const entries=[{id:"qa-auto-due",nextPayment:"2026-11-24"},{id:"qa-auto-grace",nextPayment:"2026-11-25"},{id:"qa-auto-admin",nextPayment:"2026-11-24",accessSuspended:true},{id:"qa-auto-unreviewed",nextPayment:"2026-11-24",commercialAutoEligible:false}].map(b=>({status:"Activo",commercialManaged:true,commercialAutoEligible:true,accessSuspended:false,...b}));
+ const batch=db.batch();for(const b of entries){batch.set(db.doc("businesses/"+b.id),b);batch.set(db.doc("public_businesses/"+b.id),{status:"Activo"});batch.set(db.doc("businesses/"+b.id+"/state/crm"),{payload:{clients:[{id:"preserved"}]}});}
+ batch.update(catalog,{businesses:[...ls.data().businesses,...entries]});batch.set(policy,{graceDays:3,autoSuspend:true},{merge:true});batch.set(cfg,{commercialAutomationEnabled:false},{merge:true});await batch.commit();
+ try{
+  assert.deepEqual(await suspendOverdueBusinesses(db,()=>FieldValue.serverTimestamp(),at),{enabled:false,suspended:0});
+  await cfg.update({commercialAutomationEnabled:true});
+  assert.deepEqual(await suspendOverdueBusinesses(db,()=>FieldValue.serverTimestamp(),at),{enabled:true,suspended:1,failed:0});
+  assert.deepEqual(await suspendOverdueBusinesses(db,()=>FieldValue.serverTimestamp(),at),{enabled:true,suspended:0,failed:0});
+  for(const b of entries){const current=(await db.doc("businesses/"+b.id).get()).data();assert.equal(current.commercialHold===true,b.id==="qa-auto-due");assert.equal(current.accessSuspended,b.id==="qa-auto-due"||b.accessSuspended);assert.deepEqual((await db.doc("businesses/"+b.id+"/state/crm").get()).data().payload,{clients:[{id:"preserved"}]});}
+  const events=await db.collection("support_access_events").where("businessId","==","qa-auto-due").get();assert.equal(events.size,1);
+ }finally{await cfg.set(cs.data());if(ps.exists)await policy.set(ps.data());else await policy.delete();await catalog.set(ls.data());}
+});
 test.after(async()=>{await browser.close();await qa.close();await seed.close();assert.deepEqual(external,[],"No se permite conexión fuera de loopback");assert.deepEqual(failures,[],"Errores JS de la interfaz");});
