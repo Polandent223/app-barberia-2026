@@ -7,7 +7,7 @@
     {id:"services",number:"03",title:"Servicios",description:"Servicios, precios y profesionales",pages:[["servicios","Catálogo de servicios","Servicios y precios"],["barberos","Profesionales","Equipo de atención"]]},
     {id:"cash",number:"04",title:"Caja y ventas",description:"Movimientos y comprobantes",pages:[["caja","Caja","Ingresos, egresos y ventas"],["recibos","Comprobantes","Consultar recibos"],["autorizaciones","Autorizaciones","Revisar operaciones pendientes"]]},
     {id:"stock",number:"05",title:"Inventario",description:"Productos y existencias",pages:[["inventario","Productos y stock","Gestionar inventario"]]},
-    {id:"team",number:"06",title:"Personal",description:"Empleados, horarios y asistencia",pages:[["personal","Empleados","Gestionar el equipo"],["asistencia","Asistencia","Registro de asistencia"],["horariosPersonal","Horarios","Horarios del personal"],["rendimientoPersonal","Rendimiento","Indicadores del equipo"],["historialPersonal","Historial","Historial del personal"],["ausenciasPersonal","Ausencias","Permisos y ausencias"],["nominaPersonal","Nómina","Control de nómina"],["usuarios","Usuarios y roles","Permisos de acceso"]]},
+    {id:"team",number:"06",title:"Personal",description:"Empleados, horarios y asistencia",pages:[["personal","Empleados","Gestionar el equipo"],["asistencia","Asistencia","Registro de asistencia"],["horariosPersonal","Horarios","Horarios del personal"],["rendimientoPersonal","Rendimiento","Indicadores del equipo"],["historialPersonal","Historial","Historial del personal"],["ausenciasPersonal","Ausencias","Permisos y ausencias"],["nominaPersonal","Nómina","Control de nómina"],["usuarios","Usuarios y permisos","Crear accesos, asignar cargos y suspender usuarios"]]},
     {id:"reports",number:"07",title:"Reportes",description:"Indicadores e historial del negocio",pages:[["reportes","Reportes","Consultar resultados"],["auditoria","Auditoría","Consultar historial"]]},
     {id:"settings",number:"08",title:"Configuración",description:"Datos, sucursales y aplicación de clientes",pages:[["configuracion","Datos del negocio","Preferencias y datos"],["branches","Sucursales","Gestionar sucursales"],["clienteConfig","Aplicación de clientes","Personalizar experiencia"]]},
     {id:"support",number:"09",title:"Soporte y avisos",description:"Contacta a SAMBRIX",pages:[["notificationsHub","Avisos","Consultar notificaciones"]]}
@@ -21,6 +21,7 @@
   const token=()=>String(window.FirebaseBridge?.user?.uid||"")+":"+String(S()?.session?.businessId||"")+":"+role();
   const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   function permitted(id){
+    if(id==="usuarios")return valid()&&["owner","admin"].includes(role())&&S()?.featureAllowed?.(id,biz())===true;
     if(!valid()||!$(id)||!S()?.pageAllowed?.(id))return false;
     // Support is independent of the commercial feature matrix. For every operational
     // page use the existing plan policy, rather than inventing new entitlements.
@@ -40,11 +41,72 @@
     draw();window.scrollTo({top:0,behavior:"auto"});
   }
   function go(id){
+    if(id==="usuarios"&&permitted(id)){openMemberWorkspace();return;}
     if(!permitted(id)){window.App?.toast?.("Esta herramienta no está disponible para tu cargo o plan.");return;}
     window.App?.go?.(id);
     if(page()===id){mode="page";root.hidden=true;app.dataset.businessWorkspaceView="page";lastPage=id;updateNav();window.scrollTo({top:0,behavior:"auto"});}
   }
   function support(){if(valid())S()?.openSupportTicket?.();}
+  // Real Firebase memberships, independent of the old local PIN directory.
+  function openMemberWorkspace(){
+    if(!permitted("usuarios"))return;
+    const api=window.SaaSAuthAdmin,id=String(S().session.businessId),actor=window.FirebaseBridge.user.uid,sessionKey=token();
+    if(!api?.setBusinessMemberActive){window.App?.toast?.("La gestión de accesos todavía no está disponible.");return;}
+    if($("tenantMembersDialog"))return;
+    const dialog=e("dialog");dialog.id="tenantMembersDialog";dialog.className="panel";
+    dialog.style.cssText="width:min(680px,94vw);max-height:85vh;overflow:auto;border:1px solid #b7b7b7;border-radius:16px;padding:20px;background:var(--panel,#fff);color:var(--text,#222)";
+    const top=e("div","","panel-head");top.append(e("h2","Usuarios y permisos"),button("Cerrar",()=>dialog.close(),"btn secondary"));
+    const intro=e("p","Gestiona los accesos de "+(biz()?.name||"tu empresa")+". Las cuentas de acceso son independientes de las fichas de empleados y de asistencia.","muted");
+    const allowed=["manager","reception","cashier","barber"];if(role()==="owner")allowed.unshift("admin");
+    const roleText={admin:"Administrador",manager:"Gerente",reception:"Recepcionista",cashier:"Cajero",barber:"Profesional",owner:"Propietario"};
+    const descriptions={admin:"Administración operativa y gestión de personal, excepto otros administradores.",manager:"Supervisión de operaciones, caja, inventario y equipo.",reception:"Agenda, clientes, reservas y caja según permisos existentes.",cashier:"Caja, comprobantes, clientes e inventario según permisos existentes.",barber:"Agenda, clientes y asistencia; sin acceso a caja."};
+    const form=e("form","","panel"),fields=e("div","","form-grid"),status=e("p");status.setAttribute("role","status");
+    const input=(title,type)=>{const label=e("label",title),x=e("input");x.type=type;x.required=true;label.append(x);fields.append(label);return x;};
+    const name=input("Nombre","text"),email=input("Correo","email"),password=input("Contraseña inicial","password");password.minLength=8;password.autocomplete="new-password";
+    const roleLabel=e("label","Cargo"),select=e("select");select.id="tenantMemberRole";
+    function options(target,values){for(const value of values){const o=e("option",roleText[value]);o.value=value;target.append(o);}}
+    options(select,allowed);roleLabel.append(select);fields.append(roleLabel);
+    const preview=e("p",descriptions[select.value],"muted");select.addEventListener("change",()=>preview.textContent=descriptions[select.value]);
+    const submit=e("button","Crear acceso","btn primary");submit.type="submit";form.append(e("h3","Nuevo usuario"),fields,preview,submit);
+    const list=e("div","","stack"),search=e("input");search.type="search";search.placeholder="Buscar por nombre o correo";search.setAttribute("aria-label","Buscar usuarios");
+    let rows=[],busy=false;
+    const current=()=>dialog.isConnected&&token()===sessionKey&&permitted("usuarios");
+    const info=e("p","Suspender un acceso no elimina empleados, citas ni historial. Si SAMBRIX suspendió la cuenta a nivel de plataforma, contacta a soporte para reactivarla.","muted");
+    function render(){
+      if(!current())return;list.replaceChildren();
+      const q=norm(search.value);
+      for(const m of rows.filter(m=>norm([m.name,m.email,roleText[m.role]].join(" ")).includes(q))){
+        const row=e("div","","panel");const details=e("div");
+        details.append(e("strong",m.name||m.email||"Usuario"),e("p",(m.email||"")+" · "+(roleText[m.role]||m.role)+" · "+(m.active===false?"Suspendido":"Habilitado"),"muted"));
+        row.append(details);
+        if(m.uid!==actor&&m.role!=="owner"&&(role()==="owner"||m.role!=="admin")&&allowed.includes(m.role)){
+          const actions=e("div","","actions"),change=e("select");options(change,allowed);change.value=m.role;change.setAttribute("aria-label","Cargo de "+(m.name||m.email));
+          const save=button("Cambiar cargo",()=>{if(change.value!==m.role&&confirm("¿Cambiar el cargo? El usuario deberá iniciar sesión nuevamente."))work(()=>api.changeBusinessMemberRole(id,m.uid,change.value),"Cargo actualizado.");},"btn secondary");
+          const active=button(m.active===false?"Reactivar":"Suspender acceso",()=>{if(confirm(m.active===false?"¿Reactivar este acceso?":"¿Suspender este acceso sin eliminar historial?"))work(()=>api.setBusinessMemberActive(id,m.uid,m.active===false),"Estado actualizado.");},m.active===false?"btn secondary":"btn danger");
+          for(const x of [change,save,active])x.disabled=busy;actions.append(change,save,active);row.append(actions);
+        }else row.append(e("small","Acceso protegido","muted"));
+        list.append(row);
+      }
+      if(!list.children.length)list.append(e("p","No hay usuarios que coincidan.","muted"));
+    }
+    async function reload(){
+      const result=await api.listBusinessMembers(id);if(!current())return;
+      rows=result;render();
+    }
+    async function work(action,message){
+      if(busy||!current())return;busy=true;submit.disabled=true;refresh.disabled=true;render();status.textContent="Verificando en Firebase…";
+      try{await action();if(!current())return;status.textContent=message;await reload();}
+      catch(err){if(current())status.textContent="No se pudo completar o verificar: "+(err?.message||"Revisa la conexión y los permisos.");}
+      finally{busy=false;if(current()){submit.disabled=false;refresh.disabled=false;render();}}
+    }
+    form.addEventListener("submit",ev=>{ev.preventDefault();if(!form.reportValidity())return;const values={businessId:id,name:name.value.trim(),email:email.value.trim(),password:password.value,role:select.value};if(!values.name){status.textContent="Escribe el nombre.";return;}work(async()=>{try{await api.createBusinessMember(values);if(current()){name.value="";email.value="";}}finally{password.value="";values.password="";}},"Acceso creado en Firebase.");});
+    search.addEventListener("input",render);const refresh=button("Actualizar usuarios",()=>work(async()=>{},"Usuarios consultados en Firebase."),"btn secondary");
+    dialog.append(top,intro,form,status,e("h3","Accesos registrados"),search,refresh,list,info);
+    document.body.append(dialog);dialog.showModal();
+    const watcher=setInterval(()=>{if(!current()&&dialog.open)dialog.close();},400);
+    dialog.addEventListener("close",()=>{clearInterval(watcher);password.value="";rows=[];dialog.remove();},{once:true});
+    work(async()=>{},"Usuarios consultados en Firebase.");
+  }
   function tile(number,title,description,action,terms=""){
     const b=button("",action,"business-tile"),badge=e("span",number,"business-tile-mark"),copy=e("span");
     badge.setAttribute("aria-hidden","true");copy.append(e("strong",title),e("small",description));b.append(badge,copy);b.dataset.search=norm(title+" "+description+" "+terms);return b;
