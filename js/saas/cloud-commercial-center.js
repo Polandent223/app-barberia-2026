@@ -2,6 +2,10 @@
 import {auth,firestore,onAuthStateChanged} from "../firebase/firebase-core.js";
 import {doc,collection,getDocFromServer,getDocsFromServer,query,where,runTransaction,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import {cents,validDay,todayLocal,renewalDate,paymentAmount,commercialState,billingPolicy,daysToDue,eligibleForCollectionHold,monthlyLedger} from "./commercial-core.js?v=2.0.6";
+import {customerReceipt,customerTerms,planName,PAYMENT_METHODS} from "./subscription-core.js?v=1";
+import {receiptCard,receiptActions} from "./subscription-receipt.js?v=1";
+const termsRef=()=>doc(firestore,"platform","subscription_terms");
+let customerSettings=null;
 const admin=()=>!!auth.currentUser&&window.SaaS?.session?.role==="superadmin";
 const uid=()=>auth.currentUser?.uid||"";
 const catalog=()=>doc(firestore,"platform","business_catalog");
@@ -9,7 +13,8 @@ const policyRef=()=>doc(firestore,"platform","commercial_policy");
 const contactRef=id=>doc(firestore,"platform","commercial_contact_"+id);
 let policy=billingPolicy(),policyVerified=false,contacts=new Map();
 const companyRef=id=>doc(firestore,"businesses",id);
-const METHODS=["Transferencia","Pago móvil","Zelle","USDT","Efectivo","Otro"];
+const METHODS=PAYMENT_METHODS;
+const enabledMethods=()=>customerTerms([],policy,customerSettings||{}).methods;
 const $=id=>document.getElementById(id);
 const el=(tag,text="",cls="")=>{const x=document.createElement(tag);x.textContent=text;if(cls)x.className=cls;return x;};
 const button=(label,fn,cls="secondary")=>{const x=el("button",label,"btn "+cls);x.type="button";x.addEventListener("click",fn);return x;};
@@ -45,12 +50,12 @@ function render(){
   const shown=rows.filter(b=>(!q||normalize([b.name,b.owner,b.ownerEmail,b.id].join(" ")).includes(q))&&(!filter.value||commercialState(b,today,policy)===filter.value));
   const cards=$("commercialCounts");cards.replaceChildren();
   for(const [label,count] of [["Al día",rows.filter(b=>commercialState(b,today,policy)==="Al día").length],["Por vencer",rows.filter(b=>commercialState(b,today,policy)==="Por vencer").length],["En gracia",rows.filter(b=>commercialState(b,today,policy)==="En gracia").length],["Vencidas",rows.filter(b=>commercialState(b,today,policy)==="Vencida").length],["Bloqueadas",rows.filter(b=>commercialState(b,today,policy)==="Bloqueada").length]]){const box=el("div","","cloud-value");box.append(el("span",label),el("strong",String(count)));cards.append(box);}
-  for(const b of shown){const card=el("article","","cloud-ticket"),h=el("div","","cloud-ticket-head");h.append(el("strong",b.name||b.id),el("span",commercialState(b,today,policy),"cloud-status"));const p=currentPlan(b.planId);card.append(h,el("p",(p?.name||"Sin plan")+" · "+(p?money(cents(p.price))+"/mes":"Precio pendiente")+" · Vence: "+(b.nextPayment||"Sin fecha")));
+  for(const b of shown){const card=el("article","","cloud-ticket"),h=el("div","","cloud-ticket-head");h.append(el("strong",b.name||b.id),el("span",commercialState(b,today,policy),"cloud-status"));const p=currentPlan(b.planId);card.append(h,el("p",(p?planName(p):"Sin plan")+" · "+(p?money(cents(p.price))+"/mes":"Precio pendiente")+" · Vence: "+(b.nextPayment||"Sin fecha")));
     const days=daysToDue(b.nextPayment,today),contact=contacts.get(b.id);if(days!==null)card.append(el("small",days<0?Math.abs(days)+" días desde vencimiento":days===0?"Vence hoy":"Vence en "+days+" días"));if(contact?.dueDate===b.nextPayment)card.append(el("small","Seguimiento: "+contact.method+" · "+(contact.contactedAt?.toDate?.().toLocaleString("es")||"Registrado")));
     const a=el("div","","cloud-actions");a.append(button("Registrar cobro",()=>paymentForm(b.id),"primary"),button("Cambiar plan",()=>planForm(b.id)),button("Historial / comprobantes",()=>history(b.id)));if(days!==null&&days<=policy.firstAlertDays)a.append(button("Recordatorio / seguimiento",()=>reminderForm(b.id)));if(policyVerified&&(eligibleForCollectionHold(b,today,policy)||b.commercialHold===true&&b.accessSuspended===true))a.append(button(b.commercialHold===true?"Revisar reactivación":"Suspender por impago",()=>holdForm(b.id)));card.append(a);table.append(card);}
   if(!shown.length)table.append(el("p","Sin empresas para este filtro."));
   plansList.replaceChildren();
-  for(const p of plans){const row=el("div","","cloud-company-row"),copy=el("div");copy.append(el("strong",p.name||p.id),el("small",money(cents(p.price))+"/mes · "+(p.active===false?"Inactivo":"Disponible")));row.append(copy,button("Editar mensualidad",()=>priceForm(p.id)));plansList.append(row);}
+  for(const p of plans){const row=el("div","","cloud-company-row"),copy=el("div");copy.append(el("strong",planName(p)),el("small",money(cents(p.price))+"/mes · "+(p.active===false?"Inactivo":"Disponible")));row.append(copy,button("Editar mensualidad",()=>priceForm(p.id)));plansList.append(row);}
 }
 async function refresh(){
   if(!admin()||loading)return;loading=true;const actor=uid(),g=++version;rows=[];plans=[];table.replaceChildren();plansList.replaceChildren();$("commercialCounts").replaceChildren();announce("Consultando catálogo y empresas en Firebase…");
@@ -59,8 +64,8 @@ async function refresh(){
     const result=await Promise.allSettled(d.businesses.filter(b=>b.id&&b.id!==window.SaaS?.portal?._demoBusinessId).map(async b=>mergedBusiness(d,await getDocFromServer(companyRef(b.id)),b.id)));
     if(!scoped(actor,g))return;
     plans=d.plans;rows=result.filter(r=>r.status==="fulfilled").map(r=>r.value);
-    policyVerified=false;contacts=new Map();const [pol,...follow]=await Promise.allSettled([getDocFromServer(policyRef()),...rows.map(b=>getDocFromServer(contactRef(b.id)))]);if(!scoped(actor,g))return;
-    if(pol.status==="fulfilled"){policy=billingPolicy(pol.value.data());policyVerified=true;}else policy=billingPolicy();
+    policyVerified=false;contacts=new Map();const [pol,terms,...follow]=await Promise.allSettled([getDocFromServer(policyRef()),getDocFromServer(termsRef()),...rows.map(b=>getDocFromServer(contactRef(b.id)))]);if(!scoped(actor,g))return;
+    if(pol.status==="fulfilled"){policy=billingPolicy(pol.value.data());policyVerified=true;}else policy=billingPolicy();customerSettings=terms.status==="fulfilled"&&terms.value.exists()?terms.value.data():null;
     follow.forEach((r,i)=>{if(r.status==="fulfilled"&&r.value.exists())contacts.set(rows[i].id,r.value.data());});render();
     const failures=result.filter(r=>r.status==="rejected").length;announce(failures?failures+" empresas sin verificar. No se permite cobrarles hasta corregir su registro.":policyVerified?"Datos comerciales verificados en Firebase.":"No se verificó la política de cobro. Suspensiones deshabilitadas.");
   }catch(e){if(scoped(actor,g))announce(String(e.message||"No se pudo consultar Firebase."),true);}finally{loading=false;}
@@ -68,7 +73,7 @@ async function refresh(){
 async function paymentForm(id){
   if(!admin())return;const b=rows.find(x=>x.id===id),p=currentPlan(b?.planId);if(!b||!p){toast("Primero verifica empresa y plan.");return;}if(cents(p.price)<=0){toast("Este plan no tiene una mensualidad cobrable.");return;}
   const actor=uid();showDialog("Registrar mensualidad · "+b.name);
-  const months=select(Array.from({length:12},(_,i)=>[String(i+1),String(i+1)+" mes(es)"]),"1"),paid=input("date",todayLocal()),method=select(METHODS.map(x=>[x,x])),ref=input("text","",120),note=input("text","",500),amount=el("strong"),due=el("p");
+  const months=select(Array.from({length:12},(_,i)=>[String(i+1),String(i+1)+" mes(es)"]),"1"),paid=input("date",todayLocal()),method=select(enabledMethods().map(x=>[x,x])),ref=input("text","",120),note=input("text","",500),amount=el("strong"),due=el("p");
   ref.placeholder="Referencia única o número de recibo";
   const preview=()=>{try{amount.textContent=money(paymentAmount(p.price,Number(months.value)));due.textContent="Nuevo vencimiento estimado: "+renewalDate(b.nextPayment,todayLocal(),Number(months.value));}catch(e){due.textContent=e.message;}};
   months.addEventListener("change",preview);preview();body.append(field("Período pagado",months),field("Fecha real del pago",paid),field("Método",method),field("Referencia",ref),field("Observación",note),amount,due,el("p","Registra únicamente pagos que ya comprobaste. No realiza un cargo bancario."));
@@ -80,23 +85,24 @@ async function paymentForm(id){
     const paymentId=await hash(methodValue+"\n"+reference),receipt=doc(firestore,"commercial_payments",paymentId),event=doc(collection(firestore,"commercial_events"));
     let result;
     await runTransaction(firestore,async tx=>{
-      assertSession(actor);const [cs,bs,prior]=await Promise.all([tx.get(catalog()),tx.get(companyRef(id)),tx.get(receipt)]);const data=validCatalog(cs),current=mergedBusiness(data,bs,id);
+      assertSession(actor);const [cs,bs,prior,ts]=await Promise.all([tx.get(catalog()),tx.get(companyRef(id)),tx.get(receipt),tx.get(termsRef())]);const data=validCatalog(cs),current=mergedBusiness(data,bs,id);
       if(prior.exists()){const v=prior.data();if(v.businessId===id&&v.amountCents===expected&&v.months===period&&v.method===methodValue&&v.reference===reference&&v.paidAt===paymentDate){result={existing:true,next:v.nextDue};return;}throw Error("Esta referencia ya fue registrada. Revisa el historial.");}
+      if(!customerTerms([],policy,ts.data()||{}).methods.includes(methodValue))throw Error("El método de pago ya no está habilitado.");
       if(current.planId!==p.id||current.nextPayment!==b.nextPayment)throw Error("El plan o vencimiento cambió. Actualiza y vuelve a revisar.");
       const active=data.plans.find(x=>x.id===current.planId);if(!active||paymentAmount(active.price,period)!==expected)throw Error("La mensualidad cambió. Actualiza antes de cobrar.");
       const next=renewalDate(current.nextPayment,today,period),patch={planId:current.planId,nextPayment:next,commercialManaged:true};
       if((!current.accessSuspended||current.commercialHold===true)&&/^(prueba|vencido)$/i.test(current.status||""))patch.status="Activo";
       tx.update(companyRef(id),{...patch,commercialUpdatedAt:serverTimestamp()});
       tx.update(catalog(),{businesses:patchCatalog(data,id,patch),updatedAt:serverTimestamp()});
-      tx.set(receipt,{businessId:id,businessName:String(current.name||id).slice(0,180),planId:p.id,planName:String(active.name||p.id).slice(0,180),amountCents:expected,currency:"USD",months:period,paidAt:paymentDate,previousDue:current.nextPayment||"",nextDue:next,method:methodValue,reference,note:notes,createdBy:actor,createdAt:serverTimestamp()});
+      tx.set(receipt,{businessId:id,businessName:String(current.name||id).slice(0,180),planId:p.id,planName:planName(active).slice(0,180),amountCents:expected,currency:"USD",months:period,paidAt:paymentDate,previousDue:current.nextPayment||"",nextDue:next,method:methodValue,reference,note:notes,createdBy:actor,createdAt:serverTimestamp()});
       tx.set(event,auditRecord("PAYMENT",id,actor,"Pago "+paymentId));result={existing:false,next};
     });
-    if(uid()!==actor)return;dialog.close();toast(result.existing?"Ese pago ya estaba registrado. No se duplicó.":"Pago registrado. Vence: "+result.next);await refresh();
+    if(uid()!==actor)return;dialog.close();let shared=false;try{await publishReceipt(id,paymentId,actor);shared=true;}catch(e){console.warn("Comprobante para propietario pendiente",e);}if(!admin()||uid()!==actor)return;toast((result.existing?"Ese pago ya estaba registrado. No se duplicó.":"Pago registrado. Vence: "+result.next)+(shared?"":" · Comprobante del propietario pendiente de publicación."));await refresh();
   }),"primary");body.append(save);
 }
 function planForm(id){
   const b=rows.find(x=>x.id===id);if(!admin()||!b)return;const actor=uid();showDialog("Cambiar plan · "+b.name);
-  const p=select(plans.filter(x=>x.active!==false).map(x=>[x.id,(x.name||x.id)+" · "+money(cents(x.price))+"/mes"]),b.planId);
+  const p=select(plans.filter(x=>x.active!==false).map(x=>[x.id,planName(x)+" · "+money(cents(x.price))+"/mes"]),b.planId);
   const reason=input("text","",500);body.append(field("Nuevo plan",p),field("Motivo",reason),el("p","No genera cobros, no modifica la fecha de vencimiento ni retira bloqueos administrativos."));
   const save=button("Guardar plan",()=>run(save,async()=>{
     assertSession(actor);const why=reason.value.trim(),target=p.value;if(why.length<3||target===b.planId)throw Error("Selecciona otro plan y escribe un motivo.");
@@ -114,14 +120,14 @@ function planForm(id){
   }),"primary");body.append(save);
 }
 function priceForm(id){
-  const p=currentPlan(id);if(!admin()||!p)return;const actor=uid();showDialog("Mensualidad · "+p.name);
+  const p=currentPlan(id);if(!admin()||!p)return;const actor=uid();showDialog("Mensualidad · "+planName(p));
   const price=input("text",String(p.price)),reason=input("text","",400);body.append(field("Precio mensual USD",price),field("Motivo",reason),el("p","El nuevo precio se aplica a cobros futuros. No modifica pagos registrados ni los módulos incluidos."));
   const save=button("Guardar precio",()=>run(save,async()=>{
     assertSession(actor);const value=cents(price.value),why=reason.value.trim();if(why.length<3)throw Error("Escribe un motivo.");if(!confirm("¿Cambiar mensualidad a "+money(value)+"?"))return;
     const event=doc(collection(firestore,"commercial_events"));
-    await runTransaction(firestore,async tx=>{assertSession(actor);const data=validCatalog(await tx.get(catalog())),current=data.plans.find(x=>x.id===id);
+    await runTransaction(firestore,async tx=>{assertSession(actor);const [cs,ps,ts]=await Promise.all([tx.get(catalog()),tx.get(policyRef()),tx.get(termsRef())]),data=validCatalog(cs),current=data.plans.find(x=>x.id===id);
       if(!current||cents(current.price)!==cents(p.price))throw Error("El plan cambió. Actualiza primero.");
-      tx.update(catalog(),{plans:data.plans.map(x=>x.id===id?{...x,price:value/100}:x),commercialPlansManaged:true,updatedAt:serverTimestamp()});
+      const nextPlans=data.plans.map(x=>x.id===id?{...x,price:value/100}:x);tx.update(catalog(),{plans:nextPlans,commercialPlansManaged:true,updatedAt:serverTimestamp()});tx.set(termsRef(),customerTerms(nextPlans,billingPolicy(ps.data()),ts.data()||{}));
       tx.set(event,auditRecord("PRICE_CHANGE","",actor,id+" · "+money(value)+" · "+why));});
     if(uid()===actor){dialog.close();toast("Mensualidad actualizada.");await refresh();}
   }),"primary");body.append(save);
@@ -132,12 +138,25 @@ async function history(id){
   try{const data=await getDocsFromServer(query(collection(firestore,"commercial_payments"),where("businessId","==",id)));if(uid()!==actor||!admin()||!target.isConnected)return;
     const entries=data.docs.map(s=>({id:s.id,...s.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));target.replaceChildren();
     for(const p of entries){const row=el("article","","cloud-ticket");row.append(el("strong",money(p.amountCents)),el("p",p.paidAt+" · "+p.method+" · "+p.reference),el("small","Período: "+p.months+" mes(es) · Vencimiento: "+p.nextDue),button("Ver comprobante interno",()=>receiptView(p)));target.append(row);}
-    if(!entries.length)target.append(el("p","No hay pagos nuevos registrados en el libro central. Los registros anteriores requieren conciliación."));
+    if(!entries.length)target.append(el("p","No hay pagos nuevos registrados en el libro central. Los registros anteriores requieren conciliación."));else{const publish=button("Publicar historial para propietario",()=>run(publish,async()=>{assertSession(actor);let count=0;for(const p of entries){assertSession(actor);await publishReceipt(id,p.id,actor);count++;}toast(count+" comprobante(s) disponibles para el propietario.");}));target.prepend(publish); }
   }catch(e){if(target.isConnected)target.textContent="No fue posible consultar el historial.";}
 }
 function receiptView(p){
   if(!admin())return;showDialog("Comprobante interno de pago");
-  for(const line of ["SAMBRIX · "+p.businessName,"Identificador: "+p.id,"Plan: "+p.planName,"Monto: "+money(p.amountCents),"Fecha: "+p.paidAt,"Método: "+p.method,"Referencia: "+p.reference,"Vencimiento: "+p.nextDue,"Comprobante administrativo. No constituye factura fiscal."])body.append(el("p",line));
+  const actor=uid();body.append(receiptCard(p),receiptActions(p,()=>admin()&&uid()===actor&&dialog.open));
+}
+async function publishReceipt(id,paymentId,actor){
+ assertSession(actor);const source=doc(firestore,"commercial_payments",paymentId),dest=doc(firestore,"businesses",id,"subscription_receipts",paymentId);
+ await runTransaction(firestore,async tx=>{assertSession(actor);const [s,d]=await Promise.all([tx.get(source),tx.get(dest)]);if(!s.exists()||s.data().businessId!==id)throw Error("El pago no pertenece a esta empresa.");const copy=customerReceipt(s.data());if(d.exists()){if(Object.keys(copy).some(k=>d.data()[k]!==copy[k]))throw Error("Comprobante publicado no coincide. Contacta soporte.");return;}tx.set(dest,copy);});
+}
+function paymentSettings(){
+ if(!admin())return;const actor=uid();showDialog("Métodos de pago y renovación");
+ const chosen=new Map(),existing=enabledMethods(),instructions=el("textarea");instructions.maxLength=1000;instructions.rows=4;instructions.value=customerSettings?.instructions||"";
+ body.append(el("p","Los propietarios podrán consultar los métodos habilitados. No se procesan cobros ni se solicitan claves bancarias."));
+ for(const method of METHODS){const x=input("checkbox");x.checked=existing.includes(method);chosen.set(method,x);body.append(field(method,x));}
+ body.append(field("Instrucciones para renovar",instructions),el("p","Publica únicamente información de cobro destinada a clientes. No escribas contraseñas, PIN ni claves privadas."));
+ const save=button("Guardar y publicar condiciones",()=>run(save,async()=>{assertSession(actor);const methods=METHODS.filter(m=>chosen.get(m).checked);if(!methods.length)throw Error("Habilita al menos un método.");if(!confirm("¿Publicar estas condiciones a los propietarios?"))return;
+ await runTransaction(firestore,async tx=>{assertSession(actor);const [cs,ps]=await Promise.all([tx.get(catalog()),tx.get(policyRef())]);const data=validCatalog(cs);tx.set(termsRef(),customerTerms(data.plans,billingPolicy(ps.data()),{methods,instructions:instructions.value}));});if(uid()===actor){dialog.close();toast("Condiciones publicadas.");await refresh();}}),"primary");body.append(save);
 }
 function policyForm(){
  if(!admin()||!policyVerified){toast("Actualiza primero la política desde Firebase.");return;}
@@ -146,7 +165,7 @@ function policyForm(){
  const grace=number(policy.graceDays,0,30),first=number(policy.firstAlertDays,1,90),priority=number(policy.priorityDays,1,30),reason=input("text","",500);
  body.append(field("Días de gracia después del vencimiento",grace),field("Primer aviso (días antes)",first),field("Aviso prioritario (días antes)",priority),field("Motivo",reason),el("p","Se aplica a la revisión comercial. No activa bloqueos automáticos ni modifica vencimientos."));
  const save=button("Guardar política",()=>run(save,async()=>{assertSession(actor);if(![grace,first,priority].every(x=>x.checkValidity())||Number(priority.value)>Number(first.value)||reason.value.trim().length<3)throw Error("Revisa los plazos y el motivo.");const next=billingPolicy({graceDays:Number(grace.value),firstAlertDays:Number(first.value),priorityDays:Number(priority.value)});const ev=doc(firestore,"platform","commercial_policy_event_"+crypto.randomUUID());
- await runTransaction(firestore,async tx=>{assertSession(actor);const s=await tx.get(policyRef());if(JSON.stringify(billingPolicy(s.data()))!==JSON.stringify(previous))throw Error("La política cambió. Actualiza.");tx.set(policyRef(),{...next,updatedAt:serverTimestamp(),updatedBy:actor},{merge:true});tx.set(ev,{previous,next,reason:reason.value.trim(),actorUid:actor,createdAt:serverTimestamp()});});dialog.close();toast("Política guardada en Firebase.");await refresh();}),"primary");body.append(save);
+ await runTransaction(firestore,async tx=>{assertSession(actor);const [s,cs,ts]=await Promise.all([tx.get(policyRef()),tx.get(catalog()),tx.get(termsRef())]);if(JSON.stringify(billingPolicy(s.data()))!==JSON.stringify(previous))throw Error("La política cambió. Actualiza.");tx.set(policyRef(),{...next,updatedAt:serverTimestamp(),updatedBy:actor},{merge:true});tx.set(termsRef(),customerTerms(validCatalog(cs).plans,next,ts.data()||{}));tx.set(ev,{previous,next,reason:reason.value.trim(),actorUid:actor,createdAt:serverTimestamp()});});dialog.close();toast("Política guardada en Firebase.");await refresh();}),"primary");body.append(save);
 }
 function reminderForm(id){
  const b=rows.find(x=>x.id===id);if(!admin()||!b||!validDay(b.nextPayment))return;const actor=uid();showDialog("Recordatorio · "+b.name);
@@ -177,7 +196,7 @@ function open(id="",action=""){
 function boot(){
   const page=$("billingOperationsCenter"),planPage=$("saasPlans");if(root||!page||!planPage)return;
   root=el("div","","cloud-support");root.id="commercialRoot";root.append(el("h2","Cobros y suscripciones"),el("p","Registro central de mensualidades. Los pagos antiguos del navegador no se migran ni se contabilizan automáticamente."));
-  const controls=el("div","","cloud-actions");controls.append(button("Actualizar",refresh),button("Planes y mensualidades",()=>window.App?.go?.("saasPlans")),button("Política de cobro",policyForm),button("Ingresos registrados",ledgerForm));root.append(controls,el("p","Los avisos requieren gestión del SuperAdmin. Las suspensiones por impago se confirman manualmente; no hay un proceso automático en segundo plano.","muted"));
+  const controls=el("div","","cloud-actions");controls.append(button("Actualizar",refresh),button("Planes y mensualidades",()=>window.App?.go?.("saasPlans")),button("Política de cobro",policyForm),button("Ingresos registrados",ledgerForm),button("Métodos de pago",paymentSettings));root.append(controls,el("p","Los avisos requieren gestión del SuperAdmin. Las suspensiones por impago se confirman manualmente; no hay un proceso automático en segundo plano.","muted"));
   status=el("p","Pendiente de consultar Firebase.","cloud-message");status.setAttribute("role","status");const counts=el("div","","cloud-values");counts.id="commercialCounts";
   search=input("search");search.placeholder="Buscar empresa";search.addEventListener("input",render);
   filter=select([["","Todos"],...["Al día","Por vencer","En gracia","Vencida","Bloqueada","Prueba","Fecha pendiente"].map(x=>[x,x])]);filter.addEventListener("change",render);
@@ -194,6 +213,6 @@ function boot(){
   const oldGo=window.App?.go;if(oldGo)window.App.go=function(id,...args){return oldGo.call(this,admin()&&commercialPages.has(id)?"billingOperationsCenter":id,...args);};
   let last="";const check=()=>{if(!admin())return;const active=document.querySelector("#adminApp .page.active")?.id||"";if(active===last)return;last=active;if(active==="billingOperationsCenter"||active==="saasPlans")refresh();};
   const observer=new MutationObserver(check);observer.observe(page,{attributes:true,attributeFilter:["class"]});observer.observe(planPage,{attributes:true,attributeFilter:["class"]});
-  onAuthStateChanged(auth,()=>{version++;rows=[];plans=[];policyVerified=false;contacts=new Map();table.replaceChildren();plansList.replaceChildren();$("commercialCounts").replaceChildren();if(dialog.open)dialog.close();last="";check();});
+  onAuthStateChanged(auth,()=>{version++;rows=[];plans=[];policyVerified=false;customerSettings=null;contacts=new Map();table.replaceChildren();plansList.replaceChildren();$("commercialCounts").replaceChildren();if(dialog.open)dialog.close();last="";check();});
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
