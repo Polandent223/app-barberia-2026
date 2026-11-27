@@ -123,6 +123,7 @@ test("owner manages real Firebase access without altering other tenants or owner
   assert.equal(await page.evaluate(async(id,uid)=>{try{await SaaSAuthAdmin.changeBusinessMemberRole(id,uid,"barber");return false;}catch{return true;}},BUSINESS,seed.users.owner.uid),true);
   assert.equal(await page.evaluate(()=>FirebaseBridge.user.uid),seed.users.owner.uid);
   await page.click("#tenantMembersDialog button");await page.waitForFunction(()=>!document.getElementById("tenantMembersDialog"));
+  await page.waitForFunction(uid=>App.db.clients.some(c=>c.firebaseUid===uid),{timeout:30000},seed.users.client.uid);
  }finally{await context.close();}
 });
 for(const role of ["owner","admin","manager","reception","cashier","barber","other"]){
@@ -130,7 +131,7 @@ for(const role of ["owner","admin","manager","reception","cashier","barber","oth
  const {page,context}=await openPage(role==="cashier"?390:1366,role==="cashier"?844:900);
  try{
   await login(page,role);const id=role==="other"?SECOND:BUSINESS,expected=role==="other"?"owner":role,s=await state(page,expected,id);
-  assert.equal(s.uid,seed.users[role].uid);assert.deepEqual(s.clients,[role==="other"?"Cliente exclusivo otra empresa":"Cliente de prueba"]);
+  assert.equal(s.uid,seed.users[role].uid);assert.deepEqual(s.clients.slice().sort(),(role==="other"?["Cliente exclusivo otra empresa"]:["Cliente de prueba","Cliente QA"]).sort());
   await page.waitForSelector("#businessWorkspace",{visible:true});
   const expectedCash=["owner","admin","manager","reception","cashier","other"].includes(role);
   assert.equal(await page.evaluate(()=>SaaS.pageAllowed("caja")),expectedCash);
@@ -222,5 +223,34 @@ test("public client books using real Auth on mobile",{timeout:90000},async()=>{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&getComputedStyle(document.getElementById("adminApp")).display==="none"),true);
   console.log("QA UI CLIENT: reserva móvil real en Firestore aislado.");
  }finally{await context.close();}
+});
+test("new app registration syncs without a booking; existing phone requires verified link and retains CRM identity",{timeout:120000},async()=>{
+ const owner=await openPage(),client=await openPage(390,844),existing=await openPage(390,844);
+ try{
+  await login(owner.page,"owner");await state(owner.page,"owner",BUSINESS);
+  await clickText(owner.page,"#businessWorkspace button","Clientes");await clickText(owner.page,"#businessWorkspace button","Directorio de clientes");
+  await ready(client.page,"/?business="+BUSINESS+"&cliente=app");
+  await client.page.waitForFunction(()=>SambrixClientCloud?.isReady(),{timeout:30000});
+  await client.page.evaluate(()=>SambrixClientCloud.register("Nuevo Registro QA","5551112222","12345678"));
+  await owner.page.waitForFunction(()=>App.db.clients.some(c=>c.name==="Nuevo Registro QA"),{timeout:30000});
+  const current=(await seed.db.doc("businesses/"+BUSINESS+"/state/crm").get()).data().payload.clients;
+  assert.equal(current.filter(c=>c.name==="Nuevo Registro QA").length,1);
+  assert.equal((await seed.db.doc("businesses/"+SECOND+"/state/crm").get()).data().payload.clients.length,1);
+  await ready(existing.page,"/?business="+BUSINESS+"&cliente=app");
+  await existing.page.waitForFunction(()=>SambrixClientCloud?.isReady(),{timeout:30000});
+  await existing.page.evaluate(()=>SambrixClientCloud.register("Cliente anterior QA","5550000000","12345678"));
+  const uid=await existing.page.evaluate(()=>SambrixClientCloud.currentUser().uid);
+  const code=await existing.page.evaluate(()=>SambrixClientCloud.currentClient().activationCode);
+  await owner.page.waitForFunction(()=>document.querySelector("#clientIdentityPanel")?.textContent.includes("Ficha existente: verificar"),{timeout:30000});
+  assert.equal((await seed.db.doc("businesses/"+BUSINESS+"/state/crm").get()).data().payload.clients.filter(c=>c.phone==="5550000000").length,1);
+  assert.equal(await existing.page.evaluate(()=>SambrixClientCloud.currentClient().linkVerified),false);
+  const handle=async d=>{if(d.type()==="confirm")await d.accept();else if(d.type()==="prompt")await d.accept(code);else await d.dismiss();};
+  owner.page.on("dialog",handle);
+  try{await owner.page.evaluate(()=>Array.from(document.querySelectorAll("#clientIdentityPanel .row")).find(r=>r.textContent.includes("Cliente anterior QA")).querySelector("button").click());}
+  finally{owner.page.off("dialog",handle);}
+  await existing.page.waitForFunction(()=>SambrixClientCloud.currentClient()?.linkVerified===true,{timeout:30000});
+  const after=(await seed.db.doc("businesses/"+BUSINESS+"/state/crm").get()).data().payload.clients.filter(c=>c.phone==="5550000000");
+  assert.equal(after.length,1);assert.equal(after[0].id,"c1");assert.equal(after[0].firebaseUid,uid);assert.equal(after[0].clientLinkVerified,true);
+ }finally{await owner.context.close();await client.context.close();await existing.context.close();}
 });
 test.after(async()=>{await browser.close();await qa.close();await seed.close();assert.deepEqual(external,[],"No se permite conexión fuera de loopback");assert.deepEqual(failures,[],"Errores JS de la interfaz");});
