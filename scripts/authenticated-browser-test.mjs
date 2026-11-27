@@ -77,6 +77,9 @@ test("SuperAdmin modular navigation, search and responsive directory",{timeout:1
     stage="abrir herramienta";
     await clickText(page,"#sambrixWorkspace .workspace-card",label);
     await page.waitForFunction(p=>document.querySelector("#adminApp .page.active")?.id===p,{timeout:15000},id);
+    stage="verificar que el refresco de sesión conserva la herramienta";
+    await page.evaluate(()=>SaaS.routeSession());
+    assert.equal(await page.evaluate(()=>document.querySelector("#adminApp .page.active")?.id),id);
     stage="regresar al área";
     await page.waitForSelector("#sambrixModuleBar [data-return-area]",{visible:true});
     await page.click("#sambrixModuleBar [data-return-area]");
