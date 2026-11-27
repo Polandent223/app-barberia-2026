@@ -1,6 +1,8 @@
 import {initializeApp} from "firebase-admin/app";
 import {getFirestore,FieldValue} from "firebase-admin/firestore";
 import {onCall,HttpsError} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
+import {suspendOverdueBusinesses} from "./commercial-suspension.js";
 import {createShopService} from "./shop-service.js";
 initializeApp();
 const db=getFirestore();
@@ -29,3 +31,5 @@ export const sambrixReturnProducts=handler("RETURN");
 
 export const sambrixShopStatus=handler("STATUS");
 export const sambrixCancelShopRequest=handler("CANCEL");
+
+export const sambrixCommercialReview=onSchedule({schedule:"15 3 * * *",timeZone:"America/Caracas",region:"us-central1",timeoutSeconds:540,maxInstances:1},async()=>{const result=await suspendOverdueBusinesses(db,()=>FieldValue.serverTimestamp());console.log("Commercial review",result);});
