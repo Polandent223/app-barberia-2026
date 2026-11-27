@@ -28,10 +28,28 @@ export function paymentAmount(price,months){
   const unit=cents(price);if(unit<=0)throw Error("El plan no tiene mensualidad cobrable.");
   return unit*months;
 }
-export function commercialState(b,today){
-  if(b.accessSuspended===true||/^(suspendido|suspended|inactivo|inactive|bloqueado|blocked)$/i.test(b.status||""))return "Bloqueada";
-  if(!validDay(b.nextPayment))return "Fecha pendiente";
-  if(b.nextPayment<today)return "Vencida";
-  const days=(Date.parse(b.nextPayment)-Date.parse(today))/86400000;
-  return days<=7?"Por vencer":String(b.status).toLowerCase()==="prueba"?"Prueba":"Al día";
+export const DEFAULT_POLICY=Object.freeze({graceDays:0,firstAlertDays:30,priorityDays:7});
+export function billingPolicy(p={}){
+ const int=(v,f,min,max)=>Number.isInteger(v)&&v>=min&&v<=max?v:f;
+ const firstAlertDays=int(p.firstAlertDays,30,1,90);
+ return {graceDays:int(p.graceDays,0,0,30),firstAlertDays,priorityDays:Math.min(firstAlertDays,int(p.priorityDays,7,1,30))};
+}
+export function daysToDue(day,today){return validDay(day)&&validDay(today)?Math.round((Date.parse(day)-Date.parse(today))/86400000):null;}
+export function blocked(b){return b.accessSuspended===true||/^(suspendido|suspended|inactivo|inactive|bloqueado|blocked)$/i.test(b.status||"");}
+export function commercialState(b,today,policy=DEFAULT_POLICY){
+ if(blocked(b))return "Bloqueada";
+ const days=daysToDue(b.nextPayment,today),p=billingPolicy(policy);
+ if(days===null)return "Fecha pendiente";
+ if(days<0)return days>=-p.graceDays?"En gracia":"Vencida";
+ if(days<=p.priorityDays)return "Por vencer";
+ return String(b.status).toLowerCase()==="prueba"?"Prueba":"Al día";
+}
+export function eligibleForCollectionHold(b,today,policy){
+ return ["activo","prueba","vencido"].includes(String(b.status||"").toLowerCase())&&!blocked(b)&&commercialState(b,today,policy)==="Vencida";
+}
+export function monthlyLedger(entries,month){
+ if(!/^\d{4}-\d{2}$/.test(month)||!validDay(month+"-01"))throw Error("Mes inválido.");
+ const valid=entries.filter(p=>p.currency==="USD"&&validDay(p.paidAt)&&p.paidAt.startsWith(month+"-")&&Number.isSafeInteger(p.amountCents)&&p.amountCents>0);
+ const byMethod={};for(const p of valid){const k=String(p.method||"Otro");byMethod[k]=(Object.hasOwn(byMethod,k)?byMethod[k]:0)+p.amountCents;}
+ return {count:valid.length,totalCents:valid.reduce((sum,p)=>sum+p.amountCents,0),byMethod};
 }
