@@ -13,7 +13,7 @@ export function inspectAccount(clients,uid,p){
  if(linked.length>1)return {kind:"conflict"};
  if(linked.length===1){
   const c=linked[0];
-  if(normalizePhone(c.phone)!==p.phoneNormalized||same.some(x=>x.id!==c.id))return {kind:"conflict",client:c};
+  if(p.linkedClientId&&p.linkedClientId!==c.id||normalizePhone(c.phone)!==p.phoneNormalized||same.some(x=>x.id!==c.id))return {kind:"conflict",client:c};
   return {kind:"linked",client:c};
  }
  if(clients.some(c=>c.id===p.clientId)||p.linkedClientId||p.linkVerified===true)return {kind:"conflict"};
