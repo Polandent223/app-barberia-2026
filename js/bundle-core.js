@@ -1012,6 +1012,7 @@ App.loadClientCustomization=function(){
   App.byId("clientHeroTitle").value=c.heroTitle||"";
   App.byId("clientHeroSubtitle").value=c.heroSubtitle||"";
   App.byId("clientThemeMode").value=c.theme||"light";
+  for(const [field,value] of [["clientLayout",c.layout||"classic"],["clientCoverFit",c.coverFit||"cover"],["clientButtonShape",c.buttonShape||"rounded"],["clientBookingLabel",c.bookingLabel||""],["clientPromotionPosition",c.promotionPosition||"after"],["clientShowProfessionals",c.showProfessionals===true?"yes":"no"]]){if(App.byId(field))App.byId(field).value=value;}
   App.byId("clientPrimaryColor").value=c.primary||"#c89a4b";
   App.byId("clientSecondaryColor").value=c.secondary||"#111111";
   App.byId("clientWhatsappLink").value=c.whatsapp||"";
@@ -1067,6 +1068,9 @@ App.saveClientCustomization=async function(){
     for(const [k,field] of [["brandName","clientBrandName"],["tagline","clientTagline"],["contactPhone","clientContactPhone"],["heroTitle","clientHeroTitle"],["heroSubtitle","clientHeroSubtitle"],["whatsapp","clientWhatsappLink"],["instagram","clientInstagramLink"],["tiktok","clientTiktokLink"],["facebook","clientFacebookLink"]])draft[k]=String(App.val(field)||"").trim().slice(0,500);
     if(canTheme){draft.theme=["light","dark","soft"].includes(App.val("clientThemeMode"))?App.val("clientThemeMode"):"light";for(const [key,field,fallback] of [["primary","clientPrimaryColor","#c89a4b"],["secondary","clientSecondaryColor","#111111"]])draft[key]=/^#[0-9a-f]{6}$/i.test(App.val(field))?App.val(field):fallback;}
     else{draft.theme="light";draft.primary="#c89a4b";draft.secondary="#111111";}
+    const designer=window.SambrixClientDesigner;
+    if(!designer?.readDesignOptions)throw Error("El diseñador no está listo. Actualiza la página.");
+    Object.assign(draft,designer.readDesignOptions(canTheme));
     const logo=App.byId("clientLogoFile")?.files?.[0],bg=canCover?App.byId("clientBackgroundFile")?.files?.[0]:null;
     if(logo)draft.logo=await App.compressImageLocal(logo,320,.72);
     if(bg)draft.background=await App.compressImageLocal(bg,800,.65);
@@ -1129,7 +1133,8 @@ App.applyClientCustomization=function(){
 };
 
 App.previewClientCustomization=function(){
-  App.openClientApp();
+  if(!window.SambrixClientDesigner?.open)return App.toast("El diseñador todavía no está listo.");
+  return window.SambrixClientDesigner.open();
 };
 
 App.previewSelectedImage=function(inputId,imgId){
