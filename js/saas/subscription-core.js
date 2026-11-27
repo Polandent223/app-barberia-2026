@@ -1,7 +1,7 @@
 /* Safe, customer-visible commercial fields. Never expose internal audit notes. */
 export function planName(p={}) {
  const n=String(p.name||p.planName||p.id||p.planId||"Sin plan");
- return /^(?:BÃ¡sico|BÃƒÂ¡sico|Básico|Basico)$/i.test(n)?"Básico":n;
+ return /^(?:B\u00c3\u00a1sico|B\u00c3\u0192\u00c2\u00a1sico|Básico|Basico)$/i.test(n)?"Básico":n;
 }
 export const PAYMENT_METHODS=Object.freeze(["Transferencia","Pago móvil","Zelle","USDT","Efectivo","Otro"]);
 export function customerReceipt(p){
