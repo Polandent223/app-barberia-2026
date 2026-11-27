@@ -11,15 +11,15 @@ function check(){
   reset();if(!key)return;observed=key;
   const g=generation;
   const current=()=>g===generation&&auth.currentUser?.uid===uid&&window.SaaS?.session?.businessId===id;
-  async function revoke(){
+  async function revoke(message="El acceso de esta empresa o usuario está suspendido. Contacta a SAMBRIX."){
     if(!current()||leaving)return;leaving=true;reset();
-    window.App?.toast?.("El acceso de esta empresa o usuario está suspendido. Contacta a SAMBRIX.");
+    window.App?.toast?.(message);
     try{await window.SaaS?.signOutToPortal?.();}catch(e){console.warn("[SAMBRIX access guard]",e);}finally{leaving=false;}
   }
   function error(e){if(e?.code==="permission-denied")revoke();else console.warn("[SAMBRIX access guard]",e);}
   const server=s=>current()&&!s.metadata.fromCache&&!s.metadata.hasPendingWrites;
   unsub.push(onSnapshot(doc(firestore,"platform_users",uid),{includeMetadataChanges:true},s=>{if(server(s)&&(!s.exists()||s.data().active===false))revoke();},error));
-  unsub.push(onSnapshot(doc(firestore,"businesses",id,"members",uid),{includeMetadataChanges:true},s=>{if(server(s)&&(!s.exists()||s.data().active===false))revoke();},error));
+  unsub.push(onSnapshot(doc(firestore,"businesses",id,"members",uid),{includeMetadataChanges:true},s=>{if(server(s)){if(!s.exists()||s.data().active===false)revoke();else if(s.data().role!==role)revoke("Tus permisos cambiaron. Inicia sesión nuevamente.");}},error));
   unsub.push(onSnapshot(doc(firestore,"businesses",id),{includeMetadataChanges:true},s=>{if(server(s)&&(!s.exists()||s.data().accessSuspended===true||["suspendido","suspended","inactivo","inactive","bloqueado","blocked"].includes(String(s.data().status||"").toLowerCase())))revoke();},error));
 }
 onAuthStateChanged(auth,()=>{reset();check();});
