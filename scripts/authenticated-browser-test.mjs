@@ -264,6 +264,8 @@ test("new app registration syncs without a booking; existing phone requires veri
   await owner.page.waitForSelector("#saveClientCustomizationBtn",{visible:true,timeout:20000});
   await owner.page.evaluate(()=>{for(const [id,value] of [["clientBrandName","Studio QA"],["clientHeroTitle","Reserva QA"],["clientThemeMode","soft"],["clientPrimaryColor","#d18ba5"],["clientSecondaryColor","#27394f"]])document.getElementById(id).value=value;});
   const beforePreview=(await seed.db.doc("public_businesses/"+BUSINESS).get()).data().branding;
+  const privateBefore=(await seed.db.doc("businesses/"+BUSINESS+"/state/config").get()).data().payload.business.clientApp;
+  await owner.page.evaluate(()=>{App.markClientDesignDirty();App.addPromotion();const items=App.clientDesignPromotions();App.updatePromotion(items.length-1,"title","Promoción de prueba QA");App.updatePromotion(items.length-1,"text","Oferta ficticia");});
   const otherBefore=(await seed.db.doc("public_businesses/"+SECOND).get()).data()?.branding;
   await owner.page.evaluate(()=>{for(const [id,value] of [["clientLayout","gallery"],["clientCoverFit","contain"],["clientButtonShape","pill"],["clientPromotionPosition","top"],["clientShowProfessionals","yes"]])document.getElementById(id).value=value;});
   await owner.page.click("#previewClientBtn");
@@ -275,6 +277,8 @@ test("new app registration syncs without a booking; existing phone requires veri
   await clickText(owner.page,"#clientDesignerPreview button","Teléfono");
   assert.equal(await owner.page.evaluate(()=>document.querySelector("#clientDesignerPreview .client-designer-frame").dataset.device),"phone");
   assert.deepEqual((await seed.db.doc("public_businesses/"+BUSINESS).get()).data().branding,beforePreview);
+  assert.deepEqual((await seed.db.doc("businesses/"+BUSINESS+"/state/config").get()).data().payload.business.clientApp,privateBefore);
+  assert.equal(await owner.page.evaluate(()=>document.querySelector("#clientDesignerPreview").textContent.includes("Promoción de prueba QA")),true);
   await clickText(owner.page,"#clientDesignerPreview button","Cerrar");
   await owner.page.click("#saveClientCustomizationBtn");
   await owner.page.waitForFunction(()=>document.body.textContent.includes("Diseño guardado y publicado en Firebase."),{timeout:30000});
