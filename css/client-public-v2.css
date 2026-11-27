@@ -49,7 +49,8 @@ body[data-sambrix-public-v2="true"][data-client-theme="soft"]{--client-v2-bg:col
 .client-v2 nav button[aria-current="true"]{background:var(--client-v2-secondary,#142d40);color:var(--client-v2-secondary-ink,#fff)}
 
 /* Shared presentation: styles are scoped to each rendered client app or preview. */
-.client-v2[data-client-theme]{--client-v2-surface:#fff;--client-v2-bg:#f5f7fa;--client-v2-text:#162d40;--client-v2-muted:#5f7080;--client-v2-border:#dae4ec;container-type:inline-size;color:var(--client-v2-text)}
+.client-v2[data-client-theme]{--client-v2-surface:#fff;--client-v2-bg:#f5f7fa;--client-v2-text:#162d40;--client-v2-muted:#5f7080;--client-v2-border:#dae4ec;color:var(--client-v2-text)}
+.client-v2 .client-v2-content{container-type:inline-size}
 .client-v2[data-client-theme="dark"]{--client-v2-surface:#1d222a;--client-v2-bg:#13171d;--client-v2-text:#f2f4f8;--client-v2-muted:#b7c0cd;--client-v2-border:#414957;color-scheme:dark}
 .client-v2[data-client-theme="soft"]{--client-v2-bg:color-mix(in srgb,var(--client-v2-primary) 12%,#fff);--client-v2-border:color-mix(in srgb,var(--client-v2-primary) 24%,#dae4ec)}
 .client-v2 .client-home-section,.client-v2 .client-home-copy{display:grid;gap:12px;min-width:0}
