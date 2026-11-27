@@ -10,7 +10,7 @@ export function validDay(s){
   const d=new Date(s+"T00:00:00Z");return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s;
 }
 export function todayLocal(){
-  const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Caracas",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 }
 export function addMonths(day,months){
   if(!validDay(day)||!Number.isInteger(months)||months<1||months>12)throw Error("Fecha o período inválido.");
