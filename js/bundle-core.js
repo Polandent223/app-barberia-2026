@@ -584,6 +584,7 @@ App.saveEditedClient=function(){
   if(phone&&!App.validPhone(phone))return App.toast("WhatsApp invÃ¡lido");
   const dup=App.db.clients.some(x=>x.id!==id&&phone&&String(x.phone||"").replace(/\D/g,"")===phone.replace(/\D/g,""));
   if(dup)return App.toast("Ya existe otro cliente con ese WhatsApp");
+  if(c.firebaseUid&&String(c.phone||"").replace(/\D/g,"")!==phone.replace(/\D/g,""))return App.toast("El teléfono de una cuenta vinculada necesita verificación de identidad. Contacta a soporte antes de cambiarlo.");
   c.name=name;c.phone=phone;c.birthday=App.val("editClientBirthday");
   c.frequency=Number(App.val("editClientFrequency")||20);c.style=App.val("editClientStyle");
   App.closeEditClient();App.persist();App.toast("Cliente actualizado");
