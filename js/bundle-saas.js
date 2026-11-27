@@ -39,7 +39,8 @@ SaaS.getContext=function(){try{return JSON.parse(localStorage.getItem(SaaS.CONTE
 SaaS.setContext=ctx=>localStorage.setItem(SaaS.CONTEXT_KEY,JSON.stringify(ctx));
 SaaS.currentBusiness=function(){const c=SaaS.getContext();const businesses=SaaS.db?.businesses||[];return businesses.find(b=>b.id===c.businessId)||businesses[0]};
 SaaS.currentBranch=function(){const b=SaaS.currentBusiness(),c=SaaS.getContext();return b?.branches?.find(x=>x.id===c.branchId)||b?.branches?.[0]};
-SaaS.getPlan=id=>{const p=(SaaS.db?.plans||[]).find(p=>p.id===id);return p&&/^(?:BÃ¡sico|BÃƒÂ¡sico|Basico)$/i.test(String(p.name))?{...p,name:"Básico"}:p;};
+SaaS.getPlan=id=>(SaaS.db?.plans||[]).find(p=>p.id===id);
+SaaS.planDisplayName=p=>{const n=String(p?.name||"");return /^(?:B\u00c3\u00a1sico|B\u00c3\u0192\u00c2\u00a1sico|Basico)$/i.test(n)?"Básico":n;};
 SaaS.isSuperAdmin=()=>SaaS.session?.role==="superadmin" || !!window.SaaSAuthAdmin?.isSuperAdmin?.();
 SaaS.subscriptionActive=b=>["Activo","Prueba"].includes((b||SaaS.currentBusiness())?.status);
 SaaS.applyTenantContext=function(){const A=window.App;if(!A?.db)return;const b=SaaS.currentBusiness(),br=SaaS.currentBranch();A.db.meta=A.db.meta||{};A.db.meta.businessId=b?.id||"";A.db.meta.branchId=br?.id||"";A.db.meta.businessType=b?.type||"";localStorage.setItem(A.KEY,JSON.stringify(A.db))};
@@ -1132,7 +1133,7 @@ SaaS.renderCurrentPlanBadge=function(){
   }
 
   badge.classList.remove("hidden");
-  badge.textContent=`PLAN ${String(p.name||"").toUpperCase()}`;
+  badge.textContent=`PLAN ${SaaS.planDisplayName(p).toUpperCase()}`;
   badge.dataset.planId=p.id||"";
 };
 
@@ -1264,7 +1265,7 @@ SaaS.renderBrandingPlanAccess=function(){
       ["Promociones visuales",SaaS.planCapability("promotions",b)],
       ["Marca blanca / ocultar SAMBRIX",SaaS.planCapability("whiteLabel",b)]
     ];
-    box.innerHTML=`<div><span class="tag">PLAN ACTUAL</span><h3>${p?.name||tier}</h3></div>
+    box.innerHTML=`<div><span class="tag">PLAN ACTUAL</span><h3>${SaaS.planDisplayName(p)||tier}</h3></div>
       <div class="branding-plan-pills">${rows.map(([t,on])=>`<span class="${on?"included":"upgrade"}">${on?"âœ“":"â†‘"} ${t}</span>`).join("")}</div>`;
   }
 
