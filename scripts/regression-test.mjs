@@ -83,3 +83,12 @@ test("client identity never claims existing private history by phone alone",asyn
  assert.equal(safePublicIdentity("<img src=x>","123456789"),false);
  assert.equal(safePublicIdentity("Camila Pérez","0412-1234567"),true);
 });
+
+test("client designer normalizes layouts and respects plan capabilities",async()=>{
+ const {designOptions}=await import("../js/saas/client-design.js");
+ const input={layout:"gallery",coverFit:"contain",buttonShape:"pill",promotionPosition:"top",showProfessionals:true,bookingLabel:"Reserva tu cita"};
+ assert.deepEqual(designOptions(input),input);
+ assert.deepEqual(designOptions(input,false),{layout:"classic",coverFit:"cover",buttonShape:"rounded",promotionPosition:"after",showProfessionals:false,bookingLabel:""});
+ assert.equal(designOptions({layout:"invalid",bookingLabel:"x".repeat(100)}).bookingLabel.length,40);
+ assert.equal(designOptions({layout:"invalid"}).layout,"classic");
+});
