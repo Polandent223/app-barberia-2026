@@ -1000,11 +1000,22 @@ App.fileToDataUrl=function(file,callback){
   r.readAsDataURL(file);
 };
 
+App.clientDesignKey=()=>[window.FirebaseBridge?.user?.uid||"",window.SaaS?.session?.businessId||"",window.SaaS?.session?.role||""].join(":");
+App.markClientDesignDirty=function(){if(App.__clientDesignDraft?.key===App.clientDesignKey())App.__clientDesignDraft.dirty=true;};
+App.clientDesignPromotions=function(){return App.__clientDesignDraft?.key===App.clientDesignKey()?App.__clientDesignDraft.promotions:[];};
 App.loadClientCustomization=function(){
   if(!App.byId("clientBrandName"))return;
   if(!App.db)return;
+  const key=App.clientDesignKey(),old=App.__clientDesignDraft;
+  if(old?.key!==key){
+    for(const id of ["clientLogoFile","clientBackgroundFile"])if(App.byId(id))App.byId(id).value="";
+    App.__clientDesignDraft=null;
+  }
+  if(App.__clientDesignDraft?.dirty){window.SaaS?.renderBrandingPlanAccess?.();return;}
+
   App.db.business=App.db.business||{};
   const c=App.db.business.clientApp=App.db.business.clientApp||{};
+  App.__clientDesignDraft={key,dirty:false,promotions:App.clone(Array.isArray(c.promotions)?c.promotions:[])};
 
   App.byId("clientBrandName").value=c.brandName||App.db.business.name||"";
   if(App.byId("clientTagline"))App.byId("clientTagline").value=c.tagline||"";
@@ -1029,21 +1040,22 @@ App.loadClientCustomization=function(){
 };
 
 App.renderPromotionEditor=function(){
-  const box=App.byId("promotionEditorList");if(!box)return;
-  const p=App.db.business.clientApp.promotions||[];
-  box.innerHTML=p.map((x,i)=>`<div class="promotion-editor">
-    <label>TÃ­tulo<input value="${x.title||""}" onchange="App.updatePromotion(${i},'title',this.value)"></label>
-    <label>Descuento / texto<input value="${x.text||""}" onchange="App.updatePromotion(${i},'text',this.value)"></label>
-    <button class="btn danger" onclick="App.removePromotion(${i})">Eliminar</button>
-  </div>`).join("")||'<div class="muted">Sin promociones configuradas.</div>';
+ const box=App.byId("promotionEditorList");if(!box)return;box.replaceChildren();
+ const items=App.clientDesignPromotions();
+ if(!items.length){const p=document.createElement("p");p.className="muted";p.textContent="Sin promociones configuradas.";box.append(p);return;}
+ for(const [i,p] of items.entries()){
+  const row=document.createElement("div");row.className="promotion-editor";
+  for(const [k,label,max] of [["title","Título",120],["text","Descuento / texto",300]]){
+   const l=document.createElement("label"),input=document.createElement("input");l.textContent=label;input.value=String(p[k]||"");input.maxLength=max;input.addEventListener("input",()=>App.updatePromotion(i,k,input.value));l.append(input);row.append(l);
+  }
+  const button=document.createElement("button");button.type="button";button.className="btn danger";button.textContent="Eliminar";button.onclick=()=>App.removePromotion(i);row.append(button);box.append(row);
+ }
 };
-App.addPromotion=function(){
-  App.db.business.clientApp.promotions.push({title:"Nueva promociÃ³n",text:"10% OFF"});
-  App.renderPromotionEditor();
-};
-App.updatePromotion=function(i,key,val){App.db.business.clientApp.promotions[i][key]=val};
-App.removePromotion=function(i){App.db.business.clientApp.promotions.splice(i,1);App.renderPromotionEditor()};
-
+App.canEditClientPromotions=()=>window.SaaS?.canWriteDomain?.("config")===true&&window.SaaS?.planCapability?.("promotions",window.SaaS?.currentBusiness?.())===true&&App.__clientDesignDraft?.key===App.clientDesignKey();
+App.addPromotion=function(){if(!App.canEditClientPromotions())return;const p=App.clientDesignPromotions();if(p.length>=20)return App.toast("Máximo 20 promociones.");p.push({title:"Nueva promoción",text:""});App.markClientDesignDirty();App.renderPromotionEditor();};
+App.updatePromotion=function(i,key,val){if(!App.canEditClientPromotions()||!["title","text"].includes(key)||!App.clientDesignPromotions()[i])return;App.clientDesignPromotions()[i][key]=String(val).slice(0,key==="title"?120:300);App.markClientDesignDirty();};
+App.removePromotion=function(i){if(!App.canEditClientPromotions())return;App.clientDesignPromotions().splice(i,1);App.markClientDesignDirty();App.renderPromotionEditor();};
+ 
 App.renderBarberPhotoEditor=function(){
   const box=App.byId("barberPhotoEditor");if(!box)return;
   const photos=App.db.business.clientApp.barberPhotos||{};
@@ -1071,6 +1083,7 @@ App.saveClientCustomization=async function(){
     const designer=window.SambrixClientDesigner;
     if(!designer?.readDesignOptions)throw Error("El diseñador no está listo. Actualiza la página.");
     Object.assign(draft,designer.readDesignOptions(canTheme));
+    if(S.planCapability?.("promotions",business)===true&&App.__clientDesignDraft?.key===App.clientDesignKey())draft.promotions=App.clone(App.clientDesignPromotions());
     const logo=App.byId("clientLogoFile")?.files?.[0],bg=canCover?App.byId("clientBackgroundFile")?.files?.[0]:null;
     if(logo)draft.logo=await App.compressImageLocal(logo,320,.72);
     if(bg)draft.background=await App.compressImageLocal(bg,800,.65);
@@ -1080,7 +1093,9 @@ App.saveClientCustomization=async function(){
     if(App.persist()===false){App.db.business.clientApp=existing;throw Error("No se pudo guardar el diseño.");}
     await C.awaitTenantWrites(id);if(!current())throw Error("No se confirmó el guardado.");
     await window.NexoPublicCloud.publishCurrentBusiness();if(!current())return;
-    App.applyClientCustomization();App.toast("Diseño guardado y publicado en Firebase.");
+    if(App.__clientDesignDraft?.key===App.clientDesignKey())App.__clientDesignDraft.dirty=false;
+    for(const field of ["clientLogoFile","clientBackgroundFile"])if(App.byId(field))App.byId(field).value="";
+    App.loadClientCustomization();App.applyClientCustomization();App.toast("Diseño guardado y publicado en Firebase.");
   }catch(e){if(current())App.toast(e.message||"No se pudo publicar el diseño.");}
   finally{if(btn)btn.disabled=false;}
 };
@@ -2095,6 +2110,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   App.byId("saveConfigBtn").addEventListener("click",App.saveConfig);
   App.byId("saveClientCustomizationBtn").addEventListener("click",App.saveClientCustomization);
   App.byId("previewClientBtn").addEventListener("click",App.previewClientCustomization);
+  const designFields=new Set(["clientBrandName","clientTagline","clientContactPhone","clientHeroTitle","clientHeroSubtitle","clientThemeMode","clientPrimaryColor","clientSecondaryColor","clientWhatsappLink","clientInstagramLink","clientTiktokLink","clientFacebookLink","clientLayout","clientCoverFit","clientButtonShape","clientBookingLabel","clientPromotionPosition","clientShowProfessionals","clientLogoFile","clientBackgroundFile"]);
+  for(const type of ["input","change"])App.byId("clienteConfig")?.addEventListener(type,e=>{if(designFields.has(e.target?.id))App.markClientDesignDirty();});
   App.byId("addPromotionBtn").addEventListener("click",App.addPromotion);
   App.byId("clientLogoFile").addEventListener("change",()=>App.previewSelectedImage("clientLogoFile","clientLogoPreview"));
   App.byId("clientBackgroundFile").addEventListener("change",()=>App.previewSelectedImage("clientBackgroundFile","clientBackgroundPreview"));
