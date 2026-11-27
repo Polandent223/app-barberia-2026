@@ -54,9 +54,13 @@ async function memberManager(businessId){
   if(!uid||!businessId)throw Error("Inicia sesión para gestionar usuarios.");
   if(isSuperAdmin())return {uid,role:"superadmin"};
   if(window.SaaS?.session?.businessId!==businessId)throw Error("Empresa no autorizada.");
-  const snap=await getDocFromServer(doc(firestore,"businesses",businessId,"members",uid));
-  const m=snap.data();
-  if(!m||m.active===false||!["owner","admin"].includes(m.role))throw Error("No tienes permiso para gestionar accesos.");
+  const [snap,profile,business]=await Promise.all([
+    getDocFromServer(doc(firestore,"businesses",businessId,"members",uid)),
+    getDocFromServer(doc(firestore,"platform_users",uid)),
+    getDocFromServer(doc(firestore,"businesses",businessId))
+  ]);
+  const m=snap.data(),p=profile.data(),company=business.data();
+  if(window.FirebaseBridge?.user?.uid!==uid||window.SaaS?.session?.businessId!==businessId||!p||p.active===false||p.businessId!==businessId||!company||company.accessSuspended===true||!m||m.active===false||!["owner","admin"].includes(m.role))throw Error("No tienes permiso para gestionar accesos.");
   return {uid,role:m.role};
 }
 async function createBusinessMember({businessId,name,email,password,role}){
