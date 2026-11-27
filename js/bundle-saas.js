@@ -397,7 +397,7 @@ SaaS.switchTenant=function(businessId,opts={}){
   A.db.business=A.db.business||{};
   A.db.business.name=target.name;
   A.db.business.clientApp=A.db.business.clientApp||{};
-  A.db.business.clientApp.brandName=target.brand?.name||target.name;
+  A.db.business.clientApp.brandName=A.db.business.clientApp.brandName||target.brand?.name||target.name;
 
   A.ensurePermissionsData?.();
   A.ensureStaff?.();
