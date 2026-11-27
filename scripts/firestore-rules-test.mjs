@@ -147,6 +147,24 @@ test("commercial lifecycle: new company, plan, staff, subscription, booking, ato
   assert.equal((await getDoc(company)).data().nextPayment,"2027-02-15");
   await assertFails(updateDoc(receipt,{amountCents:1}));
   await assertFails(getDoc(path(owner,"commercial_payments",paymentId)));
+  const {customerReceipt}=await import("../js/saas/subscription-core.js"),copy=customerReceipt((await getDoc(receipt)).data());
+  const customerRef=path(root,"businesses",id,"subscription_receipts",paymentId);
+  await assertFails(setDoc(customerRef,{...copy,note:"Privado"}));
+  await assertFails(setDoc(customerRef,{...copy,amountCents:1}));
+  await assertFails(setDoc(path(root,"businesses","two","subscription_receipts",paymentId),copy));
+  await assertSucceeds(setDoc(customerRef,copy));
+  const ownerCopy=path(owner,"businesses",id,"subscription_receipts",paymentId);
+  await assertSucceeds(getDoc(ownerCopy));assert.deepEqual((await getDoc(ownerCopy)).data(),copy);
+  await assertFails(getDoc(path(actor("other"),"businesses",id,"subscription_receipts",paymentId)));
+  await assertFails(getDoc(path(reception,"businesses",id,"subscription_receipts",paymentId)));
+  await assertFails(updateDoc(ownerCopy,{amountCents:1}));
+  await assertFails(deleteDoc(customerRef));
+  const terms=path(root,"platform","subscription_terms");
+  await assertSucceeds(setDoc(terms,{plans:[{id:"qa-plan",name:"QA",price:25}],policy:{graceDays:3,firstAlertDays:30,priorityDays:7},methods:["Transferencia"],instructions:"Consultar soporte"}));
+  await assertSucceeds(getDoc(path(owner,"platform","subscription_terms")));
+  await assertFails(getDoc(path(reception,"platform","subscription_terms")));
+  await assertFails(getDoc(path(actor("locked"),"platform","subscription_terms")));
+  await assertFails(updateDoc(path(owner,"platform","subscription_terms"),{methods:["Efectivo"]}));
   await seedClient("qa-client",id);await assertSucceeds(book("qa-client","qa-request","10:00",id));
   const date="2099-06-15",slot="staff1_"+date+"_10:00",appt={id:"public_qa-request",clientId:"client_qa-client",serviceId:"s1",barberId:"staff1",date,time:"10:00",price:12,duration:60,status:"Confirmada",businessId:id,branchId:"branch",publicRequestId:"qa-request"};
   // Exercise approval rules using one atomic batch; checkout calls the actual shared application function.
