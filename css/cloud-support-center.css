@@ -37,3 +37,22 @@
 #billingOperationsCenter:has(#commercialRoot)>:not(#commercialRoot),#saasPlans:has(#commercialPlanRoot)>:not(#commercialPlanRoot){display:none!important}
 #commercialRoot,#commercialPlanRoot{display:grid;gap:12px;min-width:0;max-width:100%}
 #commercialRoot>input,#commercialRoot>select{width:100%;max-width:560px;box-sizing:border-box}
+
+/* Owner subscription and professional receipts, isolated from the operational POS. */
+.subscription-dialog{width:min(820px,calc(100% - 24px))}
+.subscription-dialog .panel{display:grid;gap:10px;background:#f7f9fc;color:#173047}
+.subscription-notice{padding:12px 14px;border:1px solid #c8dbe5;background:#f1f7fa;color:#173047;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.subscription-receipt{box-sizing:border-box;border:1px solid #d4dce2;border-radius:14px;padding:clamp(16px,4vw,30px);background:#fff;color:#173047;min-width:0}
+.subscription-receipt-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #173047;padding-bottom:16px;flex-wrap:wrap}
+.subscription-receipt-head small{font-size:10px;font-weight:700;letter-spacing:1px}
+.subscription-brand{display:flex;align-items:center;gap:8px;font-size:19px;font-weight:800}
+.subscription-logo{background:#173047;color:#fff;font-size:22px;padding:9px 14px;border-radius:8px}
+.subscription-receipt h2{font-size:18px;margin:22px 0 6px}
+.subscription-amount{font-size:36px;line-height:1.2}
+.subscription-company{font-size:20px;font-weight:700;overflow-wrap:anywhere}
+.subscription-receipt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:24px 0}
+.subscription-receipt-grid div{border-bottom:1px solid #d4dce2;padding-bottom:10px;min-width:0}
+.subscription-receipt-grid dt,.subscription-id,.subscription-disclaimer{font-size:12px;color:#506271;overflow-wrap:anywhere}
+.subscription-receipt-grid dd{margin:5px 0;font-weight:700;overflow-wrap:anywhere}
+.cloud-field input[type="checkbox"]{width:20px;height:20px;justify-self:start}
+@media(max-width:380px){.subscription-receipt-grid{grid-template-columns:1fr}.subscription-amount{font-size:28px}}
