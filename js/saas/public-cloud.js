@@ -12,6 +12,7 @@ function publicProfessionals(A){
 function publicSnapshot(){
   const A=window.App,b=SaaS.currentBusiness(),br=SaaS.currentBranch();
   const client=A.db.business?.clientApp||{};
+  const canTheme=SaaS.planCapability?.("customTheme",b)===true,canPromotions=SaaS.planCapability?.("promotions",b)===true;
   return {
     id:b.id,
     slug:(b.slug||b.id),
@@ -23,14 +24,16 @@ function publicSnapshot(){
     branch:{id:br?.id||"",name:br?.name||"",city:br?.city||"",address:br?.address||"",whatsapp:br?.whatsapp||""},
     branding:{
       brandName:client.brandName||b.name,
+      tagline:client.tagline||"",
+      contactPhone:client.contactPhone||"",
       heroTitle:client.heroTitle||"",
       heroSubtitle:client.heroSubtitle||"",
-      theme:client.theme||"light",
-      primary:client.primary||"#c89a4b",
-      secondary:client.secondary||"#111111",
+      theme:canTheme&&["light","dark","soft"].includes(client.theme)?client.theme:"light",
+      primary:canTheme&&/^#[0-9a-f]{6}$/i.test(client.primary||"")?client.primary:"#c89a4b",
+      secondary:canTheme&&/^#[0-9a-f]{6}$/i.test(client.secondary||"")?client.secondary:"#111111",
       logo:client.logo||"",
       background:client.background||"",
-      promotions:client.promotions||[],
+      promotions:canPromotions&&Array.isArray(client.promotions)?client.promotions.slice(0,20).map(p=>({title:String(p?.title||"").slice(0,120),text:String(p?.text||"").slice(0,300)})):[],
       barberPhotos:client.barberPhotos||{},
       whatsapp:client.whatsapp||"",
       instagram:client.instagram||"",
