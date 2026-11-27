@@ -84,7 +84,7 @@ test("operational backup is private and immutable",async()=>{
   await assertFails(updateDoc(part,{payload:{}}));await assertFails(deleteDoc(ref));
 });
 async function seedClient(uid,id="one"){
-  const db=actor(uid);
+  const db=env.authenticatedContext(uid,{email:id.toLowerCase()+".123456789@clients.sambrix.app"}).firestore();
   await assertSucceeds(setDoc(publicDoc(db,id,"client_accounts",uid),{clientId:"client_"+uid,name:"Cliente "+uid,phone:"123456789",phoneNormalized:"123456789",status:"Activo",createdAt:serverTimestamp(),points:0,visits:0}));
 }
 function book(uid,reqId,time="10:00",id="one"){
@@ -106,6 +106,12 @@ test("public booking requires a linked slot; two simultaneous clients cannot res
   await assertFails(book("clientA","badTime","24:00"));
   await assertFails(book("clientA","crossTenant","11:00","two"));
   await assertFails(updateDoc(publicDoc(actor(winner),"one","client_accounts",winner),{points:999}));
+  await assertFails(getDoc(publicDoc(actor(loser),"one","client_accounts",winner)));
+  await assertFails(getDoc(publicDoc(actor("other"),"one","client_accounts",winner)));
+  await assertSucceeds(updateDoc(publicDoc(actor("owner"),"one","client_accounts",winner),{points:10,visits:1,serviceHistory:[{service:"Servicio QA"}]}));
+  await assertFails(updateDoc(publicDoc(actor(winner),"one","client_accounts",winner),{serviceHistory:[]}));
+  const forged=env.authenticatedContext("forged",{email:"two.123456789@clients.sambrix.app"}).firestore();
+  await assertFails(setDoc(publicDoc(forged,"one","client_accounts","forged"),{clientId:"client_forged",name:"Cliente QA",phone:"123456789",phoneNormalized:"123456789",status:"Activo",createdAt:serverTimestamp(),points:0,visits:0}));
 });
 
 test("commercial lifecycle: new company, plan, staff, subscription, booking, atomic receipt and cash",async()=>{
