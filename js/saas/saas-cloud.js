@@ -90,7 +90,7 @@ function normalizeTenantState(businessId,state){
   if(business){
     next.business.name=business.name||next.business.name||"Negocio";
     next.business.clientApp=next.business.clientApp||{};
-    next.business.clientApp.brandName=business.brand?.name||business.name||next.business.clientApp.brandName||"Negocio";
+    next.business.clientApp.brandName=next.business.clientApp.brandName||business.brand?.name||business.name||"Negocio";
   }
   const branchId=next.meta.branchId||"";
   ["users","barbers","services","clients","appointments","cash","sales","products","stockMoves","shopOrders","employees","attendance","absences","approvalRequests","clientRequests","auditLog","clientActivity"].forEach(k=>{
