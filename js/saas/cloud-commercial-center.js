@@ -85,7 +85,7 @@ async function paymentForm(id){
       if(current.planId!==p.id||current.nextPayment!==b.nextPayment)throw Error("El plan o vencimiento cambió. Actualiza y vuelve a revisar.");
       const active=data.plans.find(x=>x.id===current.planId);if(!active||paymentAmount(active.price,period)!==expected)throw Error("La mensualidad cambió. Actualiza antes de cobrar.");
       const next=renewalDate(current.nextPayment,today,period),patch={planId:current.planId,nextPayment:next,commercialManaged:true};
-      if(!current.accessSuspended&&/^(prueba|vencido)$/i.test(current.status||""))patch.status="Activo";
+      if((!current.accessSuspended||current.commercialHold===true)&&/^(prueba|vencido)$/i.test(current.status||""))patch.status="Activo";
       tx.update(companyRef(id),{...patch,commercialUpdatedAt:serverTimestamp()});
       tx.update(catalog(),{businesses:patchCatalog(data,id,patch),updatedAt:serverTimestamp()});
       tx.set(receipt,{businessId:id,businessName:String(current.name||id).slice(0,180),planId:p.id,planName:String(active.name||p.id).slice(0,180),amountCents:expected,currency:"USD",months:period,paidAt:paymentDate,previousDue:current.nextPayment||"",nextDue:next,method:methodValue,reference,note:notes,createdBy:actor,createdAt:serverTimestamp()});
@@ -159,11 +159,11 @@ function holdForm(id){
  const b=rows.find(x=>x.id===id);if(!admin()||!b||!policyVerified)return;const actor=uid(),restore=b.commercialHold===true&&b.accessSuspended===true;showDialog((restore?"Reactivar suscripción · ":"Suspender por impago · ")+b.name);
  const reason=input("text","",500);body.append(el("p",restore?"Solo se retira el bloqueo comercial cuando el vencimiento está al día. No se modifica el historial.":"Se verificará el vencimiento y la política vigente antes de bloquear el acceso. No se elimina información."),field("Motivo",reason));
  const save=button(restore?"Confirmar reactivación":"Confirmar suspensión",()=>run(save,async()=>{assertSession(actor);const why=reason.value.trim();if(why.length<3)throw Error("Escribe un motivo.");if(!confirm("¿Confirmar el cambio de acceso de "+b.name+"?"))return;const audit=doc(collection(firestore,"support_access_events")),pub=doc(firestore,"public_businesses",id);
- await runTransaction(firestore,async tx=>{assertSession(actor);const [cs,bs,ps,publicSnap]=await Promise.all([tx.get(catalog()),tx.get(companyRef(id)),tx.get(policyRef()),tx.get(pub)]);const data=validCatalog(cs),current=mergedBusiness(data,bs,id),p=billingPolicy(ps.data()),today=todayLocal();if(current.nextPayment!==b.nextPayment)throw Error("El vencimiento cambió. Actualiza.");
+ await runTransaction(firestore,async tx=>{assertSession(actor);const [cs,bs,ps,publicSnap]=await Promise.all([tx.get(catalog()),tx.get(companyRef(id)),tx.get(policyRef()),tx.get(pub)]);const data=validCatalog(cs),current=mergedBusiness(data,bs,id),p=billingPolicy(ps.data()),today=todayLocal();if(current.nextPayment!==b.nextPayment||JSON.stringify(p)!==JSON.stringify(policy))throw Error("El vencimiento o política cambió. Actualiza.");
  if(restore){if(current.commercialHold!==true||current.accessSuspended!==true||daysToDue(current.nextPayment,today)===null||daysToDue(current.nextPayment,today)<0||!["activo","prueba"].includes(String(current.status).toLowerCase()))throw Error("No se puede reactivar: verifica el pago y el estado administrativo.");}else if(!eligibleForCollectionHold(current,today,p))throw Error("La empresa no es elegible para suspensión por impago.");
  const patch={accessSuspended:!restore,commercialHold:!restore,commercialManaged:true,planId:current.planId,nextPayment:current.nextPayment,status:current.status};
  tx.update(companyRef(id),{...patch,accessChangedBy:actor,accessChangedAt:serverTimestamp()});tx.update(catalog(),{businesses:patchCatalog(data,id,patch),updatedAt:serverTimestamp()});
- if(publicSnap.exists())tx.update(pub,{status:restore?current.status:"Suspendido",serverUpdatedAt:serverTimestamp()});
+ if(publicSnap.exists()&&(!restore||publicSnap.data().status==="Suspendido"))tx.update(pub,{status:restore?current.status:"Suspendido",serverUpdatedAt:serverTimestamp()});
  tx.set(audit,{businessId:id,action:restore?"ACCESS_RESTORE":"ACCESS_SUSPEND",reason:"Cobranza: "+why.slice(0,480),caseId:"",actorUid:actor,createdAt:serverTimestamp()});
  });dialog.close();toast(restore?"Acceso comercial restablecido.":"Acceso suspendido por impago.");await refresh();}),"primary");body.append(save);
 }
