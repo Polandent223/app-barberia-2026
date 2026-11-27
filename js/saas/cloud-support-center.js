@@ -114,6 +114,7 @@ async function openCompany(id,caseId=""){
       await runTransaction(firestore,async tx=>{
         const snap=await tx.get(ref);
         if(!snap.exists()||(snap.data().accessSuspended===true)!==blocked)throw new Error("El acceso cambió. Vuelve a consultar.");
+         if(snap.data().commercialHold===true)throw Error("La suspensión comercial se gestiona desde Cobros y suscripciones.");
         tx.update(ref,{accessSuspended:next,accessChangedAt:serverTimestamp(),accessChangedBy:owner});
         tx.set(audit,eventData(id,next?"ACCESS_SUSPEND":"ACCESS_RESTORE",why,caseId));
       });
@@ -123,7 +124,7 @@ async function openCompany(id,caseId=""){
       changeAccess.textContent=blocked?"Restablecer acceso":"Bloquear acceso";
       toast(blocked?"Bloqueo guardado en Firebase.":"Bloqueo administrativo retirado.");
     }),"primary");
-    access.append(accessLabel,node("p","cloud-message","Control independiente de cobros y renovaciones. No elimina usuarios ni historiales."),field("Motivo del cambio",accessReason),changeAccess);
+    if(data.commercialHold===true){changeAccess.disabled=true;access.append(accessLabel,node("p","cloud-message","Suspendida por cobranza. Para reactivar, verifica el pago en Cobros y suscripciones."));}else access.append(accessLabel,node("p","cloud-message","Control independiente de cobros y renovaciones. No elimina usuarios ni historiales."),field("Motivo del cambio",accessReason),changeAccess);
     details.append(access);
     details.append(button("Respaldos de esta empresa",()=>{if(!still(id,owner,gen))return;companyDialog.d.close();window.SambrixBackup?.open(id); }));
     const checks=node("div","cloud-values");details.append(node("h3","","Diagnóstico de lectura"),checks);
