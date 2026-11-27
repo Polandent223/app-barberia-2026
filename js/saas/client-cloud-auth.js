@@ -5,6 +5,7 @@ import {getAuth,setPersistence,browserLocalPersistence,onAuthStateChanged,create
 import {getFirestore,doc,getDoc,getDocFromServer,setDoc,collection,addDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 import {available,dayValid,minute} from "./client-booking-core.js?v=2.0.8";
+import {activationCode} from "./client-identity-core.js?v=1";
 
 const appName="sambrix-client-auth";
 const clientApp=getApps().find(a=>a.name===appName)||initializeApp(firebaseConfig,appName);
@@ -17,13 +18,13 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const bid=()=>String(new URLSearchParams(location.search).get("business")||window.App?.db?.meta?.businessId||"").trim();
 const safeBusiness=v=>String(v||"").toLowerCase().replace(/[^a-z0-9_-]/g,"").slice(0,80);
 const authEmail=(businessId,phone)=>`${safeBusiness(businessId)}.${normPhone(phone)}@clients.sambrix.app`;
-let profile=null,profileBusiness="",profileUid="",bookings=[],changes=[],bookingUnsub=null,changeUnsub=null,ready=false,profileGeneration=0;
+let profile=null,profileBusiness="",profileUid="",bookings=[],changes=[],bookingUnsub=null,changeUnsub=null,profileUnsub=null,ready=false,profileGeneration=0;
 const notify=()=>document.dispatchEvent(new Event("sambrix-client-cloud-change"));
 
 function profileRef(businessId,uid){return doc(db,"public_businesses",businessId,"client_accounts",uid)}
 function currentClient(){
   if(!profile||!auth.currentUser||profileBusiness!==bid()||profileUid!==auth.currentUser.uid||profile.status!=="Activo")return null;
-  return {id:profile.clientId||auth.currentUser.uid,name:profile.name||auth.currentUser.displayName||"Cliente",phone:profile.phone||"",points:Number(profile.points||0),visits:Number(profile.visits||0),lastVisit:profile.lastVisit||""};
+  return {id:profile.clientId||auth.currentUser.uid,name:profile.name||auth.currentUser.displayName||"Cliente",phone:profile.phone||"",points:Number(profile.points||0),visits:Number(profile.visits||0),lastVisit:profile.lastVisit||"",linkVerified:profile.linkVerified===true,activationCode:activationCode(auth.currentUser.uid),serviceHistory:Array.isArray(profile.serviceHistory)?profile.serviceHistory:[]};
 }
 async function loadProfile(){
   const businessId=bid(),u=auth.currentUser;
@@ -35,10 +36,15 @@ async function loadProfile(){
   if(gen===profileGeneration){profile=value;profileBusiness=value?businessId:"";profileUid=value?u.uid:"";}
   return value;
 }
-function stopBookings(){if(bookingUnsub){try{bookingUnsub()}catch{}bookingUnsub=null}if(changeUnsub){try{changeUnsub()}catch{}changeUnsub=null}bookings=[];changes=[]}
+function stopBookings(){if(profileUnsub){try{profileUnsub()}catch{}profileUnsub=null;}if(bookingUnsub){try{bookingUnsub()}catch{}bookingUnsub=null}if(changeUnsub){try{changeUnsub()}catch{}changeUnsub=null}bookings=[];changes=[]}
 function watchBookings(){
   stopBookings();
   const businessId=bid(),u=auth.currentUser;if(!businessId||!u)return;
+  profileUnsub=onSnapshot(profileRef(businessId,u.uid),{includeMetadataChanges:true},s=>{
+    if(bid()!==businessId||auth.currentUser?.uid!==u.uid||s.metadata.fromCache||s.metadata.hasPendingWrites)return;
+    if(!s.exists()||s.data().status!=="Activo"){void logout();return;}
+    const next={id:u.uid,...s.data()};if(JSON.stringify(next)!==JSON.stringify(profile)){profileGeneration++;profile=next;profileBusiness=businessId;profileUid=u.uid;notify();}
+  },e=>console.warn("[SAMBRIX client profile]",e));
   const q=query(collection(db,"public_businesses",businessId,"booking_requests"),where("clientUid","==",u.uid));
   bookingUnsub=onSnapshot(q,s=>{
     bookings=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||String(b.time||"").localeCompare(String(a.time||"")));
