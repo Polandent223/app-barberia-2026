@@ -292,4 +292,34 @@ test("new app registration syncs without a booking; existing phone requires veri
   assert.equal(await existing.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  }finally{await owner.context.close();await client.context.close();await existing.context.close();}
 });
+test("commercial center: grace policy, reminder, verified payment, suspension and reactivation",{timeout:150000},async()=>{
+ const {page,context}=await openPage();
+ const {commercialDay}=await import("../functions/commercial-suspension.js");
+ const today=commercialDay(),daysAgo=n=>new Date(Date.parse(today)-n*86400000).toISOString().slice(0,10);
+ const company=seed.db.doc("businesses/"+SECOND),catalog=seed.db.doc("platform/business_catalog"),pub=seed.db.doc("public_businesses/"+SECOND);
+ const firstBefore=(await seed.db.doc("businesses/"+BUSINESS).get()).data(),crmBefore=(await seed.db.doc("businesses/"+SECOND+"/state/crm").get()).data().payload;
+ const d=(await catalog.get()).data(),due=daysAgo(4);
+ const batch=seed.db.batch();batch.update(company,{nextPayment:due});batch.update(catalog,{businesses:d.businesses.map(b=>b.id===SECOND?{...b,nextPayment:due}:b)});await batch.commit();
+ const dialog="dialog.cloud-support-dialog[open]",cards="#commercialRoot .cloud-ticket";
+ const clickRow=async label=>{await page.waitForFunction((sel,t)=>Array.from(document.querySelectorAll(sel)).some(x=>x.textContent.includes("Empresa Aislada QA")&&Array.from(x.querySelectorAll("button")).some(b=>b.textContent.includes(t))),{timeout:30000},cards,label);await page.evaluate((sel,t)=>Array.from(document.querySelectorAll(sel)).find(x=>x.textContent.includes("Empresa Aislada QA")).querySelectorAll("button")&&Array.from(Array.from(document.querySelectorAll(sel)).find(x=>x.textContent.includes("Empresa Aislada QA")).querySelectorAll("button")).find(b=>b.textContent.includes(t)).click(),cards,label);};
+ const fill=async(label,value)=>page.evaluate((sel,t,v)=>{const x=Array.from(document.querySelectorAll(sel+" label")).find(l=>l.textContent.includes(t))?.querySelector("input,select");if(!x)throw Error("Campo no encontrado: "+t);x.value=v;x.dispatchEvent(new Event("input",{bubbles:true}));x.dispatchEvent(new Event("change",{bubbles:true}));},dialog,label,value);
+ const accept=async d=>{if(d.type()==="confirm")await d.accept();else await d.dismiss();};page.on("dialog",accept);
+ const verified=async()=>{await page.waitForFunction(()=>document.querySelector("#commercialRoot [role=status]")?.textContent.includes("Datos comerciales verificados"),{timeout:30000});};
+ const closed=async()=>{await page.waitForFunction(sel=>!document.querySelector(sel),{timeout:30000},dialog);await verified();};
+ try{
+  await login(page,"superadmin");await state(page,"superadmin","");await page.evaluate(()=>App.go("billingOperationsCenter"));await verified();
+  await clickText(page,"#commercialRoot button","Política de cobro");await fill("Días de gracia","3");await fill("Motivo","Política QA");await clickText(page,dialog+" button","Guardar política");await closed();
+  assert.equal((await seed.db.doc("platform/commercial_policy").get()).data().graceDays,3);
+  await clickRow("Recordatorio / seguimiento");await fill("Observación","Contacto QA");await clickText(page,dialog+" button","Registrar contacto realizado");await closed();
+  assert.equal((await seed.db.doc("platform/commercial_contact_"+SECOND).get()).data().dueDate,due);
+  await clickRow("Suspender por impago");await fill("Motivo","Atraso QA");await clickText(page,dialog+" button","Confirmar suspensión");await closed();
+  assert.equal((await company.get()).data().commercialHold,true);assert.equal((await company.get()).data().accessSuspended,true);assert.equal((await pub.get()).data().status,"Suspendido");
+  await clickRow("Registrar cobro");await fill("Referencia","QA-COMMERCIAL-UNIQUE");await clickText(page,dialog+" button","Confirmar pago recibido");await closed();
+  const receipts=await seed.db.collection("commercial_payments").where("businessId","==",SECOND).get();assert.equal(receipts.size,1);assert.equal(receipts.docs[0].data().amountCents,3000);assert.equal((await company.get()).data().commercialHold,true);
+  await clickText(page,"#commercialRoot button","Ingresos registrados");await clickText(page,dialog+" button","Consultar mes");await page.waitForFunction(sel=>document.querySelector(sel)?.textContent.includes("1 pagos registrados"),{timeout:30000},dialog);await clickText(page,dialog+" button","Cerrar");
+  await clickRow("Revisar reactivación");await fill("Motivo","Pago confirmado QA");await clickText(page,dialog+" button","Confirmar reactivación");await closed();
+  assert.equal((await company.get()).data().accessSuspended,false);assert.equal((await company.get()).data().commercialHold,false);assert.equal((await pub.get()).data().status,"Activo");
+  assert.deepEqual((await seed.db.doc("businesses/"+SECOND+"/state/crm").get()).data().payload,crmBefore);assert.deepEqual((await seed.db.doc("businesses/"+BUSINESS).get()).data(),firstBefore);
+ }finally{page.off("dialog",accept);await context.close();}
+});
 test.after(async()=>{await browser.close();await qa.close();await seed.close();assert.deepEqual(external,[],"No se permite conexión fuera de loopback");assert.deepEqual(failures,[],"Errores JS de la interfaz");});
