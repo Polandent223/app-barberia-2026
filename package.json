@@ -8,7 +8,8 @@
     "check:syntax": "node scripts/check-syntax.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "test": "npm run check:syntax && npm run lint && npm run regression",
-    "regression": "node --test scripts/regression-test.mjs"
+    "regression": "node --test scripts/regression-test.mjs",
+    "test:security": "firebase emulators:exec --project demo-sambrix-qa --only firestore \"node --test scripts/firestore-rules-test.mjs\""
   },
   "devDependencies": {
     "eslint": "^9.0.0",
