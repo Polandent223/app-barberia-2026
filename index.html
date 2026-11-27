@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="css/app.css?v=1.0.9">
 <link rel="stylesheet" href="css/superadmin-workspace.css?v=2.0.1">
 <link rel="stylesheet" href="css/business-workspace.css?v=2.0.6">
-<link rel="stylesheet" href="css/client-public-v2.css?v=2.0.8">
+<link rel="stylesheet" href="css/client-public-v2.css?v=2.0.9">
 <link rel="stylesheet" href="css/cloud-support-center.css?v=2.0.5">
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -488,6 +488,18 @@
         <button class="btn secondary" id="previewClientBtn">Vista previa</button>
       </div>
       <div id="brandingPlanSummary" class="branding-plan-summary"></div>
+      <div class="panel" data-plan-section="customTheme">
+        <div class="panel-head"><div><span class="tag">DISEÑADOR VISUAL</span><h3>Plantilla y distribución</h3></div><span class="request-badge">PRO+</span></div>
+        <p class="muted">Elige una estructura independiente de los colores. Puedes revisar el borrador con Vista previa antes de guardar.</p>
+        <div class="form-grid">
+          <label>Plantilla<select id="clientLayout"><option value="classic">Clásica · lista compacta</option><option value="gallery">Galería · fotografías grandes</option><option value="editorial">Editorial · portada protagonista</option></select></label>
+          <label>Ajuste de portada<select id="clientCoverFit"><option value="cover">Llenar espacio</option><option value="contain">Mostrar imagen completa</option></select></label>
+          <label>Forma de botones<select id="clientButtonShape"><option value="rounded">Redondeados</option><option value="pill">Cápsula</option><option value="square">Rectos</option></select></label>
+          <label>Texto del botón de reserva<input id="clientBookingLabel" maxlength="40" placeholder="Reservar ahora"></label>
+          <label>Ubicación de promociones<select id="clientPromotionPosition"><option value="after">Después de servicios</option><option value="top">Antes de servicios</option></select></label>
+          <label>Mostrar equipo<select id="clientShowProfessionals"><option value="no">No</option><option value="yes">Sí</option></select></label>
+        </div>
+      </div>
 
       <div class="grid2">
         <div class="panel">
@@ -3569,18 +3581,19 @@
   </div>
 <div id="nexoPoweredBy" class="nexo-powered">Powered by <strong>SAMBRIX</strong></div></div>
 
-<script src="js/bundle-core.js?v=2.0.16"></script>
+<script src="js/bundle-core.js?v=2.0.17"></script>
 <script src="js/bundle-saas.js?v=2.0.9"></script>
 <script defer src="js/saas/superadmin-workspace.js?v=2.0.5"></script>
 <script defer src="js/saas/business-workspace.js?v=2.0.7"></script>
 <script type="module" src="js/firebase/firebase-main.js?v=1.0.11"></script>
-<script type="module" src="js/saas/public-cloud.js?v=2.0.15"></script>
+<script type="module" src="js/saas/public-cloud.js?v=2.0.16"></script>
 <script type="module" src="js/saas/client-cloud-auth.js?v=2.0.9"></script>
-<script type="module" src="js/saas/client-public-v2.js?v=2.0.9"></script>
+<script type="module" src="js/saas/client-public-v2.js?v=2.0.10"></script>
 <script type="module" src="js/saas/saas-access.js?v=2.0.6"></script>
 <script type="module" src="js/saas/saas-cloud-main.js?v=2.0.15"></script>
 <script type="module" src="js/saas/booking-resolution.js?v=2.0.10"></script>
 <script type="module" src="js/saas/client-identity.js?v=1"></script>
+<script type="module" src="js/saas/client-design-preview.js?v=1"></script>
 <script type="module" src="js/saas/financial-close.js?v=2.0.11"></script>
 <script type="module" src="js/saas/financial-corrections.js?v=2.0.13"></script>
 <script type="module" src="js/saas/inventory-control.js?v=2.0.15"></script>
