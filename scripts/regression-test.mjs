@@ -61,3 +61,25 @@ test("physical return restores original quantities and preserves sale record",()
  assert.deepEqual(result.finance.sales,sold.finance.sales);assert.equal(result.record.cash.amount,8.5);
  assert.equal(result.record.cash.type,"Egreso");assert.throws(()=>buildShopReturn({...args,previousCents:100}));
 });
+
+test("client identity never claims existing private history by phone alone",async()=>{
+ const {inspectAccount,makeClient,verifyLink,projection,activationCode,safePublicIdentity}=await import("../js/saas/client-identity-core.js");
+ const uid="qa-uid-123456789",p={clientId:"client_"+uid,name:"Cliente QA",phone:"+58 412 1234567",phoneNormalized:"584121234567",status:"Activo"};
+ const manual={id:"manual",name:"Cliente anterior",phone:"+58 4121234567",points:30,visits:3,businessId:"one"};
+ const clients=[manual],schedule={appointments:[{id:"old",clientId:"manual",status:"Finalizada",date:"2026-11-20",serviceId:"s"}]},config={services:[{id:"s",name:"Manicura"}]};
+ assert.equal(inspectAccount(clients,uid,p).kind,"verify");
+ assert.throws(()=>verifyLink(clients,uid,p,"manual","wrong","owner","now"));
+ assert.equal(manual.firebaseUid,undefined);
+ assert.equal(inspectAccount([],uid,p).kind,"new");
+ const fresh=makeClient("one","branch",uid,p);assert.equal(fresh.clientLinkVerified,false);
+ assert.equal(inspectAccount([fresh,manual],uid,p).kind,"conflict");
+ verifyLink(clients,uid,p,"manual",activationCode(uid),"owner","now");
+ assert.equal(manual.id,"manual");assert.equal(manual.points,30);
+ assert.equal(projection(manual,uid,schedule,config).serviceHistory[0].service,"Manicura");
+ assert.equal(projection({...manual,clientLinkVerified:false},uid,schedule,config).serviceHistory.length,0);
+ assert.equal(projection({...manual,clientLinkVerified:false},uid,schedule,config).points,0);
+ assert.equal(projection(manual,uid,schedule,config,false).serviceHistory.length,0);
+ assert.equal(inspectAccount([],uid,{...p,linkedClientId:"manual"}).kind,"conflict");
+ assert.equal(safePublicIdentity("<img src=x>","123456789"),false);
+ assert.equal(safePublicIdentity("Camila Pérez","0412-1234567"),true);
+});
