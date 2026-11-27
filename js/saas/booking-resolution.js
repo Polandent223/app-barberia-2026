@@ -72,7 +72,10 @@ async function resolve(requestId,kind,approve,reason=""){
       if(typeof booking.clientUid!=="string"||!booking.clientUid||booking.clientId!=="client_"+booking.clientUid||typeof booking.name!=="string"||booking.name.trim().length<2||typeof booking.phone!=="string"||booking.phone.replace(/\D/g,"").length<7)throw Error("La solicitud no tiene una identidad de cliente válida. Contacta a soporte.");
       let client=crm.clients.find(c=>c.firebaseUid===booking.clientUid);
       const clientId=booking.clientId||"client_"+booking.clientUid;
-      if(!client){const same=crm.clients.find(c=>c.id===clientId);if(same)throw Error("Identidad de cliente en conflicto. Contacta a soporte.");client={id:clientId,firebaseUid:booking.clientUid,name:booking.name||"Cliente",phone:booking.phone||"",email:"",businessId:id,branchId:booking.branchId||config.meta?.branchId||""};crm.clients.push(client);writeState(tx,crmRef,cs,crm,id,actor);}
+      const phone=String(booking.phone).replace(/\D/g,"");
+      const matches=crm.clients.filter(c=>String(c.phone||"").replace(/\D/g,"")===phone);
+      if(matches.some(c=>c.id!==client?.id)||client&&String(client.phone||"").replace(/\D/g,"")!==phone)throw Error("El teléfono corresponde a una ficha existente o en conflicto. Verifica y vincula la cuenta desde Clientes antes de aprobar.");
+      if(!client){const same=crm.clients.find(c=>c.id===clientId);if(same)throw Error("Identidad de cliente en conflicto. Contacta a soporte.");client={id:clientId,firebaseUid:booking.clientUid,clientLinkVerified:false,source:"App Cliente",name:booking.name||"Cliente",phone:booking.phone||"",email:"",businessId:id,branchId:booking.branchId||config.meta?.branchId||"",points:0,visits:0,lastVisit:""};crm.clients.push(client);writeState(tx,crmRef,cs,crm,id,actor);}
       const appt={id:"public_"+rid,clientId:client.id,serviceId:booking.serviceId,barberId:booking.barberId,date:booking.date,time:booking.time,status:"Confirmada",note:booking.note||"",duration:durationOf(service),price:Number(service.price),businessId:id,branchId:booking.branchId||config.meta?.branchId||"",source:"SAMBRIX Client",publicRequestId:rid,createdAt:at};
       if(schedule.appointments.some(a=>a.id===appt.id))throw Error("Identificador de cita duplicado.");
       schedule.appointments.push(appt);writeState(tx,scheduleRef,ss,schedule,id,actor);
