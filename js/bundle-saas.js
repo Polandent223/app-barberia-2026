@@ -2051,6 +2051,8 @@ SaaS.saveSupport=function(){
 };
 
 SaaS.openSupportTicket=function(){
+  if(window.App?.PRODUCTION_MODE){if(window.SambrixCloudSupport?.open)return window.SambrixCloudSupport.open();return window.App?.toast?.("Soporte en Firebase no disponible. Recarga la página. No se ha enviado ninguna solicitud.");}
+
   const role=SaaS.session?.role||"";
   if(role==="superadmin")return window.App?.go?.("supportCenter");
   if(!SaaS.getContext?.()?.businessId)return window.App?.toast?.("No hay negocio activo");
@@ -2062,6 +2064,8 @@ SaaS.openSupportTicket=function(){
 SaaS.closeSupportTicket=function(){document.getElementById("supportTicketModal")?.classList.remove("open")};
 
 SaaS.createSupportTicket=function(){
+  if(window.App?.PRODUCTION_MODE){window.App?.toast?.("Este formulario antiguo no envía solicitudes. Abre Soporte SAMBRIX y envíala desde allí.");return;}
+
   const subject=document.getElementById("supportTicketSubject").value.trim();
   const description=document.getElementById("supportTicketDescription").value.trim();
   if(!subject||!description)return alert("Completa asunto y descripciÃ³n.");
@@ -5663,6 +5667,8 @@ SaaS.loadOperations=function(){
 SaaS.saveOperations=function(){localStorage.setItem("sambrix_operations",JSON.stringify(SaaS.operations));};
 
 SaaS.openSupportTicket=function(){
+  if(window.App?.PRODUCTION_MODE){if(window.SambrixCloudSupport?.open)return window.SambrixCloudSupport.open();return window.App?.toast?.("Soporte en Firebase no disponible. Recarga la página. No se ha enviado ninguna solicitud.");}
+
  const sel=document.getElementById("supportBusiness");
  sel.innerHTML='<option value="">Plataforma general</option>'+(SaaS.db.businesses||[]).map(b=>`<option value="${b.id}">${b.name}</option>`).join("");
  const ctx=SaaS.getContext?.(); if(ctx?.businessId)sel.value=ctx.businessId;
@@ -5676,6 +5682,8 @@ SaaS.openSupportTicket=function(){
 SaaS.closeSupportTicket=function(){document.getElementById("opsSupportTicketModal")?.classList.remove("open");};
 
 SaaS.createSupportTicket=function(){
+  if(window.App?.PRODUCTION_MODE){window.App?.toast?.("Este formulario antiguo no envía solicitudes. Abre Soporte SAMBRIX y envíala desde allí.");return;}
+
  const title=document.getElementById("supportTitle").value.trim();
  if(!title)return alert("Escribe el tÃ­tulo del caso.");
  const businessId=document.getElementById("supportBusiness").value;
@@ -8373,10 +8381,10 @@ SaaS.installSuperAdminOrganizer=function(){
     document.getElementById("trashTypeFilter")?.addEventListener("change",SaaS.renderBackupCenter);
     document.getElementById("refreshSupportBtn")?.addEventListener("click",SaaS.renderSupport);
     document.getElementById("supportStatusFilter")?.addEventListener("change",SaaS.renderSupport);
-    document.getElementById("openSupportTicketBtn")?.addEventListener("click",SaaS.openSupportTicket);
+    document.getElementById("openSupportTicketBtn")?.addEventListener("click",()=>SaaS.openSupportTicket?.());
     document.getElementById("closeOpsSupportTicketModal")?.addEventListener("click",SaaS.closeSupportTicket);
     document.getElementById("cancelSupportTicket")?.addEventListener("click",SaaS.closeSupportTicket);
-    document.getElementById("saveSupportTicket")?.addEventListener("click",SaaS.createSupportTicket);
+    document.getElementById("saveSupportTicket")?.addEventListener("click",()=>SaaS.createSupportTicket?.());
     document.getElementById("exitSupportModeBtn")?.addEventListener("click",SaaS.exitSupportMode);
     document.getElementById("refreshLicensesBtn")?.addEventListener("click",SaaS.renderLicenses);
     document.getElementById("licenseSearch")?.addEventListener("input",SaaS.renderLicenses);
@@ -8462,10 +8470,10 @@ SaaS.installSuperAdminOrganizer=function(){
     document.getElementById("clearAppCacheBtn")?.addEventListener("click",SaaS.clearAppCache);
     document.getElementById("createRecoveryPlanBtn")?.addEventListener("click",SaaS.prepareRecoveryPlan);
     document.getElementById("recoveryCenter")?.addEventListener("change",SaaS.toggleRecoveryManual);
-    document.getElementById("newSupportTicketBtn")?.addEventListener("click",SaaS.openSupportTicket);
+    document.getElementById("newSupportTicketBtn")?.addEventListener("click",()=>SaaS.openSupportTicket?.());
     document.getElementById("closeOpsSupportTicketModal")?.addEventListener("click",SaaS.closeSupportTicket);
     document.getElementById("cancelSupportTicketBtn")?.addEventListener("click",SaaS.closeSupportTicket);
-    document.getElementById("saveSupportTicketBtn")?.addEventListener("click",SaaS.createSupportTicket);
+    document.getElementById("saveSupportTicketBtn")?.addEventListener("click",()=>SaaS.createSupportTicket?.());
     document.getElementById("opsPriorityFilter")?.addEventListener("change",SaaS.renderOperations);
     document.getElementById("opsStatusFilter")?.addEventListener("change",SaaS.renderOperations);
     document.getElementById("newServiceNoticeBtn")?.addEventListener("click",SaaS.openServiceNotice);
