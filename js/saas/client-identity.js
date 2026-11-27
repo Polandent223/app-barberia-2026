@@ -1,10 +1,10 @@
 /* Tenant-side reconciliation, authorized by existing CRM and client_accounts rules. */
 import {auth,firestore} from "../firebase/firebase-core.js";
 import {doc,collection,onSnapshot,runTransaction,serverTimestamp,getDocsFromServer} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
-import {inspectAccount,makeClient,verifyLink,projection,normalizePhone} from "./client-identity-core.js?v=1";
+import {inspectAccount,makeClient,verifyLink,projection} from "./client-identity-core.js?v=1";
 const S=()=>window.SaaS,A=()=>window.App,C=()=>window.SaaSCloudProduction;
 const role=()=>S()?.session?.role;
-const context=()=>{const id=String(S()?.session?.businessId||""),uid=auth.currentUser?.uid;return id&&uid&&["owner","admin","manager"].includes(role())?{id,uid,key:id+":"+uid+":"+role()}:null;};
+const context=()=>{if(new URLSearchParams(location.search).get("cliente")==="app")return null;const id=String(S()?.session?.businessId||""),uid=auth.currentUser?.uid;return id&&uid&&["owner","admin","manager"].includes(role())?{id,uid,key:id+":"+uid+":"+role()}:null;};
 const check=ctx=>{if(context()?.key!==ctx.key||!C()?.isTenantReady?.(ctx.id))throw Error("La sesión o sincronización cambió.");};
 let active="",stops=[],accounts=[],timer,busy=false,dirty=false,failed="",ready=false;
 const state=(id,name)=>doc(firestore,"businesses",id,"state",name);
@@ -29,7 +29,7 @@ async function reconcile(ctx,uid,verification=null){
   else if(m.kind==="new"){c=makeClient(ctx.id,config.meta?.branchId,uid,p);crm.clients.push(c);changed=true;}
   else if(m.kind!=="linked")return false;
   if(changed)saveCrm(tx,refs[0],cs,crm,ctx);
-  const next=projection(c,uid,schedule,config);
+  const next=projection(c,uid,schedule,config,S().planCapability?.("clientHistory",S().currentBusiness?.())===true);
   if(Object.keys(next).some(k=>!sameValue(p[k],next[k])))tx.update(refs[3],next);
   return changed;
  });
@@ -47,7 +47,7 @@ async function sync(){
    check(ctx);
    const clients=A()?.db?.clients||[],m=inspectAccount(clients,row.uid,row.data);
    if(list.some(x=>x.uid!==row.uid&&x.data.status==="Activo"&&x.data.phoneNormalized===row.data.phoneNormalized))continue;
-   if(m.kind==="new"||m.kind==="linked"&&Object.entries(projection(m.client,row.uid,{appointments:A().db.appointments||[]},{services:A().db.services||[],barbers:A().db.barbers||[]})).some(([k,v])=>!sameValue(row.data[k],v))){
+   if(m.kind==="new"||m.kind==="linked"&&Object.entries(projection(m.client,row.uid,{appointments:A().db.appointments||[]},{services:A().db.services||[],barbers:A().db.barbers||[]},S().planCapability?.("clientHistory",S().currentBusiness?.())===true)).some(([k,v])=>!sameValue(row.data[k],v))){
     const changed=await reconcile(ctx,row.uid);
     if(changed)await C().refreshTenant(ctx.id);
    }
