@@ -93,6 +93,35 @@ test("SuperAdmin modular navigation, search and responsive directory",{timeout:1
  }finally{await context.close();}
 });
 
+test("owner manages real Firebase access without altering other tenants or owner accounts",{timeout:150000},async()=>{
+ const {page,context}=await openPage(390,844);
+ const email="new-staff@sambrix-qa.example";
+ try{
+  await login(page,"owner");await state(page,"owner",BUSINESS);
+  await clickText(page,"#businessWorkspace button","Personal");
+  await clickText(page,"#businessWorkspace button","Usuarios y permisos");
+  await page.waitForFunction(()=>document.querySelector("#tenantMembersDialog [role=status]")?.textContent.includes("consultados"),{timeout:25000});
+  await page.type("#tenantMembersDialog input[type=text]","Nuevo QA");
+  await page.type("#tenantMembersDialog input[type=email]",email);
+  await page.type("#tenantMembersDialog input[type=password]","QA-only-123456");
+  await page.select("#tenantMemberRole","barber");
+  await clickText(page,"#tenantMembersDialog button","Crear acceso");
+  await page.waitForFunction(()=>document.querySelector("#tenantMembersDialog [role=status]")?.textContent.includes("Acceso creado")&&document.querySelector("#tenantMembersDialog").textContent.includes("Nuevo QA"),{timeout:30000});
+  const docs=await seed.db.collection("businesses/"+BUSINESS+"/members").where("email","==",email).get();assert.equal(docs.size,1);
+  const ref=docs.docs[0].ref,uid=ref.id;assert.equal(docs.docs[0].data().role,"barber");
+  const profile=await seed.db.doc("platform_users/"+uid).get();assert.equal(profile.data().businessId,BUSINESS);
+  await page.evaluate(async(id,uid)=>{await SaaSAuthAdmin.changeBusinessMemberRole(id,uid,"cashier");},BUSINESS,uid);
+  assert.equal((await ref.get()).data().role,"cashier");
+  await page.evaluate(async(id,uid)=>{await SaaSAuthAdmin.setBusinessMemberActive(id,uid,false);},BUSINESS,uid);
+  assert.equal((await ref.get()).data().active,false);
+  await page.evaluate(async(id,uid)=>{await SaaSAuthAdmin.setBusinessMemberActive(id,uid,true);},BUSINESS,uid);
+  assert.equal((await ref.get()).data().active,true);
+  assert.equal(await page.evaluate(async(id,uid)=>{try{await SaaSAuthAdmin.setBusinessMemberActive(id,uid,false);return false;}catch{return true;}},SECOND,seed.users.other.uid),true);
+  assert.equal(await page.evaluate(async(id,uid)=>{try{await SaaSAuthAdmin.changeBusinessMemberRole(id,uid,"barber");return false;}catch{return true;}},BUSINESS,seed.users.owner.uid),true);
+  assert.equal(await page.evaluate(()=>FirebaseBridge.user.uid),seed.users.owner.uid);
+  await page.click("#tenantMembersDialog button");await page.waitForFunction(()=>!document.getElementById("tenantMembersDialog"));
+ }finally{await context.close();}
+});
 for(const role of ["owner","admin","manager","reception","cashier","barber","other"]){
  test("authenticated "+role+" sees only its business and allowed tools",{timeout:90000},async()=>{
  const {page,context}=await openPage(role==="cashier"?390:1366,role==="cashier"?844:900);
