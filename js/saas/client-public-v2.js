@@ -41,7 +41,7 @@ function accountForm(){
   form.append(submit);form.addEventListener("submit",e=>{e.preventDefault();action(submit,async()=>{
     if(authMode==="login")await cloud().login(phone.value,pin.value);else{if(pin.value!==repeat.value)throw Error("Los PIN no coinciden.");await cloud().register(name.value,phone.value,pin.value);}
     if(!cloud().currentClient())throw Error("No se pudo verificar la cuenta.");
-    message("Cuenta verificada.");render();
+    message("Sesión iniciada.");render();
   });});content.append(form,button(authMode==="login"?"Crear cuenta nueva":"Ya tengo cuenta",()=>{authMode=authMode==="login"?"register":"login";render();}));
   if(authMode==="login")content.append(el("p","Si olvidaste tu PIN, contacta directamente al negocio. La recuperación automática aún no está disponible.","client-v2-muted"));
 }
@@ -108,9 +108,9 @@ function renderProfile(){
   const c=cloud().currentClient();if(!c){accountForm();return;}
   const profile=el("article","","client-v2-record client-v2-profile");profile.append(el("strong",c.name),el("p",c.phone),el("strong",(c.points||0)+" puntos · "+(c.visits||0)+" visitas"));if(c.lastVisit)profile.append(el("p","Última visita: "+c.lastVisit));content.append(profile);
   if(!c.linkVerified){const box=el("article","","client-v2-record");box.append(el("strong","Vincular historial anterior"),el("p","Si ya tenías una ficha en este negocio, confirma tu identidad con el personal y muéstrale este código. No compartas tu PIN."),el("strong",c.activationCode||""));content.append(box);}
-  content.append(el("h3","Historial de servicios"));
+  if(data.branding?.clientHistory!==false){content.append(el("h3","Historial de servicios"));
   for(const h of c.serviceHistory||[]){const card=el("article","","client-v2-record");card.append(el("strong",h.service||"Servicio"),el("p",[h.date,h.time,h.professional].filter(Boolean).join(" · ")));content.append(card);}
-  if(!c.serviceHistory?.length)content.append(el("p","Todavía no tienes servicios sincronizados.","client-v2-muted"));
+  if(!c.serviceHistory?.length)content.append(el("p","Todavía no tienes servicios sincronizados.","client-v2-muted"));}
   const out=button("Cerrar sesión",()=>action(out,async()=>{await cloud().logout();bookingId="";route("home");message("Sesión cerrada.");}));content.append(out);
 }
 function render(){if(!root||!root.isConnected)return;headerRender();content.replaceChildren();for(const b of nav.children)b.setAttribute("aria-current",String(b.dataset.view===mode));if(!allowed()){title("Reservas no disponibles","Contacta directamente con el negocio o vuelve a intentar.");content.append(button("Reintentar",()=>refresh()));return;}if(mode==="home")renderHome();else if(mode==="book")renderBook();else if(mode==="appointments")renderAppointments();else renderProfile();}
