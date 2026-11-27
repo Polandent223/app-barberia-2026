@@ -13,7 +13,8 @@ const group=id=>collection(firestore,"public_businesses",id,"client_accounts");
 const clone=v=>JSON.parse(JSON.stringify(v));
 function payload(s,id){if(!s.exists()||s.data().businessId!==id||!s.data().payload)throw Error("Datos de empresa no verificados.");return clone(s.data().payload);}
 function saveCrm(tx,ref,s,data,ctx){tx.update(ref,{businessId:ctx.id,payload:data,updatedAt:serverTimestamp(),updatedBy:auth.currentUser?.email||"",updatedByUid:ctx.uid,syncRevision:Number(s.data().syncRevision||0)+1});}
-function sameValue(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
+function sameValue(a,b){return JSON.stringify(canonical(a))===JSON.stringify(canonical(b));}
 async function reconcile(ctx,uid,verification=null){
  check(ctx);
  return runTransaction(firestore,async tx=>{
@@ -28,6 +29,7 @@ async function reconcile(ctx,uid,verification=null){
   if(verification){c=verifyLink(crm.clients,uid,p,verification.clientId,verification.code,ctx.uid,new Date().toISOString());changed=true;}
   else if(m.kind==="new"){c=makeClient(ctx.id,config.meta?.branchId,uid,p);crm.clients.push(c);changed=true;}
   else if(m.kind!=="linked")return false;
+  if(c.businessId&&c.businessId!==ctx.id||c.firebaseUid!==uid)throw Error("Identidad de cliente incorrecta.");
   if(changed)saveCrm(tx,refs[0],cs,crm,ctx);
   const next=projection(c,uid,schedule,config,S().planCapability?.("clientHistory",S().currentBusiness?.())===true);
   if(Object.keys(next).some(k=>!sameValue(p[k],next[k])))tx.update(refs[3],next);
@@ -70,7 +72,8 @@ function draw(){
  if(!panel){panel=node("div","","panel");panel.id="clientIdentityPanel";page.append(panel);}
  panel.replaceChildren(node("h3","Cuentas de la App Cliente"),node("p","El cliente crea su PIN desde su enlace habitual. Las cuentas nuevas se sincronizan cuando la administración está conectada. Para recuperar una ficha anterior, verifica el teléfono por un canal conocido y el código mostrado en Mi cuenta.","muted"));
  const refresh=button("Actualizar cuentas",async()=>{try{const s=await getDocsFromServer(group(ctx.id));if(context()?.key!==ctx.key)return;accounts=s.docs.map(d=>({uid:d.id,data:d.data()}));ready=true;schedule();draw();}catch(e){failed=e.message||"No se pudo actualizar.";draw();}});
- panel.append(refresh,node("p",failed||(!ready?"Consultando Firebase…":busy?"Sincronizando…":accounts.length+" cuentas registradas"),"muted"));
+ const copy=button("Copiar enlace para activar PIN",async()=>{const url=S().publicBusinessUrl?.();if(!url)return;try{await navigator.clipboard.writeText(url);A()?.toast?.("Enlace copiado.");}catch{prompt("Copia el enlace para tu cliente:",url);}});
+ panel.append(copy,refresh,node("p",failed||(!ready?"Consultando Firebase…":busy?"Sincronizando…":accounts.length+" cuentas registradas"),"muted"));
  for(const row of accounts){
   const m=inspectAccount(A()?.db?.clients||[],row.uid,row.data);
   const duplicate=accounts.some(x=>x.uid!==row.uid&&x.data.status==="Activo"&&x.data.phoneNormalized===row.data.phoneNormalized);
