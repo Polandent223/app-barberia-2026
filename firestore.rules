@@ -271,13 +271,17 @@ service cloud.firestore {
         function hasWriteAudit() {
           let auditId = request.resource.data.get('auditId', 'none');
           let auditPath = /databases/$(database)/documents/businesses/$(businessId)/state_events/$(auditId);
-          return !protectedDomain() || (
+          return !protectedDomain() || validAudit(auditId, auditPath);
+        }
+        function validAudit(auditId, auditPath) {
+          let audit = getAfter(auditPath).data;
+          return (
             auditId is string && auditId.size() > 0 && auditId.size() <= 120 &&
             !exists(auditPath) && existsAfter(auditPath) &&
-            getAfter(auditPath).data.domain == stateName &&
-            getAfter(auditPath).data.revision == request.resource.data.syncRevision &&
-            getAfter(auditPath).data.actorUid == request.auth.uid &&
-            getAfter(auditPath).data.createdAt == request.time
+            audit.domain == stateName &&
+            audit.revision == request.resource.data.syncRevision &&
+            audit.actorUid == request.auth.uid &&
+            audit.createdAt == request.time
           );
         }
         function appendAtMostOne(field) {
@@ -381,16 +385,18 @@ service cloud.firestore {
         }
         function validCorrection(d) {
           let before = get(financePath()).data.payload;
-          let after = getAfter(financePath()).data.payload;
+          let nextFinance = getAfter(financePath()).data;
+          let after = nextFinance.payload;
           let t = totalPath(d.sourceId);
           return d.sourceIndex >= 0 && d.sourceIndex < before.cash.size() &&
             validOriginal(d, before.cash[d.sourceIndex], d.cashEntry) && validRow(d,d.cashEntry) &&
             after.cash == before.cash.concat([d.cashEntry]) && after.sales == before.sales &&
-            getAfter(financePath()).data.updatedAt == request.time &&
+            nextFinance.updatedAt == request.time &&
             d.previousCents == (exists(t) ? get(t).data.cents : 0) &&
-            existsAfter(t) && getAfter(t).data.cents == d.cumulativeCents &&
-            getAfter(t).data.lastCorrectionId == correctionId &&
-            getAfter(t).data.updatedAt == request.time;
+            existsAfter(t) && validNextTotal(d, getAfter(t).data);
+        }
+        function validNextTotal(d, total) {
+          return total.cents == d.cumulativeCents && total.lastCorrectionId == correctionId && total.updatedAt == request.time;
         }
         allow read: if canManageBusiness(businessId);
         allow create: if canCorrectFinance(businessId) &&
