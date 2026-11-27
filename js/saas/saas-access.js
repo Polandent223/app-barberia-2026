@@ -3,7 +3,7 @@ import {firebaseConfig} from "../firebase/firebase-config.js";
 import {firebaseApp,firestore,doc,getDoc,setDoc,serverTimestamp} from "../firebase/firebase-core.js";
 import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {getAuth,createUserWithEmailAndPassword,signOut,deleteUser} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import {collection,getDocs,deleteDoc,updateDoc,getDocFromServer,runTransaction} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
+import {collection,getDocs,getDocsFromServer,deleteDoc,updateDoc,getDocFromServer,runTransaction} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 
 let platformConfig=null,currentProfile=null;
 
@@ -49,12 +49,24 @@ async function createAuthUser(email,password){
   catch(error){try{await deleteApp(app);}catch{}throw error;}
 }
 
+async function memberManager(businessId){
+  const uid=window.FirebaseBridge?.user?.uid;
+  if(!uid||!businessId)throw Error("Inicia sesión para gestionar usuarios.");
+  if(isSuperAdmin())return {uid,role:"superadmin"};
+  if(window.SaaS?.session?.businessId!==businessId)throw Error("Empresa no autorizada.");
+  const snap=await getDocFromServer(doc(firestore,"businesses",businessId,"members",uid));
+  const m=snap.data();
+  if(!m||m.active===false||!["owner","admin"].includes(m.role))throw Error("No tienes permiso para gestionar accesos.");
+  return {uid,role:m.role};
+}
 async function createBusinessMember({businessId,name,email,password,role}){
   const memberRole=String(role||"barber").toLowerCase();
   const allowedRoles=["owner","admin","manager","reception","cashier","barber"];
   if(!businessId||!email||!password||password.length<8)throw new Error("Completa correo y contraseña mínima de 8 caracteres.");
   if(!allowedRoles.includes(memberRole))throw new Error("Rol de usuario inválido.");
-  if(memberRole==="owner"&&!isSuperAdmin())throw new Error("Solo SuperAdmin puede crear otro propietario.");
+  const actor=await memberManager(businessId);
+  if(memberRole==="owner"&&actor.role!=="superadmin")throw Error("Solo SuperAdmin puede crear otro propietario.");
+  if(memberRole==="admin"&&!["owner","superadmin"].includes(actor.role))throw Error("Solo el propietario o SuperAdmin puede crear administradores.");
 
   const secondary=await createAuthUser(email,password);
   const u=secondary.user;
@@ -95,10 +107,29 @@ async function createBusinessMember({businessId,name,email,password,role}){
 }
 
 async function listBusinessMembers(businessId){
-  const s=await getDocs(collection(firestore,"businesses",businessId,"members"));
+  const s=await getDocsFromServer(collection(firestore,"businesses",businessId,"members"));
   return s.docs.map(d=>({id:d.id,...d.data()}));
 }
 
+async function updateManagedMember(businessId,uid,patch){
+  const actor=await memberManager(businessId);
+  if(uid===actor.uid)throw Error("No puedes modificar tu propio acceso.");
+  const ref=doc(firestore,"businesses",businessId,"members",uid);
+  await runTransaction(firestore,async tx=>{
+    const snap=await tx.get(ref),m=snap.data();
+    if(!m||m.role==="owner")throw Error("El acceso del propietario está protegido.");
+    if(actor.role==="admin"&&(m.role==="admin"||patch.role==="admin"))throw Error("No puedes gestionar administradores.");
+    if(patch.role&&!["admin","manager","reception","cashier","barber"].includes(patch.role))throw Error("Rol inválido.");
+    tx.update(ref,{...patch,updatedAt:serverTimestamp()});
+  });
+}
+async function changeBusinessMemberRole(businessId,uid,role){
+  return updateManagedMember(businessId,uid,{role});
+}
+async function setBusinessMemberActive(businessId,uid,active){
+  if(typeof active!=="boolean")throw Error("Estado inválido.");
+  return updateManagedMember(businessId,uid,{active});
+}
 async function removeBusinessMember(businessId,uid){
   await updateDoc(doc(firestore,"businesses",businessId,"members",uid),{active:false,updatedAt:serverTimestamp()});
   try{await updateDoc(doc(firestore,"platform_users",uid),{active:false,updatedAt:serverTimestamp()})}catch{}
@@ -148,10 +179,15 @@ async function repairBusinessUserLinks(){
     const members=await getDocs(collection(firestore,"businesses",business.id,"members"));
     for(const m of members.docs){
       const data=m.data()||{};
-      await setDoc(doc(firestore,"platform_users",m.id),{
-        uid:m.id,email:data.email||"",name:data.name||data.email||"Usuario",role:"business_user",
-        businessId:business.id,active:data.active!==false,updatedAt:serverTimestamp()
-      },{merge:true});
+      const profileRef=doc(firestore,"platform_users",m.id);
+      await runTransaction(firestore,async tx=>{
+        const old=await tx.get(profileRef),p=old.data();
+        if(p&&(p.role!=="business_user"||p.businessId&&p.businessId!==business.id))return;
+        tx.set(profileRef,{
+          uid:m.id,email:data.email||"",name:data.name||data.email||"Usuario",role:"business_user",
+          businessId:business.id,active:p?p.active!==false:true,updatedAt:serverTimestamp()
+        },{merge:true});
+      });
       repaired++;
     }
   }
@@ -181,7 +217,7 @@ async function refreshAccess(){
 }
 
 window.SaaSAuthAdmin={
-  refreshAccess,isSuperAdmin,createBusinessMember,listBusinessMembers,removeBusinessMember,reactivateBusinessMember,myBusinessMemberships,resolveMyBusiness,repairBusinessUserLinks,
+  refreshAccess,isSuperAdmin,createBusinessMember,listBusinessMembers,removeBusinessMember,reactivateBusinessMember,changeBusinessMemberRole,setBusinessMemberActive,myBusinessMemberships,resolveMyBusiness,repairBusinessUserLinks,
   get profile(){return currentProfile},
   get platform(){return platformConfig}
 };
