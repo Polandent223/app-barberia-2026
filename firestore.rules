@@ -539,7 +539,218 @@ service cloud.firestore {
           request.resource.data.clientId == ('client_' + uid) &&
           request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120 &&
           request.resource.data.phone is string && request.resource.data.phone.size() >= 7 && request.resource.data.phone.size() <= 30 &&
-          request.resource.data.phoneNormalized is string && request.resource.data.phoneNormalized.size() >= 7 && request.resource.data.phoneNormalized.size() <= 20 &&
+          request.resource.data.phoneNormalized is string && request.resource.data.phoneNormalized.matches('^[0-9]{7,20}
+        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && request.auth.uid == uid);
+        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+      }
+
+      match /booking_change_requests/{changeId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','type','oldDate','oldTime','newDate','newTime','newSlotId','status','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.type in ['cancel','reschedule'] &&
+          request.resource.data.status == 'Pendiente' && request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
+          exists(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)) &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientUid == request.auth.uid &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientId == request.resource.data.clientId &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.status == 'Aprobada' &&
+          request.resource.data.oldDate == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.date &&
+          request.resource.data.oldTime == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.time &&
+          ((request.resource.data.type == 'cancel' && request.resource.data.newDate == '' && request.resource.data.newTime == '' && !('newSlotId' in request.resource.data)) ||
+           (request.resource.data.type == 'reschedule' &&
+            request.resource.data.newSlotId is string &&
+            request.resource.data.newDate is string && request.resource.data.newDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+            request.resource.data.newTime is string && request.resource.data.newTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+            request.resource.data.newSlotId == (get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.barberId + '_' + request.resource.data.newDate + '_' + request.resource.data.newTime) &&
+            existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)) &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.changeRequestId == changeId &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.bookingRequestId == request.resource.data.bookingRequestId &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.clientUid == request.auth.uid &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.status == 'CambioPendiente'));
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update: if canResolveBooking(businessId) &&
+          resource.data.status == 'Pendiente' &&
+          request.resource.data.status in ['Aprobada','Rechazada'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reason','resolvedAt']);
+        allow delete: if false;
+      }
+
+
+      match /booking_slots/{slotId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','changeRequestId','barberId','date','time','status','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
+          request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+          slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
+          request.resource.data.status in ['Pendiente','CambioPendiente'] &&
+          (
+            (request.resource.data.status == 'Pendiente' &&
+             !('changeRequestId' in request.resource.data) &&
+             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)) &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.slotId == slotId &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientUid == request.auth.uid) ||
+            (request.resource.data.status == 'CambioPendiente' &&
+             request.resource.data.changeRequestId is string &&
+             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)) &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.newSlotId == slotId &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.clientUid == request.auth.uid)
+          );
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+          request.resource.data.status == 'Aprobada' &&
+          resource.data.status in ['Pendiente','CambioPendiente'];
+        allow delete: if canResolveBooking(businessId);
+      }
+
+      match /booking_requests/{requestId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.keys().hasOnly(['name','phone','clientUid','clientId','serviceId','barberId','date','time','note','branchId','status','slotId','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.name == get(clientAccountPath(businessId, request.auth.uid)).data.name &&
+          request.resource.data.phone == get(clientAccountPath(businessId, request.auth.uid)).data.phone &&
+          request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120 &&
+          request.resource.data.phone is string && request.resource.data.phone.size() >= 7 && request.resource.data.phone.size() <= 30 &&
+          request.resource.data.serviceId is string && request.resource.data.serviceId.size() > 0 && request.resource.data.serviceId.size() <= 120 &&
+          request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 && request.resource.data.barberId.size() <= 120 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+          request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
+          request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 &&
+          request.resource.data.slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
+          existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)) &&
+          getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.bookingRequestId == requestId &&
+          getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.clientUid == request.auth.uid &&
+          request.resource.data.status == 'Pendiente';
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','appointmentId','reason','resolvedAt','date','time','slotId']) &&
+          ((resource.data.status == 'Pendiente' && request.resource.data.status in ['Aprobada','Rechazada']) ||
+           (resource.data.status == 'Aprobada' && request.resource.data.status in ['Aprobada','Cancelada','Finalizada']));
+        allow delete: if false;
+      }
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
+) &&
+          businessId.matches('^[A-Za-z0-9_-]{1,80}
+        allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && request.auth.uid == uid);
+        allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
+      }
+
+      match /booking_change_requests/{changeId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','type','oldDate','oldTime','newDate','newTime','newSlotId','status','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.type in ['cancel','reschedule'] &&
+          request.resource.data.status == 'Pendiente' && request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
+          exists(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)) &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientUid == request.auth.uid &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientId == request.resource.data.clientId &&
+          get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.status == 'Aprobada' &&
+          request.resource.data.oldDate == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.date &&
+          request.resource.data.oldTime == get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.time &&
+          ((request.resource.data.type == 'cancel' && request.resource.data.newDate == '' && request.resource.data.newTime == '' && !('newSlotId' in request.resource.data)) ||
+           (request.resource.data.type == 'reschedule' &&
+            request.resource.data.newSlotId is string &&
+            request.resource.data.newDate is string && request.resource.data.newDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+            request.resource.data.newTime is string && request.resource.data.newTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+            request.resource.data.newSlotId == (get(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.barberId + '_' + request.resource.data.newDate + '_' + request.resource.data.newTime) &&
+            existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)) &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.changeRequestId == changeId &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.bookingRequestId == request.resource.data.bookingRequestId &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.clientUid == request.auth.uid &&
+            getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.newSlotId)).data.status == 'CambioPendiente'));
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update: if canResolveBooking(businessId) &&
+          resource.data.status == 'Pendiente' &&
+          request.resource.data.status in ['Aprobada','Rechazada'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reason','resolvedAt']);
+        allow delete: if false;
+      }
+
+
+      match /booking_slots/{slotId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.keys().hasOnly(['clientUid','clientId','bookingRequestId','changeRequestId','barberId','date','time','status','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.bookingRequestId is string && request.resource.data.bookingRequestId.size() > 0 &&
+          request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+          slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
+          request.resource.data.status in ['Pendiente','CambioPendiente'] &&
+          (
+            (request.resource.data.status == 'Pendiente' &&
+             !('changeRequestId' in request.resource.data) &&
+             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)) &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.slotId == slotId &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_requests/$(request.resource.data.bookingRequestId)).data.clientUid == request.auth.uid) ||
+            (request.resource.data.status == 'CambioPendiente' &&
+             request.resource.data.changeRequestId is string &&
+             existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)) &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.newSlotId == slotId &&
+             getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_change_requests/$(request.resource.data.changeRequestId)).data.clientUid == request.auth.uid)
+          );
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+          request.resource.data.status == 'Aprobada' &&
+          resource.data.status in ['Pendiente','CambioPendiente'];
+        allow delete: if canResolveBooking(businessId);
+      }
+
+      match /booking_requests/{requestId} {
+        allow create: if signedIn() && businessActive(businessId) && activeClientAccount(businessId) &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.keys().hasOnly(['name','phone','clientUid','clientId','serviceId','barberId','date','time','note','branchId','status','slotId','createdAt']) &&
+          request.resource.data.clientUid == request.auth.uid &&
+          request.resource.data.clientId == get(clientAccountPath(businessId, request.auth.uid)).data.clientId &&
+          request.resource.data.name == get(clientAccountPath(businessId, request.auth.uid)).data.name &&
+          request.resource.data.phone == get(clientAccountPath(businessId, request.auth.uid)).data.phone &&
+          request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 120 &&
+          request.resource.data.phone is string && request.resource.data.phone.size() >= 7 && request.resource.data.phone.size() <= 30 &&
+          request.resource.data.serviceId is string && request.resource.data.serviceId.size() > 0 && request.resource.data.serviceId.size() <= 120 &&
+          request.resource.data.barberId is string && request.resource.data.barberId.size() > 0 && request.resource.data.barberId.size() <= 120 &&
+          request.resource.data.date is string && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+          request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+          request.resource.data.note is string && request.resource.data.note.size() <= 500 &&
+          request.resource.data.branchId is string && request.resource.data.branchId.size() <= 120 &&
+          request.resource.data.slotId == (request.resource.data.barberId + '_' + request.resource.data.date + '_' + request.resource.data.time) &&
+          existsAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)) &&
+          getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.bookingRequestId == requestId &&
+          getAfter(/databases/$(database)/documents/public_businesses/$(businessId)/booking_slots/$(request.resource.data.slotId)).data.clientUid == request.auth.uid &&
+          request.resource.data.status == 'Pendiente';
+        allow read: if canManageSchedule(businessId) || (signedIn() && resource.data.clientUid == request.auth.uid);
+        allow update: if canResolveBooking(businessId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','appointmentId','reason','resolvedAt','date','time','slotId']) &&
+          ((resource.data.status == 'Pendiente' && request.resource.data.status in ['Aprobada','Rechazada']) ||
+           (resource.data.status == 'Aprobada' && request.resource.data.status in ['Aprobada','Cancelada','Finalizada']));
+        allow delete: if false;
+      }
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
+) &&
+          request.auth.token.get('email', '') == (businessId.lower() + '.' + request.resource.data.phoneNormalized + '@clients.sambrix.app') &&
+          request.resource.data.createdAt == request.time &&
           request.resource.data.status == 'Activo' && request.resource.data.points == 0 && request.resource.data.visits == 0;
         allow read: if isSuperAdmin() || canManageBusiness(businessId) || (signedIn() && request.auth.uid == uid);
         allow update, delete: if isSuperAdmin() || canManageBusiness(businessId);
