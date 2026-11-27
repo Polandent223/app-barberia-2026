@@ -128,7 +128,7 @@ export async function uploadBusinessCatalog(){
       if(!server?.commercialManaged)return b;
       // Legacy autosaves must not undo a confirmed commercial transaction.
       const result={...b};
-      for(const key of ["commercialManaged","planId","nextPayment","status"])if(Object.prototype.hasOwnProperty.call(server,key))result[key]=server[key];
+      for(const key of ["commercialManaged","planId","nextPayment","status","commercialHold","accessSuspended"])if(Object.prototype.hasOwnProperty.call(server,key))result[key]=server[key];
       return result;
     });
     const present=new Set(businesses.map(b=>b.id));
